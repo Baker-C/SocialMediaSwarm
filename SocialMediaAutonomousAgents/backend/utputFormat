@@ -1,0 +1,36 @@
+HTTP/1.1 400 Bad Request
+Date: Thu, 14 May 2026 09:45:35 GMT
+Content-Type: text/html; charset=utf-8
+Content-Length: 138
+Connection: keep-alive
+CF-Ray: 9fb8f88aaa4deb32-SJC
+CF-Cache-Status: DYNAMIC
+Server: cloudflare
+Set-Cookie: AWSALBTG=ZCHVdtc1wLGECpphO642dbnhK8N2N+Ul2F8y1WDMEb/RFmBco83q8wnGf6USpCCT9BoEHN9uJW4sWPjnfIwHIjlVbhQKuhYZpS362voAfPAhTd9Y9S85S+s/moMqIRAKtfFmVTkBmugyXHU7dEI846+y6AR2fcOc9rZzfyiDA6WO; Expires=Thu, 21 May 2026 09:45:35 GMT; Path=/
+Set-Cookie: AWSALBTGCORS=ZCHVdtc1wLGECpphO642dbnhK8N2N+Ul2F8y1WDMEb/RFmBco83q8wnGf6USpCCT9BoEHN9uJW4sWPjnfIwHIjlVbhQKuhYZpS362voAfPAhTd9Y9S85S+s/moMqIRAKtfFmVTkBmugyXHU7dEI846+y6AR2fcOc9rZzfyiDA6WO; Expires=Thu, 21 May 2026 09:45:35 GMT; Path=/; SameSite=None; Secure
+Strict-Transport-Security: max-age=15552000
+Vary: Origin, accept-encoding
+access-control-allow-credentials: true
+content-security-policy: default-src 'none'
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+origin-agent-cluster: ?1
+referrer-policy: no-referrer
+x-content-type-options: nosniff
+x-dns-prefetch-control: off
+x-download-options: noopen
+x-frame-options: DENY
+x-permitted-cross-domain-policies: none
+x-xss-protection: 0
+alt-svc: h3=":443"; ma=86400
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Bad Request</pre>
+</body>
+</html>

@@ -1,0 +1,77 @@
+# Docker-only stack: RavenDB runs separately (~/ravendb/docker-compose.yml).
+
+# Start RavenDB first, then: docker compose up -d --build
+
+services:
+
+  backend:
+
+    build: ./backend
+
+    container_name: social-media-backend
+
+    env_file:
+
+      - ./backend/.env
+
+    environment:
+
+      # Reach RavenDB on the host (Windows/Mac Docker Desktop)
+
+      RAVENDB_URL: https://host.docker.internal
+
+      RAVENDB_CLIENT_CERT: /certs/ravendb-tortellini-soup.instance.crt
+
+      RAVENDB_CLIENT_KEY: /certs/ravendb-tortellini-soup.instance.key
+
+      RUN_SCHEDULER: "true"
+
+      HOURLY_POSTING_ENABLED: "true"
+
+      POST_INTERVAL_MINUTES: "20"
+
+      POST_COOLDOWN_MINUTES: "18"
+
+      POST_LOCK_TTL_SECONDS: "600"
+
+      TICK_PIPELINE_TRACE: "false"
+
+    volumes:
+
+      - ${RAVENDB_CERTS_DIR:-C:/Users/cdbak/ravendb/certs}:/certs:ro
+
+    extra_hosts:
+
+      - "host.docker.internal:host-gateway"
+
+    ports:
+
+      - "8000:8000"
+
+    restart: unless-stopped
+
+
+
+  frontend:
+
+    build: ./frontend
+
+    container_name: social-media-frontend
+
+    environment:
+
+      - REACT_APP_API_URL=http://localhost:8000
+
+      - REACT_APP_POLLING_INTERVAL=5000
+
+    ports:
+
+      - "3000:3000"
+
+    depends_on:
+
+      - backend
+
+    restart: unless-stopped
+
+

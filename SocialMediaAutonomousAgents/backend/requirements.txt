@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+pytest
+httpx
+cryptography
+apscheduler
+tweepy
+click
+anthropic
+crewai>=0.86.0
