@@ -322,33 +322,22 @@ def select_chosen_post_embed_url(row: dict[str, Any]) -> str | None:
 
 def select_chosen_post_media_url(row: dict[str, Any]) -> str | None:
     """
-    URL to append when rewriting a timeline reference.
+    URL to append for a rich preview on X (link card or embedded tweet).
 
-    Prefers native attachment URLs (video, GIF, photo), then external links in the
-    tweet. Does not fall back to the source tweet's X status permalink.
+    X unfurls external article URLs and ``x.com/i/status/…`` permalinks as cards.
+    Raw ``pbs.twimg.com`` / ``video.twimg.com`` CDN links stay plain hyperlinks,
+    so they are never returned here.
     """
     if not isinstance(row, dict):
         return None
 
-    media_raw = row.get("media") or []
-    by_type: dict[str, list[Any]] = {}
-    for item in media_raw:
-        if isinstance(item, dict):
-            mtype = str(item.get("type") or "").strip().lower()
+    for ent in row.get("url_entities") or []:
+        if isinstance(ent, dict):
+            candidate = str(ent.get("expanded_url") or ent.get("url") or "").strip()
         else:
-            mtype = str(getattr(item, "type", "") or "").strip().lower()
-        by_type.setdefault(mtype, []).append(item)
-
-    for preferred in _MEDIA_PRIORITY:
-        for item in by_type.get(preferred, []):
-            url = _media_item_direct_url(item)
-            if url:
-                return url
-
-    for item in media_raw:
-        url = _media_item_direct_url(item)
-        if url:
-            return url
+            candidate = str(getattr(ent, "expanded_url", None) or getattr(ent, "url", None) or "").strip()
+        if candidate and _embed_candidate_url(candidate):
+            return candidate
 
     text = str(row.get("text") or "")
     for match in _TEXT_URL_RE.findall(text):
@@ -356,10 +345,19 @@ def select_chosen_post_media_url(row: dict[str, Any]) -> str | None:
         if candidate and _embed_candidate_url(candidate):
             return candidate
 
-    external = select_post_append_url(row)
-    if external and not _is_x_status_url(external):
-        return external
-    return None
+    permalink = str(row.get("tweet_permalink") or "").strip()
+    for raw in row.get("embed_urls") or []:
+        u = str(raw or "").strip()
+        if not u or u == permalink:
+            continue
+        if _embed_candidate_url(u):
+            return u
+
+    # Photo/video-only posts: tweet permalink embeds the source post (with its media).
+    if row_has_native_media_url(row):
+        return select_chosen_post_embed_url(row)
+
+    return select_chosen_post_embed_url(row)
 
 
 def select_post_append_url(row: dict[str, Any]) -> str | None:

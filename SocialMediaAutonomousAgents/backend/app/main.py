@@ -82,11 +82,13 @@ async def lifespan(app: FastAPI):
         scheduler.start()
         if settings.hourly_posting_enabled:
             interval_m = max(1, int(settings.post_interval_minutes))
+            mode = (settings.scheduler_post_mode or "scheduled").strip().lower()
+            cooldown = "bypass cooldown" if settings.scheduler_bypass_cooldown else "respect cooldown"
             if 60 % interval_m == 0:
                 marks = ",".join(f":{m:02d}" for m in range(0, 60, interval_m))
-                posting = f"posting at {marks} each hour ({settings.scheduler_timezone})"
+                posting = f"{mode} posting at {marks} each hour ({settings.scheduler_timezone}, {cooldown})"
             else:
-                posting = f"posting every {interval_m}m (interval trigger)"
+                posting = f"{mode} posting every {interval_m}m ({cooldown})"
         else:
             posting = "posting (disabled)"
         logger.info(

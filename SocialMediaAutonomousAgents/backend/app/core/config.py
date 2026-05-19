@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     post_interval_minutes: int = 20
     # Min minutes between posts per account (scheduled + force); must be < post_interval_minutes
     post_cooldown_minutes: int = 18
+    # APScheduler posting tick: "force" matches create_forced_post.py; "scheduled" enforces slot idempotency
+    scheduler_post_mode: str = "force"
+    # When true, scheduled ticks bypass POST_COOLDOWN_MINUTES (same as --force-now)
+    scheduler_bypass_cooldown: bool = True
     # RavenDB post-locks/{account_id} TTL while a tick is running
     post_lock_ttl_seconds: int = 600
     anthropic_api_key: str = ""

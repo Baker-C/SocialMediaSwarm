@@ -32,6 +32,10 @@ services:
 
       POST_COOLDOWN_MINUTES: "18"
 
+      SCHEDULER_POST_MODE: "force"
+
+      SCHEDULER_BYPASS_COOLDOWN: "true"
+
       POST_LOCK_TTL_SECONDS: "600"
 
       TICK_PIPELINE_TRACE: "false"

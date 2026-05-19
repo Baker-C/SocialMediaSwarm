@@ -6,19 +6,17 @@ from app.hourly.tweet_topic_preanalysis import GatheredTweet
 
 def test_assemble_formatted_body_structure() -> None:
     body = assemble_formatted_body(
-        "🔥",
         "Big headline",
         "Story line one.",
         "https://x.com/i/status/1",
     )
-    assert body.startswith("🔥 Big headline")
+    assert body.startswith("Big headline")
     assert "\n\nStory line one.\n\nhttps://x.com/i/status/1" in body
 
 
 def test_assemble_truncates_to_fit_280() -> None:
     long_story = "word " * 80
     body = assemble_formatted_body(
-        "📰",
         "Headline " * 20,
         long_story,
         "https://x.com/i/status/99",
@@ -50,6 +48,7 @@ def test_compose_formatted_post_fallback_without_llm() -> None:
     with patch("app.hourly.compose_timeline_post.get_claude_client") as mock_claude:
         mock_claude.return_value.enabled = False
         body = compose_formatted_post(winner, "News")
-    assert "https://pbs.twimg.com/media/ref.jpg" in body
-    assert "https://x.com/i/status/1" not in body
+    assert "https://x.com/i/status/1" in body
+    assert "https://pbs.twimg.com/media/ref.jpg" not in body
     assert len(body) <= 280
+    assert body.split("\n\n")[0]  # headline line has no leading emoji

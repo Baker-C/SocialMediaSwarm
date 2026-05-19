@@ -1,4 +1,4 @@
-"""Assemble Emoji + HEADLINE + Story + source URL posts from timeline references."""
+"""Assemble HEADLINE + story + source URL posts from timeline references."""
 
 from __future__ import annotations
 
@@ -15,24 +15,23 @@ logger = logging.getLogger(__name__)
 _MAX_LEN = 280
 
 
-def _fallback_compose(winner: GatheredTweet, niche: str) -> tuple[str, str, str]:
+def _fallback_compose(winner: GatheredTweet, niche: str) -> tuple[str, str]:
     words = re.sub(r"https?://\S+", "", winner.text)
     words = re.sub(r"#\w+", "", words).strip()
     parts = words.split()
     headline = " ".join(parts[:8])[:60] or f"{niche.strip()} update"
     story = " ".join(parts[:40])[:200] or headline
-    return "📰", headline, story
+    return headline, story
 
 
-def _parse_compose_json(data: dict) -> tuple[str, str, str] | None:
+def _parse_compose_json(data: dict) -> tuple[str, str] | None:
     if not isinstance(data, dict):
         return None
-    emoji = str(data.get("emoji") or "").strip()
     headline = str(data.get("headline") or "").strip()
     story = str(data.get("story") or "").strip()
-    if not emoji or not headline or not story:
+    if not headline or not story:
         return None
-    return emoji[:4], headline[:80], story[:220]
+    return headline[:80], story[:220]
 
 
 def compose_formatted_post(
@@ -42,15 +41,14 @@ def compose_formatted_post(
     regeneration_round: int = 0,
 ) -> str:
     """
-    Build post body: ``{emoji} {headline}\\n\\n{story}\\n\\n{source_url}``.
+    Build post body: ``{headline}\\n\\n{story}\\n\\n{source_url}``.
 
-    Truncates headline/story when needed; source URL (native media or external link) is
-    preserved at the end when present.
+    Truncates headline/story when needed; source URL is preserved at the end when present.
     """
     source_row = {**winner.metrics, "id": winner.tweet_id, "tweet_id": winner.tweet_id}
     source_url = select_chosen_post_media_url(source_row) or ""
     claude = get_claude_client()
-    emoji, headline, story = _fallback_compose(winner, niche)
+    headline, story = _fallback_compose(winner, niche)
 
     if claude.enabled:
         try:
@@ -72,15 +70,14 @@ def compose_formatted_post(
             data = claude.messages_json_dict(system=system, user=user, max_tokens=1024)
             parsed = _parse_compose_json(data) if isinstance(data, dict) else None
             if parsed:
-                emoji, headline, story = parsed
+                headline, story = parsed
         except Exception as exc:
             logger.warning("compose_timeline_post LLM failed: %s", exc)
 
-    return assemble_formatted_body(emoji, headline, story, source_url)
+    return assemble_formatted_body(headline, story, source_url)
 
 
 def assemble_formatted_body(
-    emoji: str,
     headline: str,
     story: str,
     permalink: str,
@@ -89,16 +86,16 @@ def assemble_formatted_body(
 ) -> str:
     """Assemble and fit within X character limit; URL stays at the end when possible."""
     link = (permalink or "").strip()
-    emoji = (emoji or "📰").strip()
     headline = (headline or "").strip()
     story = (story or "").strip()
 
     def build(h: str, s: str) -> str:
-        lead = f"{emoji} {h}".strip()
-        if s:
-            body = f"{lead}\n\n{s}"
+        if h and s:
+            body = f"{h}\n\n{s}"
+        elif h:
+            body = h
         else:
-            body = lead
+            body = s
         if link:
             return f"{body}\n\n{link}" if body else link
         return body
@@ -116,6 +113,6 @@ def assemble_formatted_body(
     if link:
         overhead = len(f"\n\n{link}")
         room = max_len - overhead
-        minimal = f"{emoji} {headline[:40]}".strip()[: max(0, room)]
+        minimal = headline[: max(0, room)].rstrip()
         return f"{minimal}\n\n{link}" if minimal else link[:max_len]
     return candidate[:max_len]

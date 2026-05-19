@@ -75,7 +75,7 @@ def test_hourly_posts_once_per_slot():
     guardian.evaluate.return_value = (True, "")
     from app.services.tick_data_service import TickDataService
 
-    composed = "🔥 Headline\n\nStory.\n\nhttps://x.com/i/status/100"
+    composed = "Headline\n\nStory.\n\nhttps://x.com/i/status/100"
     timeline_payload = {
         "timeline_reference_tweets": [
             {
@@ -142,7 +142,7 @@ def test_pipeline_posts_composed_body_after_safety():
         "reference_errors": [],
     }
     tick_data.merge_reference_pool.side_effect = TickDataService.merge_reference_pool
-    composed = "🔥 Headline\n\nStory.\n\nhttps://x.com/i/status/2056000000000000001"
+    composed = "Headline\n\nStory.\n\nhttps://x.com/i/status/2056000000000000001"
     working = repo.load("a2")
     assert working is not None
     with (
@@ -231,7 +231,7 @@ def test_force_mode_bypasses_slot_guard():
     guardian.evaluate.return_value = (True, "")
     from app.services.tick_data_service import TickDataService
 
-    composed = "🔥 Forced\n\nStory.\n\nhttps://x.com/i/status/200"
+    composed = "Forced\n\nStory.\n\nhttps://x.com/i/status/200"
     timeline_payload = {
         "timeline_reference_tweets": [
             {

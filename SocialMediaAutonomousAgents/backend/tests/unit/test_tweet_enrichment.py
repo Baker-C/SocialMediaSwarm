@@ -106,7 +106,7 @@ def test_row_has_url_includes_native_media() -> None:
     assert row_has_url(row) is True
 
 
-def test_select_chosen_post_media_url_prefers_video() -> None:
+def test_select_chosen_post_media_url_native_media_uses_status_card() -> None:
     row = {
         "id": "100",
         "tweet_permalink": "https://x.com/i/status/100",
@@ -119,16 +119,16 @@ def test_select_chosen_post_media_url_prefers_video() -> None:
             },
         ],
     }
-    assert select_chosen_post_media_url(row) == "https://video.twimg.com/ext_tw_video/1.mp4"
+    assert select_chosen_post_media_url(row) == "https://x.com/i/status/100"
 
 
-def test_select_chosen_post_media_url_photo() -> None:
+def test_select_chosen_post_media_url_photo_uses_status_card() -> None:
     row = {
         "id": "101",
         "tweet_permalink": "https://x.com/i/status/101",
         "media": [{"type": "photo", "url": "https://pbs.twimg.com/media/xyz.jpg"}],
     }
-    assert select_chosen_post_media_url(row) == "https://pbs.twimg.com/media/xyz.jpg"
+    assert select_chosen_post_media_url(row) == "https://x.com/i/status/101"
 
 
 def test_select_chosen_post_media_url_external_not_status() -> None:
@@ -142,13 +142,13 @@ def test_select_chosen_post_media_url_external_not_status() -> None:
     assert select_chosen_post_embed_url(row) == "https://x.com/i/status/99"
 
 
-def test_select_chosen_post_media_url_skips_status_only() -> None:
+def test_select_chosen_post_media_url_status_only() -> None:
     row = {
         "id": "88",
         "tweet_permalink": "https://x.com/i/status/88",
         "embed_urls": ["https://x.com/i/status/88"],
     }
-    assert select_chosen_post_media_url(row) is None
+    assert select_chosen_post_media_url(row) == "https://x.com/i/status/88"
     assert select_post_append_url(row) == "https://x.com/i/status/88"
 
 
