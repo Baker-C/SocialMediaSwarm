@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     environment: str = "development"
     encryption_key: str = ""
     scheduler_timezone: str = "UTC"
+    # Automated posting paused from start hour (inclusive) to end hour (exclusive), e.g. 0–8 = midnight–8 AM
+    post_quiet_hours_enabled: bool = True
+    post_quiet_hours_start: int = 0
+    post_quiet_hours_end: int = 8
     scheduler_misfire_grace_seconds: int = 300
     # When false, this process will not start APScheduler (use on extra uvicorn workers)
     run_scheduler: bool = True
@@ -30,11 +34,11 @@ class Settings(BaseSettings):
     post_lock_ttl_seconds: int = 600
     anthropic_api_key: str = ""
     claude_model: str = "claude-sonnet-4-6"
-    # Buffer GraphQL API (Settings → API); Bearer token for posting when integrated
+    # Buffer GraphQL API (Settings â†’ API); Bearer token for posting when integrated
     buffer_api_key: str = ""
     # Default Buffer organization (same for all accounts unless overridden per account)
     buffer_organization_id: str = ""
-    # X / Twitter OAuth 2.0 app credentials (developer portal → your app → Keys and tokens).
+    # X / Twitter OAuth 2.0 app credentials (developer portal â†’ your app â†’ Keys and tokens).
     # Same pair for all automated accounts; user access/refresh tokens stay per account in RavenDB.
     twitter_oauth2_client_id: str = ""
     twitter_oauth2_client_secret: str = ""

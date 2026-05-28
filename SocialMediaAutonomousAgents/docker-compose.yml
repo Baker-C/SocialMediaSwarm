@@ -32,6 +32,16 @@ services:
 
       POST_COOLDOWN_MINUTES: "18"
 
+      POST_QUIET_HOURS_ENABLED: "true"
+
+      POST_QUIET_HOURS_START: "0"
+
+      POST_QUIET_HOURS_END: "8"
+
+      # IANA zone for scheduler + quiet hours (set to your local zone, e.g. America/New_York)
+
+      SCHEDULER_TIMEZONE: America/New_York
+
       SCHEDULER_POST_MODE: "force"
 
       SCHEDULER_BYPASS_COOLDOWN: "true"
