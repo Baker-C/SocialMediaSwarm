@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     encryption_key: str = ""
     scheduler_timezone: str = "UTC"
-    # Automated posting paused from start hour (inclusive) to end hour (exclusive), e.g. 0–8 = midnight–8 AM
+    # Automated posting paused from start hour (inclusive) to end hour (exclusive), e.g. 0â€“8 = midnightâ€“8 AM
     post_quiet_hours_enabled: bool = True
     post_quiet_hours_start: int = 0
     post_quiet_hours_end: int = 8
@@ -23,9 +23,9 @@ class Settings(BaseSettings):
     # When false, skip the scheduled posting job (forced posts via scripts still work)
     hourly_posting_enabled: bool = True
     # Wall-clock interval between scheduled posting ticks (APScheduler)
-    post_interval_minutes: int = 20
+    post_interval_minutes: int = 18
     # Min minutes between posts per account (scheduled + force); must be < post_interval_minutes
-    post_cooldown_minutes: int = 18
+    post_cooldown_minutes: int = 17
     # APScheduler posting tick: "force" matches create_forced_post.py; "scheduled" enforces slot idempotency
     scheduler_post_mode: str = "force"
     # When true, scheduled ticks bypass POST_COOLDOWN_MINUTES (same as --force-now)
@@ -34,11 +34,11 @@ class Settings(BaseSettings):
     post_lock_ttl_seconds: int = 600
     anthropic_api_key: str = ""
     claude_model: str = "claude-sonnet-4-6"
-    # Buffer GraphQL API (Settings â†’ API); Bearer token for posting when integrated
+    # Buffer GraphQL API (Settings Ã¢â€ â€™ API); Bearer token for posting when integrated
     buffer_api_key: str = ""
     # Default Buffer organization (same for all accounts unless overridden per account)
     buffer_organization_id: str = ""
-    # X / Twitter OAuth 2.0 app credentials (developer portal â†’ your app â†’ Keys and tokens).
+    # X / Twitter OAuth 2.0 app credentials (developer portal Ã¢â€ â€™ your app Ã¢â€ â€™ Keys and tokens).
     # Same pair for all automated accounts; user access/refresh tokens stay per account in RavenDB.
     twitter_oauth2_client_id: str = ""
     twitter_oauth2_client_secret: str = ""

@@ -21,13 +21,13 @@ logger = logging.getLogger(__name__)
 
 
 def _posting_trigger(tz: ZoneInfo, interval_minutes: int):
-    """Fire on clock-aligned boundaries (e.g. :00, :20, :40 for 20-minute intervals)."""
+    """Fire on clock-aligned minute marks when possible, else fixed interval from scheduler start."""
     interval_m = max(1, int(interval_minutes))
-    if 60 % interval_m == 0:
+    if interval_m < 60:
         minute_expr = ",".join(str(m) for m in range(0, 60, interval_m))
         return CronTrigger(minute=minute_expr, timezone=tz)
     logger.warning(
-        "POST_INTERVAL_MINUTES=%s does not divide 60; using interval trigger (not clock-aligned)",
+        "POST_INTERVAL_MINUTES=%s >= 60; using interval trigger",
         interval_m,
     )
     return IntervalTrigger(minutes=interval_m, timezone=tz)
@@ -84,14 +84,14 @@ async def lifespan(app: FastAPI):
             interval_m = max(1, int(settings.post_interval_minutes))
             mode = (settings.scheduler_post_mode or "scheduled").strip().lower()
             cooldown = "bypass cooldown" if settings.scheduler_bypass_cooldown else "respect cooldown"
-            if 60 % interval_m == 0:
+            if interval_m < 60:
                 marks = ",".join(f":{m:02d}" for m in range(0, 60, interval_m))
                 posting = f"{mode} posting at {marks} each hour ({settings.scheduler_timezone}, {cooldown})"
             else:
                 posting = f"{mode} posting every {interval_m}m ({cooldown})"
             if settings.post_quiet_hours_enabled:
                 posting += (
-                    f"; paused {settings.post_quiet_hours_start:02d}:00–"
+                    f"; paused {settings.post_quiet_hours_start:02d}:00â€“"
                     f"{settings.post_quiet_hours_end:02d}:00"
                 )
         else:
