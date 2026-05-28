@@ -15,6 +15,8 @@ class TickInput(BaseModel):
     slot: str
     mode: TickMode = "scheduled"
     account_system_prompt: str = ""
+    account_personality: str = ""
+    negative_semantics: list[str] = Field(default_factory=list)
     max_candidates: int = 5
 
 
