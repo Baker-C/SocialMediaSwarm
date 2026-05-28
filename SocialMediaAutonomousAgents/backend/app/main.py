@@ -91,7 +91,7 @@ async def lifespan(app: FastAPI):
                 posting = f"{mode} posting every {interval_m}m ({cooldown})"
             if settings.post_quiet_hours_enabled:
                 posting += (
-                    f"; paused {settings.post_quiet_hours_start:02d}:00â€“"
+                    f"; paused {settings.post_quiet_hours_start:02d}:00–"
                     f"{settings.post_quiet_hours_end:02d}:00"
                 )
         else:

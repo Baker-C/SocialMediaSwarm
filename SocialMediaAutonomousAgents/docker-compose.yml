@@ -46,6 +46,8 @@ services:
 
       SCHEDULER_BYPASS_COOLDOWN: "true"
 
+      MAX_REGENERATION_ROUNDS: "10"
+
       POST_LOCK_TTL_SECONDS: "600"
 
       TICK_PIPELINE_TRACE: "false"

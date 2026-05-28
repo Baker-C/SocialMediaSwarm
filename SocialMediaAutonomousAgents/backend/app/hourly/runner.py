@@ -18,14 +18,19 @@ from app.hourly.orchestration.slot_claim import (
 )
 from app.hourly.pipeline_trace import trace_step
 from app.hourly.schemas import TickInput, TickMode
+from app.agents.safety_guardian import is_niche_mismatch_reject
 from app.hourly.tweet_topic_preanalysis import (
+    GatheredTweet,
     apply_preanalysis_to_account_bundle,
-    run_reference_preanalysis,
-    select_top_timeline_reference,
+    preanalysis_from_winner,
+    rank_timeline_references,
+    reference_pool_skip_reason,
 )
+from app.services.copied_references import copied_reference_exclude_set, record_copied_reference
 from app.hourly_crew.tools import tick_data as tick_data_tools
 from app.models.tracked_post import PostCreationMetrics
 from app.models.account import AccountDocument
+from app.core.config import settings
 from app.services.account_repository import AccountRepository, current_post_slot_key
 from app.social.tweet_enrichment import filter_rows_with_urls
 
@@ -52,11 +57,16 @@ def build_tick_context(
     mode: TickMode = "scheduled",
     force_account_ids: frozenset[str] | None = None,
     max_candidates: int = 5,
-    max_regeneration_rounds: int = 3,
+    max_regeneration_rounds: int | None = None,
     bypass_post_cooldown: bool = False,
 ) -> TickContext:
     slot = current_post_slot_key()
     now_iso = datetime.now(timezone.utc).isoformat()
+    regen_rounds = (
+        max_regeneration_rounds
+        if max_regeneration_rounds is not None
+        else max(1, int(settings.max_regeneration_rounds))
+    )
     ctx = TickContext(
         repo=repo,
         twitter=twitter,
@@ -69,7 +79,7 @@ def build_tick_context(
         mode=mode,
         force_account_ids=force_account_ids,
         max_candidates=max_candidates,
-        max_regeneration_rounds=max_regeneration_rounds,
+        max_regeneration_rounds=regen_rounds,
         bypass_post_cooldown=bypass_post_cooldown,
         accounts=[],
     )
@@ -81,7 +91,7 @@ def build_tick_context(
             "mode": mode,
             "force_account_ids": list(force_account_ids) if force_account_ids else None,
             "max_candidates": max_candidates,
-            "max_regeneration_rounds": max_regeneration_rounds,
+            "max_regeneration_rounds": regen_rounds,
         },
         handoff_to="phase1_global_setup",
     )
@@ -169,26 +179,30 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
         handoff_to="2a_half_reference_preanalysis",
     )
 
-    topic_preanalysis = run_reference_preanalysis(reference_pool, niche=account.niche)
-    trace_step(aid, "2a_half_reference_preanalysis", topic_preanalysis.model_dump(), handoff_to="apply_preanalysis")
-
-    if topic_preanalysis.skipped:
+    copied_exclude = copied_reference_exclude_set(account)
+    pool_skip = reference_pool_skip_reason(reference_pool, exclude_ids=copied_exclude)
+    if pool_skip:
         release_hourly_slot_reservation(ctx, aid)
         release_post_guard(ctx, aid)
-        out = {"account_id": aid, "skipped": topic_preanalysis.skip_reason or "no_reference_with_urls"}
+        out = {"account_id": aid, "skipped": pool_skip}
         trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
         return out
 
-    bundle_account = apply_preanalysis_to_account_bundle(bundle_account, topic_preanalysis)
-    trace_step(aid, "2a_filtered_bundle", bundle_account, handoff_to="compose_post")
+    ranked_refs = rank_timeline_references(reference_pool, exclude_ids=copied_exclude)
+    max_ref_attempts = max(0, int(settings.max_reference_fallback_attempts))
+    if max_ref_attempts > 0:
+        ranked_refs = ranked_refs[:max_ref_attempts]
 
-    winner = select_top_timeline_reference(reference_pool)
-    if winner is None:
-        release_hourly_slot_reservation(ctx, aid)
-        release_post_guard(ctx, aid)
-        out = {"account_id": aid, "skipped": "no_reference_with_urls"}
-        trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
-        return out
+    trace_step(
+        aid,
+        "2a_reference_ranked",
+        {
+            "count": len(ranked_refs),
+            "top_ids": [t.tweet_id for t in ranked_refs[:5]],
+            "copied_reference_count": len(copied_exclude),
+        },
+        handoff_to="compose_post",
+    )
 
     tick_input = TickInput(
         account_id=account.account_id,
@@ -196,6 +210,8 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
         slot=ctx.slot,
         mode=ctx.mode,
         account_system_prompt=(account.system_prompt or "").strip(),
+        account_personality=(account.personality or "").strip(),
+        negative_semantics=list(account.negative_semantics or []),
         max_candidates=ctx.max_candidates,
     )
     trace_step(aid, "tick_input", tick_input, handoff_to="compose_and_safety")
@@ -203,32 +219,76 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
     last_reject: str | None = None
     selected_body: str | None = None
     selected_round: int | None = None
+    winner: GatheredTweet | None = None
+    topic_preanalysis = None
+    references_tried = 0
 
-    for reg_round in range(ctx.max_regeneration_rounds):
-        body = compose_formatted_post(winner, account.niche, regeneration_round=reg_round)
+    for ref_idx, candidate in enumerate(ranked_refs):
+        winner = candidate
+        topic_preanalysis = preanalysis_from_winner(winner)
+        references_tried += 1
+        bundle_account = apply_preanalysis_to_account_bundle(bundle_account, topic_preanalysis)
         trace_step(
             aid,
-            f"compose_round_{reg_round}",
-            {"body": body, "chosen_embed_url": topic_preanalysis.chosen_embed_url},
-            handoff_to="safety_filter",
+            f"reference_attempt_{ref_idx}",
+            {
+                "tweet_id": winner.tweet_id,
+                "popularity_score": winner.popularity_score,
+                "chosen_embed_url": topic_preanalysis.chosen_embed_url,
+            },
+            handoff_to="compose_and_safety",
         )
-        approved, reject = ctx.guardian.evaluate(body)
-        trace_step(
-            aid,
-            f"safety_round_{reg_round}",
-            {"approved": approved, "reject": reject, "body": body},
-            handoff_to="post_tick" if approved else f"regenerate_round_{reg_round + 1}",
-        )
-        if approved:
-            selected_body = body
-            selected_round = reg_round
+
+        candidate_reject: str | None = None
+        for reg_round in range(ctx.max_regeneration_rounds):
+            body = compose_formatted_post(
+                winner,
+                account.niche,
+                account_system_prompt=(account.system_prompt or "").strip(),
+                account_personality=(account.personality or "").strip(),
+                negative_semantics=list(account.negative_semantics or []),
+                regeneration_round=reg_round,
+                safety_reject_reason=candidate_reject if reg_round > 0 else None,
+            )
+            trace_step(
+                aid,
+                f"compose_r{ref_idx}_round_{reg_round}",
+                {"body": body, "chosen_embed_url": topic_preanalysis.chosen_embed_url},
+                handoff_to="safety_filter",
+            )
+            approved, reject = ctx.guardian.evaluate(body, niche=account.niche)
+            trace_step(
+                aid,
+                f"safety_r{ref_idx}_round_{reg_round}",
+                {"approved": approved, "reject": reject, "body": body},
+                handoff_to="post_tick" if approved else f"regenerate_round_{reg_round + 1}",
+            )
+            if approved:
+                selected_body = body
+                selected_round = reg_round
+                break
+            candidate_reject = reject or "safety_rejected"
+            if is_niche_mismatch_reject(candidate_reject):
+                logger.info(
+                    "reference_attempt niche_mismatch account=%s tweet_id=%s — trying next source",
+                    aid,
+                    winner.tweet_id,
+                )
+                last_reject = candidate_reject
+                break
+
+        if selected_body is not None:
             break
-        last_reject = reject or "safety_rejected"
+        last_reject = candidate_reject or last_reject
 
-    if selected_body is None:
+    if selected_body is None or winner is None or topic_preanalysis is None:
         release_hourly_slot_reservation(ctx, aid)
         release_post_guard(ctx, aid)
-        out = {"account_id": account.account_id, "rejected": last_reject or "all_compose_attempts_failed"}
+        out = {
+            "account_id": account.account_id,
+            "rejected": last_reject or "all_compose_attempts_failed",
+            "references_tried": references_tried,
+        }
         trace_step(aid, "pipeline_rejected", out, handoff_to="(end)")
         return out
 
@@ -264,6 +324,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
         regeneration_round=selected_round,
         earlier_reject=last_reject,
         creation_metrics=creation_metrics,
+        source_reference_tweet_id=source_id,
     )
     trace_step(aid, "post_tick_result", result, handoff_to="(end)")
     return result

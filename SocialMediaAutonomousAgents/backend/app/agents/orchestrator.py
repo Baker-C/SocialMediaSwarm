@@ -8,6 +8,7 @@ from app.hourly.runner import build_tick_context, run_hourly_tick
 from app.services.account_repository import AccountRepository
 from app.services.post_registry import TrackedPostRepository
 from app.services.pulled_tweet_repository import PulledTweetRepository
+from app.core.config import settings
 from app.services.tick_data_service import TickDataService
 from app.services.twitter_service import TwitterService
 
@@ -68,7 +69,7 @@ class Orchestrator:
             mode=mode,
             force_account_ids=force_ids,
             max_candidates=5,
-            max_regeneration_rounds=3,
+            max_regeneration_rounds=max(1, int(settings.max_regeneration_rounds)),
             bypass_post_cooldown=bypass_post_cooldown,
         )
         return run_hourly_tick(ctx)

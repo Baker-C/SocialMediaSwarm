@@ -30,7 +30,7 @@ class TickContext:
     mode: TickMode
     force_account_ids: frozenset[str] | None
     max_candidates: int = 5
-    max_regeneration_rounds: int = 3
+    max_regeneration_rounds: int = 10
     bypass_post_cooldown: bool = False
     accounts: list[AccountDocument] = field(default_factory=list)
     # account_id -> last_post_slot before this tick's reservation (scheduled mode)
