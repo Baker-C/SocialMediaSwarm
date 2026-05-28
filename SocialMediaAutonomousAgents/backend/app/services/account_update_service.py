@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import settings
-from app.models.account import AccountDocument, default_system_prompt
+from app.models.account import AccountDocument, default_negative_semantics, default_system_prompt
 from app.services.account_repository import AccountRepository
 from app.utils.encryption import encrypt_value, fernet_from_key
 
@@ -19,6 +19,8 @@ class AccountUpdateBody(BaseModel):
     twitter_handle: str | None = Field(default=None, max_length=500)
     status: str | None = Field(default=None, max_length=64)
     system_prompt: str | None = Field(default=None, max_length=32000)
+    personality: str | None = Field(default=None, max_length=16000)
+    negative_semantics: list[str] | None = None
     buffer_organization_id: str | None = Field(default=None, max_length=500)
     buffer_channel_id: str | None = Field(default=None, max_length=500)
     followers: int | None = Field(default=None, ge=0)
@@ -54,6 +56,8 @@ def account_edit_view(acc: AccountDocument) -> dict:
         "twitter_handle": acc.twitter_handle or "",
         "status": acc.status or "active",
         "system_prompt": (acc.system_prompt or "").strip() or default_system_prompt(niche),
+        "personality": (acc.personality or "").strip(),
+        "negative_semantics": list(acc.negative_semantics or default_negative_semantics()),
         "buffer_organization_id": acc.buffer_organization_id or "",
         "buffer_channel_id": acc.buffer_channel_id or "",
         "followers": acc.followers,
@@ -95,6 +99,13 @@ def apply_account_update(account_id: str, body: AccountUpdateBody, repo: Account
     if body.system_prompt is not None:
         sp = body.system_prompt.strip()
         data["system_prompt"] = sp if sp else default_system_prompt(niche)
+
+    if body.personality is not None:
+        data["personality"] = body.personality.strip()
+
+    if body.negative_semantics is not None:
+        cleaned = [s.strip() for s in body.negative_semantics if s and str(s).strip()]
+        data["negative_semantics"] = cleaned if cleaned else default_negative_semantics()
 
     if body.followers is not None:
         data["followers"] = body.followers

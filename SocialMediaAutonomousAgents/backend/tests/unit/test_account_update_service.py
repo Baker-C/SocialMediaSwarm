@@ -24,6 +24,9 @@ def test_account_edit_view_has_no_encrypted_fields() -> None:
     view = account_edit_view(acc)
     assert view["account_id"] == "aid"
     assert not any(k.endswith("_enc") for k in view)
+    assert "personality" in view
+    assert isinstance(view["negative_semantics"], list)
+    assert len(view["negative_semantics"]) >= 1
 
 
 def test_apply_updates_niche_without_touching_credentials(monkeypatch: pytest.MonkeyPatch) -> None:

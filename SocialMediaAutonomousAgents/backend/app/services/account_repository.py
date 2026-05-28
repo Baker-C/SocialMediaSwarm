@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from app.core.config import settings
 from app.infrastructure.ravendb_http import RavenDBHttpClient, RavenDBHttpError, get_ravendb_client
-from app.models.account import AccountDocument, default_system_prompt
+from app.models.account import AccountDocument, default_negative_semantics, default_system_prompt
 
 
 def _strip_metadata(doc: dict) -> dict:
@@ -15,7 +15,10 @@ def _strip_metadata(doc: dict) -> dict:
 
 
 def document_to_account(doc: dict) -> AccountDocument:
-    return AccountDocument.model_validate(_strip_metadata(doc))
+    d = _strip_metadata(doc)
+    if not d.get("negative_semantics"):
+        d["negative_semantics"] = default_negative_semantics()
+    return AccountDocument.model_validate(d)
 
 
 def account_to_document(account: AccountDocument) -> dict:
@@ -23,6 +26,8 @@ def account_to_document(account: AccountDocument) -> dict:
     d.pop("@metadata", None)
     if not d.get("system_prompt"):
         d["system_prompt"] = default_system_prompt(d["niche"])
+    if not d.get("negative_semantics"):
+        d["negative_semantics"] = default_negative_semantics()
     return d
 
 
@@ -88,6 +93,7 @@ class AccountRepository:
                 twitter_handle=twitter_handle or "",
                 status=status or "active",
                 system_prompt=default_system_prompt(niche or account_id),
+                negative_semantics=default_negative_semantics(),
                 twitter_api_key_enc=twitter_api_key_enc,
                 twitter_api_secret_enc=twitter_api_secret_enc,
                 twitter_access_token_enc=twitter_access_token_enc,
