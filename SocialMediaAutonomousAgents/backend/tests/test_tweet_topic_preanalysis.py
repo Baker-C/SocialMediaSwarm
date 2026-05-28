@@ -1,18 +1,34 @@
 """Timeline reference selection tests."""
 
 from app.hourly.tweet_topic_preanalysis import (
-    interaction_score,
+    popularity_score,
     run_reference_preanalysis,
     select_top_timeline_reference,
 )
 
 
-def test_interaction_score_sums_engagement() -> None:
-    row = {"like_count": 2, "reply_count": 1, "retweet_count": 3, "quote_count": 0}
-    assert interaction_score(row) == 6
+def test_popularity_score_weighted_ignores_quotes() -> None:
+    row = {
+        "like_count": 10,
+        "reply_count": 2,
+        "retweet_count": 3,
+        "quote_count": 100,
+        "impression_count": 0,
+    }
+    assert popularity_score(row) == 11.2
 
 
-def test_select_top_timeline_reference_picks_highest_engagement() -> None:
+def test_popularity_score_includes_impressions() -> None:
+    row = {
+        "like_count": 0,
+        "reply_count": 0,
+        "retweet_count": 0,
+        "impression_count": 1000,
+    }
+    assert popularity_score(row) == 100.0
+
+
+def test_select_top_timeline_reference_picks_highest_popularity() -> None:
     rows = [
         {"id": "1", "text": "low https://example.com/a", "like_count": 1},
         {"id": "2", "text": "high https://example.com/b", "like_count": 50, "reply_count": 2},
@@ -20,7 +36,17 @@ def test_select_top_timeline_reference_picks_highest_engagement() -> None:
     pick = select_top_timeline_reference(rows)
     assert pick is not None
     assert pick.tweet_id == "2"
-    assert pick.interaction_score == 52
+    assert pick.popularity_score == 36.2
+
+
+def test_select_top_timeline_reference_falls_back_when_top_copied() -> None:
+    rows = [
+        {"id": "1", "text": "top https://example.com/a", "like_count": 100},
+        {"id": "2", "text": "next https://example.com/b", "like_count": 40},
+    ]
+    pick = select_top_timeline_reference(rows, exclude_ids=frozenset({"1"}))
+    assert pick is not None
+    assert pick.tweet_id == "2"
 
 
 def test_run_reference_preanalysis_skipped_when_empty() -> None:
