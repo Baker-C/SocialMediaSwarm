@@ -67,6 +67,8 @@ class AccountDocument(BaseModel):
     last_post_text: str | None = None
     last_post_at: str | None = None
     last_post_views: int | None = None
+    # Source tweet ids this account has already reposted (timeline references, not own post ids)
+    copied_reference_tweet_ids: list[str] = Field(default_factory=list)
 
     @staticmethod
     def document_id(account_id: str) -> str:

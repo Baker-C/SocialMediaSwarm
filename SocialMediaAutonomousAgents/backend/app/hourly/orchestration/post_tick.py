@@ -13,6 +13,7 @@ from app.hourly.orchestration.slot_claim import (
 )
 from app.models.account import AccountDocument
 from app.models.tracked_post import PostCreationMetrics
+from app.services.copied_references import record_copied_reference
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ def finalize_post(
     regeneration_round: int | None,
     earlier_reject: str | None,
     creation_metrics: PostCreationMetrics | None = None,
+    source_reference_tweet_id: str | None = None,
 ) -> dict[str, Any]:
     try:
         tw_result = ctx.twitter.post_tweet(account.account_id, selected_body)
@@ -40,6 +42,7 @@ def finalize_post(
     account.last_post_id = str(tw_result.get("id") or "")
     account.last_post_text = str(tw_result.get("text") or selected_body)
     account.last_post_at = ctx.now_iso
+    record_copied_reference(account, source_reference_tweet_id)
     if ctx.post_registry:
         try:
             ctx.post_registry.record_post(
