@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import App from './App';
 
 const jsonResponse = (body: unknown) =>
@@ -61,24 +61,37 @@ test('renders application title', async () => {
   });
 });
 
-test('shows active account count from dashboard API', async () => {
+test('shows active account count on overview tab', async () => {
   render(<App />);
   await waitFor(() => {
     const overview = screen.getByLabelText('Dashboard overview');
     expect(within(overview).getByText('3')).toBeInTheDocument();
   });
   expect(screen.getByText(/Active accounts/i)).toBeInTheDocument();
+  expect(screen.getByRole('tab', { name: /Overview/i })).toHaveAttribute('aria-selected', 'true');
 });
 
-test('renders an account card from accounts API', async () => {
+test('overview lists accounts with open action', async () => {
   render(<App />);
   const accountsSection = await screen.findByLabelText('Registered accounts');
   await waitFor(() => {
-    expect(within(accountsSection).getByRole('heading', { name: 'demo' })).toBeInTheDocument();
+    expect(within(accountsSection).getByText('demo')).toBeInTheDocument();
   });
   expect(within(accountsSection).getByText('Test niche')).toBeInTheDocument();
-  expect(within(accountsSection).getByText(/Hello world post text/)).toBeInTheDocument();
-  expect(screen.getByRole('heading', { name: 'Accounts', level: 2 })).toBeInTheDocument();
+});
+
+test('account tab shows account details', async () => {
+  render(<App />);
+  await waitFor(() => {
+    expect(screen.queryByText(/Loading API data/i)).not.toBeInTheDocument();
+  });
+
+  fireEvent.click(screen.getByRole('tab', { name: /demo/i }));
+
+  const accountPanel = await screen.findByLabelText('Account demo');
+  expect(within(accountPanel).getByRole('heading', { name: 'demo' })).toBeInTheDocument();
+  expect(within(accountPanel).getByText(/Hello world post text/)).toBeInTheDocument();
+  expect(screen.getByText(/Account · demo/i)).toBeInTheDocument();
 });
 
 test('shows empty state when no accounts', async () => {
@@ -105,4 +118,5 @@ test('shows empty state when no accounts', async () => {
   await waitFor(() => {
     expect(screen.getByText(/No accounts returned from the API/i)).toBeInTheDocument();
   });
+  expect(screen.queryByRole('tab', { name: /demo/i })).not.toBeInTheDocument();
 });
