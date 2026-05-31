@@ -1,6 +1,8 @@
 # Social Media Autonomous Agents — Backend
 
-FastAPI service with RavenDB (`SocialMediaSwarm` at `https://localhost`), encrypted per-account X (OAuth1) credentials, and an in-process **APScheduler** (scheduled posting every `POST_INTERVAL_MINUTES`, default 20; engagement **:05**, metrics **:10** each hour in `SCHEDULER_TIMEZONE`). **New accounts are created only via CLI** (`scripts/add_account.py` / `run_create_account_job`), not via HTTP.
+**Documentation:** [`docs/PROJECT.md`](../../docs/PROJECT.md) (subsystem docs under `docs/subsystems/`). Account provisioning: [ACCOUNT_SETUP](docs/ACCOUNT_SETUP.md).
+
+FastAPI backend with RavenDB and in-process scheduling. **New accounts are CLI-only** (`scripts/add_account.py`), not HTTP.
 
 ## Setup
 
@@ -42,14 +44,6 @@ Forced post (inside the backend container, not on the host):
 ```
 
 Local `uvicorn` is optional for development; do **not** run local `uvicorn` and Docker backend together (duplicate posts). The compose file sets `RUN_SCHEDULER=true` only on the container.
-
-## Database backups
-
-RavenDB **full database backups** are an **operations** concern (Studio scheduled backup, infrastructure snapshots, etc.). The hourly orchestrator **does not** run in-process database exports or binary backups.
-
-## Optional: Claude (Anthropic)
-
-For multi-candidate generation and ranking, set **`ANTHROPIC_API_KEY`** and optionally **`CLAUDE_MODEL`** (see `.env.example`). If unset, the pipeline falls back to deterministic candidate text.
 
 ## Scripts
 

@@ -40,14 +40,14 @@ Or pass `--json-file path/to/account.json` with `account_id`, `niche`, `twitter_
 
 ## Scheduler
 
-With `uvicorn` running, **APScheduler** fires:
+With the backend running, **APScheduler** (when `RUN_SCHEDULER=true`) fires:
 
-- **:00** — hourly posting job (every active account in RavenDB)
-- **:05** — engagement job (placeholder until posts are stored)
+- **Posting** — every `POST_INTERVAL_MINUTES` on aligned minute marks (see `docker-compose.yml` / `.env`)
+- **:05** — engagement poll on tracked posts
 - **:10** — metrics job (placeholder)
 
-Timezone: set **`SCHEDULER_TIMEZONE`** (IANA). Idempotency uses the same zone for the hourly slot key.
+Timezone: **`SCHEDULER_TIMEZONE`** (IANA). Slot idempotency uses the same zone. Details: [`docs/PROJECT.md`](../../../docs/PROJECT.md) → [entry-and-runtime](../../../docs/subsystems/entry-and-runtime.md).
 
 ## Frontend
 
-The React app uses Create React App (`frontend/README.md`). Set **`REACT_APP_API_URL=http://localhost:8000`** when pointing at this backend.
+The React dashboard: [`docs/subsystems/frontend-dashboard.md`](../../../docs/subsystems/frontend-dashboard.md). Set **`REACT_APP_API_URL=http://localhost:8000`** when pointing at this backend.

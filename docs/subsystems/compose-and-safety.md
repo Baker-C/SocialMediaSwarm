@@ -1,0 +1,67 @@
+# Compose and safety
+
+Scope: turning a ranked timeline reference into a post and validating it before publish. Parent: [../PROJECT.md](../PROJECT.md).
+
+## Key paths
+
+| Path | Role |
+|------|------|
+| `SocialMediaAutonomousAgents/backend/app/hourly/compose_timeline_post.py` | `compose_formatted_post`, length budget |
+| `SocialMediaAutonomousAgents/backend/app/agents/safety_guardian.py` | `SafetyGuardian.evaluate` |
+| `SocialMediaAutonomousAgents/backend/app/hourly/tweet_topic_preanalysis.py` | `GatheredTweet`, `preanalysis_from_winner` |
+| `SocialMediaAutonomousAgents/backend/app/hourly/orchestration/voice_polish.py` | Voice heuristics (alternate rank path) |
+| `SocialMediaAutonomousAgents/backend/app/hourly/orchestration/safety_filter.py` | Ranked-candidate selection (not live tick) |
+
+## Live compose path
+
+For each ranked reference, `run_account_pipeline` calls:
+
+1. `compose_formatted_post(winner, niche, account_system_prompt, account_personality, negative_semantics, ...)`
+2. `ctx.guardian.evaluate(body, niche=...)`
+
+Up to `MAX_REGENERATION_ROUNDS` regeneration attempts per reference. If reject reason is `niche_mismatch:*`, tries the **next** reference tweet.
+
+### Output shape
+
+```
+{opinion}
+
+{quip}
+
+{source_media_or_permalink_url}
+```
+
+Total length ≤ 280 characters. Link length is reserved first via `compute_post_length_budget`; the LLM receives separate opinion/quip char caps.
+
+### Prompts
+
+Loaded from `hourly_crew/prompts/tasks/compose_timeline_post.*.md`. Account fields injected:
+
+- `system_prompt`, `personality`, `negative_semantics`
+- Source tweet text, id, popularity score
+- Regeneration hints on safety or length retries
+
+Without Claude, deterministic `_fallback_compose` + shrink-to-budget is used.
+
+## Safety guardian
+
+`SafetyGuardian.evaluate(content, niche)` checks:
+
+| Check | Reject reason |
+|-------|---------------|
+| Length &lt; 10 or &gt; 300 | `too_short` / `too_long` |
+| JSON / prompt leak markers | `prompt_json_leak` |
+| Legacy automation markers | various |
+| Niche fit (Claude + `niche_fit_check` prompts) | `niche_mismatch:{reason}` |
+
+If Claude is disabled, niche fit check is **skipped** (passes unless other rules fail).
+
+## Voice polish (alternate path only)
+
+`voice_polish.py` / `voice_select.py` / `safety_filter.select_from_ranked` support polishing ranked **generated** candidates. The timeline pipeline in `hourly/runner.py` does **not** invoke these modules today.
+
+## Related docs
+
+- Prompt files overview: [hourly-crew-llm](hourly-crew-llm.md)
+- Reference selection: [reference-ingestion](reference-ingestion.md)
+- Post after approval: [hourly-orchestration](hourly-orchestration.md)
