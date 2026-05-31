@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.infrastructure.ravendb_http import RavenDBHttpError
 from app.models.account import AccountDocument
 from app.services.account_repository import AccountRepository
+from app.services.account_create_service import AccountAlreadyExistsError, AccountCreateBody, apply_account_create
 from app.services.account_update_service import AccountUpdateBody, account_edit_view, apply_account_update
 from app.services.pulled_tweet_repository import PulledTweetRepository
 from app.services.ravendb_service import RavenDBService
@@ -17,6 +18,20 @@ pulled_tweets = PulledTweetRepository()
 @router.get("/accounts")
 def get_accounts():
     return service.get_accounts()
+
+
+@router.post("/accounts", status_code=201)
+def create_account(body: AccountCreateBody):
+    """Create a new account with encrypted X credentials."""
+    try:
+        acc = apply_account_create(body, repo=repo)
+    except AccountAlreadyExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RavenDBHttpError as exc:
+        raise HTTPException(status_code=503, detail=f"RavenDB error: {exc}") from exc
+    return {"ok": True, "account_id": acc.account_id}
 
 
 @router.get("/accounts/{account_id}")

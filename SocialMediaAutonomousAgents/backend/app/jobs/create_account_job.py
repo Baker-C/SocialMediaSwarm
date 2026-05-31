@@ -1,4 +1,4 @@
-"""Create or update account documents in RavenDB — invoked from CLI only (not HTTP)."""
+"""Create account documents in RavenDB — invoked from HTTP POST, CLI, or scripts."""
 
 from __future__ import annotations
 

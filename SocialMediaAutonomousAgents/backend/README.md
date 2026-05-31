@@ -2,7 +2,7 @@
 
 **Documentation:** [`docs/PROJECT.md`](../../docs/PROJECT.md) (subsystem docs under `docs/subsystems/`). Account provisioning: [ACCOUNT_SETUP](docs/ACCOUNT_SETUP.md).
 
-FastAPI backend with RavenDB and in-process scheduling. **New accounts are CLI-only** (`scripts/add_account.py`), not HTTP.
+FastAPI backend with RavenDB and in-process scheduling. Accounts can be created and updated via HTTP or CLI (`scripts/add_account.py`).
 
 ## Setup
 
@@ -59,7 +59,10 @@ Local `uvicorn` is optional for development; do **not** run local `uvicorn` and 
 
 - `GET /api/accounts` — redacted list  
 - `GET /api/accounts/{id}`  
+- `POST /api/accounts` — create account with encrypted X credentials (409 if id exists)  
+- `GET /api/accounts/{id}/edit` — non-secret fields for the dashboard form  
+- `PATCH /api/accounts/{id}` — update niche, handle, status, prompts, Buffer ids, credentials  
 - `PATCH /api/accounts/{id}/archive` — set `inactive`  
 - `GET /api/accounts/{id}/status` — `POST /api/accounts/{id}/test`  
 
-Create or change credentials only via **`python scripts/add_account.py`** (or `run_create_account_job` from code).
+CLI upsert (create or replace credentials): **`python scripts/add_account.py`** (or `run_create_account_job` from code).

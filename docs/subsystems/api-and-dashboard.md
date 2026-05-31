@@ -15,6 +15,7 @@ Scope: FastAPI HTTP layer consumed by the React dashboard and operators. Parent:
 | `SocialMediaAutonomousAgents/backend/app/api/routes/metrics.py` | Per-account metrics (stub) |
 | `SocialMediaAutonomousAgents/backend/app/services/ravendb_service.py` | Read models for API responses |
 | `SocialMediaAutonomousAgents/backend/app/services/account_update_service.py` | PATCH account updates from dashboard |
+| `SocialMediaAutonomousAgents/backend/app/services/account_create_service.py` | POST account creation |
 
 ## Middleware
 
@@ -37,13 +38,14 @@ All routes are prefixed with `/api`.
 | GET | `/accounts` | All accounts, **redacted** (no secrets); includes `recent_post`, `has_credentials` |
 | GET | `/accounts/{id}` | Single account summary or 404 |
 | GET | `/accounts/{id}/edit` | Non-secret fields for update modal |
+| POST | `/accounts` | Create account with encrypted X credentials (409 if id exists) |
 | PATCH | `/accounts/{id}` | Update niche, handle, status, prompts, Buffer ids, optional credential rotation |
 | PATCH/DELETE | `/accounts/{id}/archive` | Sets `status=inactive` |
 | GET | `/accounts/{id}/status` | `last_post_slot`, `posts_total` |
 | POST | `/accounts/{id}/test` | Posts a short credential test tweet via X |
 | GET | `/accounts/{id}/pulled-tweets` | Stored reference tweets (`limit`, optional `since`) |
 
-There is **no** `POST /api/accounts` for creation. Use CLI scripts — [ACCOUNT_SETUP](../../SocialMediaAutonomousAgents/backend/docs/ACCOUNT_SETUP.md).
+Account provisioning details: [ACCOUNT_SETUP](../../SocialMediaAutonomousAgents/backend/docs/ACCOUNT_SETUP.md).
 
 ### Dashboard aggregates
 
