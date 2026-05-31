@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- RavenDB reachable at `https://localhost` (or override `RAVENDB_URL`), database `**SocialMediaSwarm**`. If Studio uses a **client certificate**, either set `**RAVENDB_CLIENT_CERT`** / `**RAVENDB_CLIENT_KEY**` in `backend/.env`, or put PEMs under `**%USERPROFILE%\ravendb\certs**` (e.g. `client.pem` plus optional `client.key`) — see `.env.example`.
+- RavenDB reachable at `https://localhost` (or override `RAVENDB_URL`), database `**SocialMediaSwarm**`. If Studio uses a **client certificate**, either set `**RAVENDB_CLIENT_CERT`** / `**RAVENDB_CLIENT_KEY`** in `backend/.env`, or put PEMs under `**%USERPROFILE%\ravendb\certs**` (e.g. `client.pem` plus optional `client.key`) — see `.env.example`.
 - `backend/.env` with a valid `**ENCRYPTION_KEY**` (Fernet, url-safe base64). Generate:
 
 ```bash
@@ -81,4 +81,4 @@ Timezone: `**SCHEDULER_TIMEZONE`** (IANA). Slot idempotency uses the same zone. 
 
 ## Frontend
 
-The React dashboard: `[docs/subsystems/frontend-dashboard.md](../../../docs/subsystems/frontend-dashboard.md)`. Set `**REACT_APP_API_URL=http://localhost:8000**` when pointing at this backend.
+The React dashboard: `[docs/subsystems/frontend-dashboard.md](../../../docs/subsystems/frontend-dashboard.md)`. Set `**REACT_APP_API_URL=http://localhost:8000`** when pointing at this backend.

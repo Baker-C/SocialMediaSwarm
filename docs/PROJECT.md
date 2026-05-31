@@ -103,7 +103,7 @@ Verified from current code:
 | Area | Status |
 |------|--------|
 | Human review queue before posting | Not implemented |
-| `POST /api/accounts` for creation | Not implemented (CLI only) |
+| `POST /api/accounts` for creation | Implemented (`PATCH` for updates) |
 | `GET /api/posts`, `/patterns`, `/metrics/{id}` | Stub endpoints (empty or zeros) |
 | Metrics job (`:10`) | Placeholder — does not populate dashboard `avg_engagement` |
 | Alternate generate→rank pipeline (`hourly_crew/runner.py`) | Implemented but **not** wired into live tick |
