@@ -13,13 +13,13 @@ export function tabKey(id: TabId): string {
 }
 
 export function tabEquals(a: TabId, b: TabId): boolean {
-  if (a.kind !== b.kind) {
-    return false;
-  }
-  if (a.kind === 'overview') {
+  if (a.kind === 'overview' && b.kind === 'overview') {
     return true;
   }
-  return a.accountId === b.accountId;
+  if (a.kind === 'account' && b.kind === 'account') {
+    return a.accountId === b.accountId;
+  }
+  return false;
 }
 
 /** Single place to define sidebar tabs. Add static entries here; accounts are appended. */

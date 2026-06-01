@@ -78,6 +78,8 @@ services:
 
       - REACT_APP_API_URL=http://localhost:8000
 
+      - REACT_APP_PROXY_TARGET=http://backend:8000
+
       - REACT_APP_POLLING_INTERVAL=5000
 
     ports:
