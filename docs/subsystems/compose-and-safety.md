@@ -6,11 +6,11 @@ Scope: turning a ranked timeline reference into a post and validating it before 
 
 | Path | Role |
 |------|------|
-| `SocialMediaAutonomousAgents/backend/app/hourly/compose_timeline_post.py` | `compose_formatted_post`, length budget |
+| `SocialMediaAutonomousAgents/backend/app/interval/compose_timeline_post.py` | `compose_formatted_post`, length budget |
 | `SocialMediaAutonomousAgents/backend/app/agents/safety_guardian.py` | `SafetyGuardian.evaluate` |
-| `SocialMediaAutonomousAgents/backend/app/hourly/tweet_topic_preanalysis.py` | `GatheredTweet`, `preanalysis_from_winner` |
-| `SocialMediaAutonomousAgents/backend/app/hourly/orchestration/voice_polish.py` | Voice heuristics (alternate rank path) |
-| `SocialMediaAutonomousAgents/backend/app/hourly/orchestration/safety_filter.py` | Ranked-candidate selection (not live tick) |
+| `SocialMediaAutonomousAgents/backend/app/interval/tweet_topic_preanalysis.py` | `GatheredTweet`, `preanalysis_from_winner` |
+| `SocialMediaAutonomousAgents/backend/app/interval/orchestration/voice_polish.py` | Voice heuristics (alternate rank path) |
+| `SocialMediaAutonomousAgents/backend/app/interval/orchestration/safety_filter.py` | Ranked-candidate selection (not live tick) |
 
 ## Live compose path
 
@@ -35,7 +35,7 @@ Total length ≤ 280 characters. Link length is reserved first via `compute_post
 
 ### Prompts
 
-Loaded from `hourly_crew/prompts/tasks/compose_timeline_post.*.md`. Account fields injected:
+Loaded from `interval_crew/prompts/tasks/compose_timeline_post.*.md`. Account fields injected:
 
 - `system_prompt`, `personality`, `negative_semantics`
 - Source tweet text, id, popularity score
@@ -58,10 +58,10 @@ If Claude is disabled, niche fit check is **skipped** (passes unless other rules
 
 ## Voice polish (alternate path only)
 
-`voice_polish.py` / `voice_select.py` / `safety_filter.select_from_ranked` support polishing ranked **generated** candidates. The timeline pipeline in `hourly/runner.py` does **not** invoke these modules today.
+`voice_polish.py` / `voice_select.py` / `safety_filter.select_from_ranked` support polishing ranked **generated** candidates. The timeline pipeline in `interval/runner.py` does **not** invoke these modules today.
 
 ## Related docs
 
-- Prompt files overview: [hourly-crew-llm](hourly-crew-llm.md)
+- Prompt files overview: [interval-crew-llm](interval-crew-llm.md)
 - Reference selection: [reference-ingestion](reference-ingestion.md)
-- Post after approval: [hourly-orchestration](hourly-orchestration.md)
+- Post after approval: [interval-orchestration](interval-orchestration.md)

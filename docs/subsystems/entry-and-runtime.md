@@ -8,7 +8,7 @@ Scope: how the backend process starts, schedules work, and is deployed. Parent: 
 |------|------|
 | `SocialMediaAutonomousAgents/backend/app/main.py` | FastAPI app, lifespan, router registration, APScheduler |
 | `SocialMediaAutonomousAgents/backend/app/core/config.py` | Settings from `.env` / environment |
-| `SocialMediaAutonomousAgents/backend/app/jobs/hourly_job.py` | Scheduled posting entry |
+| `SocialMediaAutonomousAgents/backend/app/jobs/interval_job.py` | Scheduled posting entry |
 | `SocialMediaAutonomousAgents/backend/app/jobs/engagement_job.py` | Engagement poll at `:05` each hour |
 | `SocialMediaAutonomousAgents/backend/app/jobs/metrics_job.py` | Metrics batch placeholder at `:10` |
 | `SocialMediaAutonomousAgents/backend/app/infrastructure/scheduler_lock.py` | Single-process scheduler guard |
@@ -24,7 +24,7 @@ flowchart LR
     MAIN[main.py lifespan]
     API[FastAPI /api]
     SCHED[APScheduler]
-    HJ[hourly_job]
+    HJ[interval_job]
     EJ[engagement_job]
     MJ[metrics_job]
 
@@ -47,11 +47,11 @@ Only **one** process should hold the scheduler lock. Set `RUN_SCHEDULER=false` o
 
 | Job ID | Trigger | Handler | Notes |
 |--------|---------|---------|-------|
-| `scheduled_posting` | Cron on minute marks every `POST_INTERVAL_MINUTES` (if &lt; 60), else interval | `run_hourly_job` | Skipped when `HOURLY_POSTING_ENABLED=false` or during [quiet hours](hourly-orchestration.md#quiet-hours) |
+| `scheduled_posting` | Cron on minute marks every `POST_INTERVAL_MINUTES` (if &lt; 60), else interval | `run_interval_job` | Skipped when `INTERVAL_POSTING_ENABLED=false` or during [quiet hours](interval-orchestration.md#quiet-hours) |
 | `engagement_poll` | `:05` each hour | `run_engagement_job` | See [engagement-and-metrics](engagement-and-metrics.md) |
 | `metrics_batch` | `:10` each hour | `run_metrics_job` | Placeholder only |
 
-Posting mode comes from `SCHEDULER_POST_MODE` (`scheduled` vs `force`) and `SCHEDULER_BYPASS_COOLDOWN`. See [hourly-orchestration](hourly-orchestration.md).
+Posting mode comes from `SCHEDULER_POST_MODE` (`scheduled` vs `force`) and `SCHEDULER_BYPASS_COOLDOWN`. See [interval-orchestration](interval-orchestration.md).
 
 ## Docker Compose
 
@@ -64,6 +64,6 @@ RavenDB runs **separately** (not in this compose file). Start RavenDB first, the
 
 ## Related docs
 
-- Tick pipeline: [hourly-orchestration](hourly-orchestration.md)
+- Tick pipeline: [interval-orchestration](interval-orchestration.md)
 - HTTP surface: [api-and-dashboard](api-and-dashboard.md)
 - Account provisioning: [ACCOUNT_SETUP](../../SocialMediaAutonomousAgents/backend/docs/ACCOUNT_SETUP.md)

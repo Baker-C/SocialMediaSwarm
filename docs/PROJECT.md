@@ -10,7 +10,7 @@ A FastAPI backend with an in-process APScheduler autonomously posts plain-text t
 
 | Path | Contents |
 |------|----------|
-| `SocialMediaAutonomousAgents/backend/` | FastAPI app, jobs, hourly pipeline, social layer, RavenDB repos |
+| `SocialMediaAutonomousAgents/backend/` | FastAPI app, jobs, interval pipeline, social layer, RavenDB repos |
 | `SocialMediaAutonomousAgents/frontend/` | React (CRA) operator dashboard |
 | `SocialMediaAutonomousAgents/docker-compose.yml` | Backend + frontend containers |
 | `SocialMediaAutonomousAgents/scripts/` | Host PowerShell helpers (docker up, forced post) |
@@ -21,10 +21,10 @@ A FastAPI backend with an in-process APScheduler autonomously posts plain-text t
 | Doc | Covers | Key entry files |
 |-----|--------|-----------------|
 | [entry-and-runtime](subsystems/entry-and-runtime.md) | Process startup, APScheduler, Docker | `backend/app/main.py`, `backend/app/jobs/*.py` |
-| [hourly-orchestration](subsystems/hourly-orchestration.md) | Tick gateway, guards, slot idempotency | `backend/app/hourly/runner.py`, `backend/app/agents/orchestrator.py` |
+| [interval-orchestration](subsystems/interval-orchestration.md) | Tick gateway, guards, slot idempotency | `backend/app/interval/runner.py`, `backend/app/agents/orchestrator.py` |
 | [reference-ingestion](subsystems/reference-ingestion.md) | Timeline fetch, rank, cache, dedup | `backend/app/services/tick_data_service.py` |
-| [compose-and-safety](subsystems/compose-and-safety.md) | LLM compose, length budget, safety | `backend/app/hourly/compose_timeline_post.py` |
-| [hourly-crew-llm](subsystems/hourly-crew-llm.md) | Prompts, Claude client, alternate generate/rank | `backend/app/hourly_crew/`, `backend/app/infrastructure/claude_client.py` |
+| [compose-and-safety](subsystems/compose-and-safety.md) | LLM compose, length budget, safety | `backend/app/interval/compose_timeline_post.py` |
+| [interval-crew-llm](subsystems/interval-crew-llm.md) | Prompts, Claude client, alternate generate/rank | `backend/app/interval_crew/`, `backend/app/infrastructure/claude_client.py` |
 | [social-x-integration](subsystems/social-x-integration.md) | Tweepy X client, OAuth1/2 | `backend/app/social/implementations/x_client.py` |
 | [persistence-ravendb](subsystems/persistence-ravendb.md) | Documents, repos, encryption | `backend/app/infrastructure/ravendb_http.py` |
 | [engagement-and-metrics](subsystems/engagement-and-metrics.md) | `:05` poll job, metrics placeholder | `backend/app/jobs/engagement_job.py` |
@@ -43,10 +43,10 @@ flowchart TB
     PROJECT[PROJECT.md]
     ENTRY[entry-and-runtime]
     API[api-and-dashboard]
-    ORCH[hourly-orchestration]
+    ORCH[interval-orchestration]
     REF[reference-ingestion]
     COMPOSE[compose-and-safety]
-    CREW[hourly-crew-llm]
+    CREW[interval-crew-llm]
     SOCIAL[social-x-integration]
     RDB[persistence-ravendb]
     ENG[engagement-and-metrics]
@@ -78,21 +78,21 @@ flowchart TB
 
 **Control flow for a scheduled post:**
 
-1. **entry-and-runtime** — APScheduler fires `hourly_job` (respects quiet hours)
-2. **hourly-orchestration** — loads accounts, applies guards, reserves slot
+1. **entry-and-runtime** — APScheduler fires `interval_job` (respects quiet hours)
+2. **interval-orchestration** — loads accounts, applies guards, reserves slot
 3. **reference-ingestion** — fetches timeline via **social-x-integration**, ranks, excludes copied refs
-4. **compose-and-safety** — Claude compose (prompts from **hourly-crew-llm**), safety/niche checks
-5. **hourly-orchestration** — posts via **social-x-integration**, persists to **persistence-ravendb**
+4. **compose-and-safety** — Claude compose (prompts from **interval-crew-llm**), safety/niche checks
+5. **interval-orchestration** — posts via **social-x-integration**, persists to **persistence-ravendb**
 6. **engagement-and-metrics** — later polls views/likes on tracked posts
 
 ## Suggested reading paths
 
 | Goal | Read first | Then |
 |------|------------|------|
-| New contributor | This doc → [entry-and-runtime](subsystems/entry-and-runtime.md) | [hourly-orchestration](subsystems/hourly-orchestration.md) → [reference-ingestion](subsystems/reference-ingestion.md) → [compose-and-safety](subsystems/compose-and-safety.md) |
+| New contributor | This doc → [entry-and-runtime](subsystems/entry-and-runtime.md) | [interval-orchestration](subsystems/interval-orchestration.md) → [reference-ingestion](subsystems/reference-ingestion.md) → [compose-and-safety](subsystems/compose-and-safety.md) |
 | Run the stack | [operations](subsystems/operations.md) | [backend/README](../SocialMediaAutonomousAgents/backend/README.md) |
 | Add an account | [ACCOUNT_SETUP](../SocialMediaAutonomousAgents/backend/docs/ACCOUNT_SETUP.md) | [persistence-ravendb](subsystems/persistence-ravendb.md) |
-| Debug a failed post | [hourly-orchestration](subsystems/hourly-orchestration.md) (skip reasons) | Enable `TICK_PIPELINE_TRACE=true` → [compose-and-safety](subsystems/compose-and-safety.md) |
+| Debug a failed post | [interval-orchestration](subsystems/interval-orchestration.md) (skip reasons) | Enable `TICK_PIPELINE_TRACE=true` → [compose-and-safety](subsystems/compose-and-safety.md) |
 | Dashboard behavior | [frontend-dashboard](subsystems/frontend-dashboard.md) | [api-and-dashboard](subsystems/api-and-dashboard.md) |
 | X API / credentials | [social-x-integration](subsystems/social-x-integration.md) | [ACCOUNT_SETUP](../SocialMediaAutonomousAgents/backend/docs/ACCOUNT_SETUP.md) |
 
@@ -106,7 +106,7 @@ Verified from current code:
 | `POST /api/accounts` for creation | Implemented (`PATCH` for updates) |
 | `GET /api/posts`, `/patterns`, `/metrics/{id}` | Stub endpoints (empty or zeros) |
 | Metrics job (`:10`) | Placeholder — does not populate dashboard `avg_engagement` |
-| Alternate generate→rank pipeline (`hourly_crew/runner.py`) | Implemented but **not** wired into live tick |
+| Alternate generate→rank pipeline (`interval_crew/runner.py`) | Implemented but **not** wired into live tick |
 | Trend tweet search as reference source | Disabled (`TREND_TWEET_SEARCH_ENABLED=false`) |
 | Buffer posting integration | Config + sync scripts exist; live tick posts directly to X |
 | Frontend live polling | `REACT_APP_POLLING_INTERVAL` unused — load-on-mount only |
@@ -122,10 +122,10 @@ All project documentation lives under this tree or is linked below. Paths under 
 |-----|------|
 | [PROJECT.md](PROJECT.md) | This entry point |
 | [subsystems/entry-and-runtime.md](subsystems/entry-and-runtime.md) | Startup, APScheduler, Docker |
-| [subsystems/hourly-orchestration.md](subsystems/hourly-orchestration.md) | Tick gateway, guards, slots |
+| [subsystems/interval-orchestration.md](subsystems/interval-orchestration.md) | Tick gateway, guards, slots |
 | [subsystems/reference-ingestion.md](subsystems/reference-ingestion.md) | Timeline fetch, rank, cache |
 | [subsystems/compose-and-safety.md](subsystems/compose-and-safety.md) | LLM compose, safety checks |
-| [subsystems/hourly-crew-llm.md](subsystems/hourly-crew-llm.md) | Claude client, prompt inventory |
+| [subsystems/interval-crew-llm.md](subsystems/interval-crew-llm.md) | Claude client, prompt inventory |
 | [subsystems/social-x-integration.md](subsystems/social-x-integration.md) | Tweepy X client, OAuth |
 | [subsystems/persistence-ravendb.md](subsystems/persistence-ravendb.md) | Documents, repos, encryption |
 | [subsystems/engagement-and-metrics.md](subsystems/engagement-and-metrics.md) | Engagement poll, metrics job |
@@ -143,7 +143,7 @@ All project documentation lives under this tree or is linked below. Paths under 
 
 ### Runtime assets (not user-facing docs)
 
-LLM prompt templates loaded at runtime: `backend/app/hourly_crew/prompts/` (see [hourly-crew-llm](subsystems/hourly-crew-llm.md) for file inventory). Edit those `.md` files in place; do not treat them as documentation.
+LLM prompt templates loaded at runtime: `backend/app/interval_crew/prompts/` (see [interval-crew-llm](subsystems/interval-crew-llm.md) for file inventory). Edit those `.md` files in place; do not treat them as documentation.
 
 ### Removed / superseded
 

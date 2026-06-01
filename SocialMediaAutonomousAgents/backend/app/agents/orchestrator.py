@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from app.agents.content_creator import ContentCreator
 from app.agents.safety_guardian import SafetyGuardian
-from app.hourly.runner import build_tick_context, run_hourly_tick
+from app.interval.runner import build_tick_context, run_interval_tick
 from app.services.account_repository import AccountRepository
 from app.services.post_registry import TrackedPostRepository
 from app.services.pulled_tweet_repository import PulledTweetRepository
@@ -49,10 +49,10 @@ class Orchestrator:
         bypass_post_cooldown: bool = False,
     ) -> dict:
         """
-        Hourly orchestration entrypoint.
+        Interval orchestration entrypoint.
 
         ``mode="scheduled"`` — APScheduler path; enforces one post per account per slot when applicable.
-        ``mode="force"`` — optional list ``account_ids``; bypasses hourly slot idempotency for those accounts.
+        ``mode="force"`` — optional list ``account_ids``; bypasses interval slot idempotency for those accounts.
         ``bypass_post_cooldown`` — allow posting inside the cooldown window (manual ``--force-now``).
         """
         force_ids = frozenset(account_ids) if account_ids else None
@@ -72,4 +72,4 @@ class Orchestrator:
             max_regeneration_rounds=max(1, int(settings.max_regeneration_rounds)),
             bypass_post_cooldown=bypass_post_cooldown,
         )
-        return run_hourly_tick(ctx)
+        return run_interval_tick(ctx)

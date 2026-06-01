@@ -63,7 +63,7 @@ def account_edit_view(acc: AccountDocument) -> dict:
         "followers": acc.followers,
         "posts_total": acc.posts_total,
         "registered_at": acc.registered_at,
-        "last_post_slot": acc.last_post_slot,
+        "last_interval_slot": acc.last_interval_slot,
         "last_post_id": acc.last_post_id,
         "credential_mode": mode,
     }

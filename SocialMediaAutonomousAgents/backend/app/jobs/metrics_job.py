@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 def run_metrics_job() -> dict:
-    """Placeholder for hourly AccountMetrics batch."""
+    """Placeholder for interval AccountMetrics batch."""
     repo = AccountRepository()
     n = len(repo.list_active())
     logger.debug("metrics_job: %d active accounts", n)

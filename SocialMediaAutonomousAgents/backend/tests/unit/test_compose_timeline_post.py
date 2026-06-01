@@ -2,14 +2,14 @@
 
 from unittest.mock import patch
 
-from app.hourly.compose_timeline_post import (
+from app.interval.compose_timeline_post import (
     COMPOSE_LENGTH_MAX_ATTEMPTS,
     assemble_formatted_body,
     compose_formatted_post,
     compute_post_length_budget,
     fits_post_budget,
 )
-from app.hourly.tweet_topic_preanalysis import GatheredTweet
+from app.interval.tweet_topic_preanalysis import GatheredTweet
 
 
 def test_compute_post_length_budget_reserves_link() -> None:
@@ -54,7 +54,7 @@ def test_compose_retries_until_llm_fits() -> None:
         metrics={"tweet_permalink": "https://x.com/i/status/1"},
     )
 
-    with patch("app.hourly.compose_timeline_post.get_claude_client") as mock_claude:
+    with patch("app.interval.compose_timeline_post.get_claude_client") as mock_claude:
         mock_claude.return_value.enabled = True
         mock_claude.return_value.messages_json_dict.side_effect = [too_long, ok]
         body = compose_formatted_post(winner, "News")
@@ -75,7 +75,7 @@ def test_compose_fallback_without_llm() -> None:
             "media": [{"type": "photo", "url": "https://pbs.twimg.com/media/ref.jpg"}],
         },
     )
-    with patch("app.hourly.compose_timeline_post.get_claude_client") as mock_claude:
+    with patch("app.interval.compose_timeline_post.get_claude_client") as mock_claude:
         mock_claude.return_value.enabled = False
         body = compose_formatted_post(winner, "News")
     assert "https://x.com/i/status/1" in body

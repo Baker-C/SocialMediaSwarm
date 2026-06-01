@@ -14,7 +14,7 @@ from app.api.routes import accounts, posts, patterns, metrics, dashboard, health
 from app.core.config import settings
 from app.infrastructure.scheduler_lock import release_scheduler_lock, try_acquire_scheduler_lock
 from app.jobs.engagement_job import run_engagement_job
-from app.jobs.hourly_job import run_hourly_job
+from app.jobs.interval_job import run_interval_job
 from app.jobs.metrics_job import run_metrics_job
 
 logger = logging.getLogger(__name__)
@@ -41,10 +41,10 @@ def _build_scheduler() -> AsyncIOScheduler:
         tz = ZoneInfo("UTC")
     sched = AsyncIOScheduler(timezone=tz)
     misfire = settings.scheduler_misfire_grace_seconds
-    if settings.hourly_posting_enabled:
+    if settings.interval_posting_enabled:
         interval_m = max(1, int(settings.post_interval_minutes))
         sched.add_job(
-            run_hourly_job,
+            run_interval_job,
             _posting_trigger(tz, interval_m),
             id="scheduled_posting",
             replace_existing=True,
@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI):
     if settings.run_scheduler and try_acquire_scheduler_lock():
         scheduler = _build_scheduler()
         scheduler.start()
-        if settings.hourly_posting_enabled:
+        if settings.interval_posting_enabled:
             interval_m = max(1, int(settings.post_interval_minutes))
             mode = (settings.scheduler_post_mode or "scheduled").strip().lower()
             cooldown = "bypass cooldown" if settings.scheduler_bypass_cooldown else "respect cooldown"

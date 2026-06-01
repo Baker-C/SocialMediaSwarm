@@ -1,5 +1,5 @@
 from app.agents.safety_guardian import SafetyGuardian
-from app.hourly.orchestration.voice_select import select_polished_from_ranked
+from app.interval.orchestration.voice_select import select_polished_from_ranked
 
 
 def test_skips_soft_flag_candidate_and_uses_clean_one():

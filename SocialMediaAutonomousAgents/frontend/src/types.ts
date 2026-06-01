@@ -15,7 +15,7 @@ export type AccountSummary = {
   has_credentials?: boolean;
   registered_at?: string | null;
   follower_growth_vs_registered?: number | null;
-  last_post_slot?: string | null;
+  last_interval_slot?: string | null;
   recent_post?: RecentPost | null;
 };
 
@@ -30,7 +30,7 @@ export type AccountEditPayload = {
   followers: number;
   posts_total: number;
   registered_at?: string | null;
-  last_post_slot?: string | null;
+  last_interval_slot?: string | null;
   last_post_id?: string | null;
   credential_mode: string;
 };

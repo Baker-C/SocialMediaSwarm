@@ -308,7 +308,7 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
 
             <p className="modal-readonly">
               Registered: {formatShortDate(payload.registered_at ?? undefined)} · Last slot:{' '}
-              {payload.last_post_slot ?? '—'}
+              {payload.last_interval_slot ?? '—'}
               {payload.last_post_id ? ` · Last post id ${payload.last_post_id}` : ''}
             </p>
 

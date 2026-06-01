@@ -41,7 +41,7 @@ All routes are prefixed with `/api`.
 | POST | `/accounts` | Create account with encrypted X credentials (409 if id exists) |
 | PATCH | `/accounts/{id}` | Update niche, handle, status, prompts, Buffer ids, optional credential rotation |
 | PATCH/DELETE | `/accounts/{id}/archive` | Sets `status=inactive` |
-| GET | `/accounts/{id}/status` | `last_post_slot`, `posts_total` |
+| GET | `/accounts/{id}/status` | `last_interval_slot`, `posts_total` |
 | POST | `/accounts/{id}/test` | Posts a short credential test tweet via X |
 | GET | `/accounts/{id}/pulled-tweets` | Stored reference tweets (`limit`, optional `since`) |
 

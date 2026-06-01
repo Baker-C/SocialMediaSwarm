@@ -2,8 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
-from app.hourly.runner import build_tick_context, run_account_pipeline
-from app.hourly.tweet_topic_preanalysis import rank_timeline_references
+from app.interval.runner import build_tick_context, run_account_pipeline
+from app.interval.tweet_topic_preanalysis import rank_timeline_references
 from app.models.account import AccountDocument
 from tests.test_orchestrator import FakeRepo
 
@@ -19,7 +19,7 @@ def test_rank_timeline_references_orders_by_popularity() -> None:
 
 
 def test_runner_tries_next_reference_on_niche_mismatch() -> None:
-    from app.hourly.tweet_topic_preanalysis import GatheredTweet
+    from app.interval.tweet_topic_preanalysis import GatheredTweet
     from app.services.tick_data_service import TickDataService
 
     acc = AccountDocument(account_id="a1", niche="Breaking Political News Commentary")
@@ -75,13 +75,13 @@ def test_runner_tries_next_reference_on_niche_mismatch() -> None:
     assert working is not None
 
     with (
-        patch("app.hourly.orchestration.post_guard.PostLockRepository") as lock_cls,
-        patch("app.hourly.runner.current_post_slot_key", return_value="2026-05-19-12"),
-        patch("app.hourly.runner.compose_formatted_post", side_effect=fake_compose),
-        patch("app.hourly.runner.rank_timeline_references", return_value=[viral, political]),
-        patch("app.hourly.runner.copied_reference_exclude_set", return_value=frozenset()),
+        patch("app.interval.orchestration.post_guard.PostLockRepository") as lock_cls,
+        patch("app.interval.runner.current_interval_slot_key", return_value="2026-05-19-12"),
+        patch("app.interval.runner.compose_formatted_post", side_effect=fake_compose),
+        patch("app.interval.runner.rank_timeline_references", return_value=[viral, political]),
+        patch("app.interval.runner.copied_reference_exclude_set", return_value=frozenset()),
         patch(
-            "app.hourly.runner.finalize_post",
+            "app.interval.runner.finalize_post",
             return_value={"account_id": "a1", "tweet": {"id": "99"}},
         ) as fin,
     ):

@@ -46,7 +46,7 @@ def _account_public(acc: AccountDocument) -> dict:
         "has_credentials": _account_has_x_credentials(acc),
         "registered_at": acc.registered_at,
         "follower_growth_vs_registered": follower_growth,
-        "last_post_slot": acc.last_post_slot,
+        "last_interval_slot": acc.last_interval_slot,
         "recent_post": recent_post,
     }
 

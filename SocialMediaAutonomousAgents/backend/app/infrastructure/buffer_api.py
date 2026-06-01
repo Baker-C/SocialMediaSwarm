@@ -176,7 +176,7 @@ def buffer_verify_channel_accessible(
     Ensure ``channel_id`` exists in Buffer for this API key (GraphQL; uses quota).
 
     Prefer resolving org + channel at **account setup** (``scripts/sync_buffer_channels.py``)
-    and local config checks in ``TwitterService``; the hourly job only calls
+    and local config checks in ``TwitterService``; the interval job only calls
     ``buffer_create_queued_post``.
 
     If ``organization_id`` is set, only that organization's channels are loaded.

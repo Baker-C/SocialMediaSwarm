@@ -1,8 +1,8 @@
 import json
 
 from app.agents.safety_guardian import SafetyGuardian
-from app.hourly_crew.context_extract import extract_context_hints
-from app.hourly_crew.llm_pipeline import _fallback_candidates
+from app.interval_crew.context_extract import extract_context_hints
+from app.interval_crew.llm_pipeline import _fallback_candidates
 
 
 def test_extract_context_from_bundle_json():

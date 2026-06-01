@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class TickDataService:
-    """Aggregates X-backed inputs for the hourly content pipeline."""
+    """Aggregates X-backed inputs for the interval content pipeline."""
 
     def __init__(
         self,

@@ -18,7 +18,7 @@ const sampleAccount = {
   has_credentials: true,
   registered_at: '2026-01-01T00:00:00.000Z',
   follower_growth_vs_registered: 42,
-  last_post_slot: '2026-05-13-12',
+  last_interval_slot: '2026-05-13-12',
   recent_post: {
     snippet: 'Hello world post text',
     posted_at: '2026-05-13T11:00:00.000Z',

@@ -1,6 +1,6 @@
 """Account document shape stored in RavenDB (collection Accounts)."""
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 def default_negative_semantics() -> list[str]:
@@ -59,7 +59,10 @@ class AccountDocument(BaseModel):
     # Buffer GraphQL (https://developers.buffer.com/guides/data-model.html)
     buffer_organization_id: str | None = None
     buffer_channel_id: str | None = None
-    last_post_slot: str | None = None
+    last_interval_slot: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("last_interval_slot", "last_post_slot"),
+    )
     # Provenance / dashboard (optional for legacy documents)
     registered_at: str | None = None
     followers_when_registered: int | None = None

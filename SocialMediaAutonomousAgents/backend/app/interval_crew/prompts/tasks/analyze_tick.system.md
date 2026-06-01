@@ -1,0 +1,1 @@
+Analyze the interval tick snapshot for an autonomous social account. Summarize engagement patterns, trend fit, and one actionable insight for the next post. Return JSON: {{"summary": "string", "signals": ["string"]}}.

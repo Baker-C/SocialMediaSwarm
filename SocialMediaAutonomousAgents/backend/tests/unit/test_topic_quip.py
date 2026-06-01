@@ -1,6 +1,6 @@
 """Topic-tailored fallback quips."""
 
-from app.hourly.compose_timeline_post import _topic_tailored_quip
+from app.interval.compose_timeline_post import _topic_tailored_quip
 
 
 def test_crypto_quip() -> None:

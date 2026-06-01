@@ -47,5 +47,5 @@ Timeline fetch uses v2 fields/expansions for text, metrics, media, entities. Rat
 
 - Credential storage: [persistence-ravendb](persistence-ravendb.md)
 - Timeline references: [reference-ingestion](reference-ingestion.md)
-- Posting: [hourly-orchestration](hourly-orchestration.md)
+- Posting: [interval-orchestration](interval-orchestration.md)
 - Account setup: [ACCOUNT_SETUP](../../SocialMediaAutonomousAgents/backend/docs/ACCOUNT_SETUP.md)

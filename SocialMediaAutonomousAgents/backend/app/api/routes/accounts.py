@@ -112,7 +112,7 @@ def account_status(account_id: str):
     return {
         "account_id": acc.account_id,
         "status": acc.status,
-        "last_post_slot": acc.last_post_slot,
+        "last_interval_slot": acc.last_interval_slot,
         "posts_total": acc.posts_total,
     }
 

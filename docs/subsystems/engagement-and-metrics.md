@@ -6,8 +6,8 @@ Scope: background jobs that poll X for posted tweet metrics and placeholder acco
 
 | Path | Role |
 |------|------|
-| `SocialMediaAutonomousAgents/backend/app/jobs/engagement_job.py` | Hourly `:05` poll |
-| `SocialMediaAutonomousAgents/backend/app/jobs/metrics_job.py` | Hourly `:10` placeholder |
+| `SocialMediaAutonomousAgents/backend/app/jobs/engagement_job.py` | Each hour at `:05` poll |
+| `SocialMediaAutonomousAgents/backend/app/jobs/metrics_job.py` | Each hour at `:10` placeholder |
 | `SocialMediaAutonomousAgents/backend/app/services/post_registry.py` | `TrackedPostRepository` |
 | `SocialMediaAutonomousAgents/backend/app/services/twitter_service.py` | `get_tweet_metrics` |
 | `SocialMediaAutonomousAgents/backend/app/models/tracked_post.py` | Stored metrics + `PostCreationMetrics` |
@@ -45,4 +45,4 @@ Stores public metrics (likes, replies, retweets, impressions), optional enrichme
 - Scheduler timing: [entry-and-runtime](entry-and-runtime.md)
 - X metrics API: [social-x-integration](social-x-integration.md)
 - Storage: [persistence-ravendb](persistence-ravendb.md)
-- Post registration: [hourly-orchestration](hourly-orchestration.md)
+- Post registration: [interval-orchestration](interval-orchestration.md)

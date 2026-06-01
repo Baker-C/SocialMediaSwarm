@@ -8,10 +8,10 @@ Scope: fetching timeline tweets, ranking, caching, and deduplication for the pos
 |------|------|
 | `SocialMediaAutonomousAgents/backend/app/services/tick_data_service.py` | `compile_timeline_reference_tweets`, account bundle |
 | `SocialMediaAutonomousAgents/backend/app/services/reference_tweet_cache.py` | In-memory cache per account/slot |
-| `SocialMediaAutonomousAgents/backend/app/hourly/tweet_topic_preanalysis.py` | Rank, preanalysis, skip reasons |
+| `SocialMediaAutonomousAgents/backend/app/interval/tweet_topic_preanalysis.py` | Rank, preanalysis, skip reasons |
 | `SocialMediaAutonomousAgents/backend/app/services/copied_references.py` | Exclude already-reposted source ids |
 | `SocialMediaAutonomousAgents/backend/app/services/pulled_tweet_repository.py` | Persist pulled rows |
-| `SocialMediaAutonomousAgents/backend/app/hourly_crew/tools/tick_data.py` | Thin wrappers used by `hourly/runner.py` |
+| `SocialMediaAutonomousAgents/backend/app/interval_crew/tools/tick_data.py` | Thin wrappers used by `interval/runner.py` |
 | `SocialMediaAutonomousAgents/backend/app/social/tweet_enrichment.py` | `filter_rows_with_urls`, media URL selection |
 
 ## Flow
@@ -76,5 +76,5 @@ After a successful post, `record_copied_reference` appends the source tweet id s
 
 - X timeline API: [social-x-integration](social-x-integration.md)
 - Compose from winner: [compose-and-safety](compose-and-safety.md)
-- Orchestration loop: [hourly-orchestration](hourly-orchestration.md)
+- Orchestration loop: [interval-orchestration](interval-orchestration.md)
 - Storage: [persistence-ravendb](persistence-ravendb.md)

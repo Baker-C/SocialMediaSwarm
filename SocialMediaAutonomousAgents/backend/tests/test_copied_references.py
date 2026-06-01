@@ -1,6 +1,6 @@
 """Copied timeline reference tracking tests."""
 
-from app.hourly.tweet_topic_preanalysis import run_reference_preanalysis, select_top_timeline_reference
+from app.interval.tweet_topic_preanalysis import run_reference_preanalysis, select_top_timeline_reference
 from app.models.account import AccountDocument
 from app.services.copied_references import (
     copied_reference_exclude_set,

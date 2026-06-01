@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
-from app.hourly.context import TickContext
-from app.hourly.orchestration.post_guard import check_post_cooldown, try_begin_post
+from app.interval.context import TickContext
+from app.interval.orchestration.post_guard import check_post_cooldown, try_begin_post
 from app.models.account import AccountDocument
 
 
@@ -25,7 +25,7 @@ def _ctx(*, bypass: bool = False) -> TickContext:
 def test_cooldown_blocks_recent_post():
     recent = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
     acc = AccountDocument(account_id="a1", niche="T", last_post_at=recent)
-    with patch("app.hourly.orchestration.post_guard.settings") as s:
+    with patch("app.interval.orchestration.post_guard.settings") as s:
         s.post_cooldown_minutes = 55
         assert check_post_cooldown(acc, bypass=False) is not None
 
@@ -33,7 +33,7 @@ def test_cooldown_blocks_recent_post():
 def test_cooldown_bypass_flag():
     recent = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
     acc = AccountDocument(account_id="a1", niche="T", last_post_at=recent)
-    with patch("app.hourly.orchestration.post_guard.settings") as s:
+    with patch("app.interval.orchestration.post_guard.settings") as s:
         s.post_cooldown_minutes = 55
         assert check_post_cooldown(acc, bypass=True) is None
 
@@ -51,8 +51,8 @@ def test_try_begin_post_acquires_locks():
     if path.is_dir():
         shutil.rmtree(path, ignore_errors=True)
     with (
-        patch("app.hourly.orchestration.post_guard.PostLockRepository", return_value=lock_repo),
-        patch("app.hourly.orchestration.post_guard.settings") as s,
+        patch("app.interval.orchestration.post_guard.PostLockRepository", return_value=lock_repo),
+        patch("app.interval.orchestration.post_guard.settings") as s,
     ):
         s.post_cooldown_minutes = 0
         s.post_lock_ttl_seconds = 600

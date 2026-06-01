@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from app.hourly.orchestration.voice_polish import (
+from app.interval.orchestration.voice_polish import (
     apply_casual_sentence_starts,
     detect_voice_violations,
     polish_post,
@@ -64,7 +64,7 @@ def test_soft_flag_not_not_staccato():
     assert "contrast_not_not_staccato" in out.violations
 
 
-@patch("app.hourly.orchestration.voice_polish.random.random", return_value=1.0)
+@patch("app.interval.orchestration.voice_polish.random.random", return_value=1.0)
 def test_clean_post_no_soft_flag(_mock_random):
     raw = "Wild how this keeps happening. Same loop, new headline every week."
     out = polish_post(raw)
@@ -93,7 +93,7 @@ def test_casual_sentence_starts_can_leave_caps():
 
 
 @patch(
-    "app.hourly.orchestration.voice_polish.random.random",
+    "app.interval.orchestration.voice_polish.random.random",
     side_effect=[0.0, 1.0, 1.0],
 )
 def test_polish_applies_casual_starts_after_passing_soft_flag(_mock_random):

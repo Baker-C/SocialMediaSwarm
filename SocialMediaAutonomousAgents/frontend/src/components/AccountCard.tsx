@@ -78,8 +78,8 @@ export function AccountCard({ account, onUpdateClick, variant = 'card' }: Accoun
           <dd>{formatShortDate(account.registered_at ?? undefined)}</dd>
         </div>
         <div className="account-card__stat account-card__stat--wide">
-          <dt>Last hourly slot</dt>
-          <dd>{account.last_post_slot ?? '—'}</dd>
+          <dt>Last interval slot</dt>
+          <dd>{account.last_interval_slot ?? '—'}</dd>
         </div>
         {handle ? (
           <div className="account-card__stat account-card__stat--wide">

@@ -146,7 +146,7 @@ class AccountRepository:
         return acc
 
 
-def current_post_slot_key() -> str:
+def current_interval_slot_key() -> str:
     """Idempotency bucket for scheduled posts (aligned to ``post_interval_minutes``)."""
     interval = max(1, int(settings.post_interval_minutes))
     tz = ZoneInfo(settings.scheduler_timezone)

@@ -4,7 +4,7 @@ import logging
 import re
 
 from app.agents.base_agent import BaseAgent
-from app.hourly_crew import prompt_loader
+from app.interval_crew import prompt_loader
 from app.infrastructure.claude_client import get_claude_client
 
 logger = logging.getLogger(__name__)

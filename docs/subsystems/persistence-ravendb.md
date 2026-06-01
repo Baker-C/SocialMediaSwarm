@@ -40,7 +40,7 @@ Docker backend mounts host certs and uses `host.docker.internal` for RavenDB.
 
 Notable fields updated by the pipeline:
 
-- `last_post_slot`, `last_post_id`, `last_post_text`, `last_post_at`, `last_post_views`
+- `last_interval_slot`, `last_post_id`, `last_post_text`, `last_post_at`, `last_post_views`
 - `posts_total`, `followers`
 - `copied_reference_tweet_ids` — source tweets already reposted (max 2000)
 - `system_prompt`, `personality`, `negative_semantics` — compose inputs
