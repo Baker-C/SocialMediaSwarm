@@ -16,6 +16,7 @@ from app.infrastructure.scheduler_lock import release_scheduler_lock, try_acquir
 from app.jobs.engagement_job import run_engagement_job
 from app.jobs.interval_job import run_interval_job
 from app.jobs.metrics_job import run_metrics_job
+from app.jobs.oauth2_refresh_job import run_oauth2_refresh_job
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,16 @@ def _build_scheduler() -> AsyncIOScheduler:
         coalesce=True,
         max_instances=1,
     )
+    if settings.oauth2_refresh_enabled:
+        sched.add_job(
+            run_oauth2_refresh_job,
+            IntervalTrigger(minutes=max(1, int(settings.oauth2_refresh_interval_minutes)), timezone=tz),
+            id="oauth2_refresh",
+            replace_existing=True,
+            misfire_grace_time=misfire,
+            coalesce=True,
+            max_instances=1,
+        )
     return sched
 
 

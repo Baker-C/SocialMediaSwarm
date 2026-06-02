@@ -8,7 +8,7 @@ import pytest
 
 from app.models.account import AccountDocument
 from app.services.twitter_service import TwitterService
-from app.social.credentials import XOAuth1Credentials, XOAuth2UserCredentials
+from app.social.credentials import XOAuth2UserCredentials
 from app.social.dtos import AccountData, CreatedPost, PostData, TrendsResult, TrendItem
 from app.social.enums import SocialPlatform
 from app.social.exceptions import SocialPlatformError
@@ -19,16 +19,7 @@ def _tw(acc: AccountDocument | None = None) -> TwitterService:
     return TwitterService(repo=FakeRepo(acc or AccountDocument(account_id="a1", niche="n")))
 
 
-def _oauth1() -> XOAuth1Credentials:
-    return XOAuth1Credentials(
-        consumer_key="k",
-        consumer_secret="s",
-        access_token="t",
-        access_token_secret="ts",
-    )
-
-
-@patch.object(TwitterService, "_x_credentials", return_value=_oauth1())
+@patch.object(TwitterService, "_x_credentials", return_value=XOAuth2UserCredentials(access_token="tok"))
 def test_get_following_feed_delegates(mock_creds: MagicMock) -> None:
     tw = _tw()
     with patch.object(
@@ -41,7 +32,7 @@ def test_get_following_feed_delegates(mock_creds: MagicMock) -> None:
     assert rows == [{"id": "1"}]
 
 
-@patch.object(TwitterService, "_x_credentials", return_value=_oauth1())
+@patch.object(TwitterService, "_x_credentials", return_value=XOAuth2UserCredentials(access_token="tok"))
 def test_search_tweets_for_trend_builds_query(mock_creds: MagicMock) -> None:
     tw = _tw()
     with patch.object(
@@ -57,7 +48,7 @@ def test_search_tweets_for_trend_builds_query(mock_creds: MagicMock) -> None:
     assert call.args[2] == '"AI News" -is:retweet lang:en'
 
 
-@patch.object(TwitterService, "_x_credentials", return_value=_oauth1())
+@patch.object(TwitterService, "_x_credentials", return_value=XOAuth2UserCredentials(access_token="tok"))
 def test_search_tweets_for_trend_empty_name_returns_empty(mock_creds: MagicMock) -> None:
     tw = _tw()
     with patch.object(tw._social, "search_recent_tweets") as srt:
@@ -65,7 +56,7 @@ def test_search_tweets_for_trend_empty_name_returns_empty(mock_creds: MagicMock)
     srt.assert_not_called()
 
 
-@patch.object(TwitterService, "_x_credentials", return_value=_oauth1())
+@patch.object(TwitterService, "_x_credentials", return_value=XOAuth2UserCredentials(access_token="tok"))
 def test_get_trends_returns_model_dump(mock_creds: MagicMock) -> None:
     tw = _tw()
     tr = TrendsResult(trends=[TrendItem(name="#X")], source="woeid", woeid=1)
@@ -75,7 +66,7 @@ def test_get_trends_returns_model_dump(mock_creds: MagicMock) -> None:
     assert out["trends"][0]["name"] == "#X"
 
 
-@patch.object(TwitterService, "_x_credentials", return_value=_oauth1())
+@patch.object(TwitterService, "_x_credentials", return_value=XOAuth2UserCredentials(access_token="tok"))
 def test_get_tweet_metrics_delegates(mock_creds: MagicMock) -> None:
     tw = _tw()
     post = PostData(id="55", text="t", like_count=3)
@@ -86,7 +77,7 @@ def test_get_tweet_metrics_delegates(mock_creds: MagicMock) -> None:
     assert out["like_count"] == 3
 
 
-@patch.object(TwitterService, "_x_credentials", return_value=_oauth1())
+@patch.object(TwitterService, "_x_credentials", return_value=XOAuth2UserCredentials(access_token="tok"))
 def test_get_account_data_uses_handle_when_no_username(mock_creds: MagicMock) -> None:
     acc = AccountDocument(account_id="a1", niche="n", twitter_handle="@myhandle")
     tw = TwitterService(repo=FakeRepo(acc))
@@ -97,14 +88,14 @@ def test_get_account_data_uses_handle_when_no_username(mock_creds: MagicMock) ->
     assert out["username"] == "myhandle"
 
 
-@patch.object(TwitterService, "_x_credentials", return_value=_oauth1())
+@patch.object(TwitterService, "_x_credentials", return_value=XOAuth2UserCredentials(access_token="tok"))
 def test_verify_api_health_success(mock_creds: MagicMock) -> None:
     tw = _tw()
     with patch.object(tw._social, "get_account_data", return_value=AccountData(id="1", username="u")):
         assert tw.verify_api_health("a1") == []
 
 
-@patch.object(TwitterService, "_x_credentials", return_value=_oauth1())
+@patch.object(TwitterService, "_x_credentials", return_value=XOAuth2UserCredentials(access_token="tok"))
 def test_verify_api_health_failure(mock_creds: MagicMock) -> None:
     tw = _tw()
     err = SocialPlatformError("unauthorized", vendor="x", cause=RuntimeError("401"))

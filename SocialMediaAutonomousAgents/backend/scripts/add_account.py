@@ -20,14 +20,10 @@ from app.jobs.create_account_job import CreateAccountJobError, run_create_accoun
 @click.option("--account-id", default=None)
 @click.option("--niche", default=None)
 @click.option("--twitter-handle", default="")
-@click.option("--twitter-api-key", default=None, help="OAuth1 consumer / API key")
-@click.option("--twitter-api-secret", default=None)
-@click.option("--twitter-access-token", default=None)
-@click.option("--twitter-access-token-secret", default=None)
 @click.option(
     "--twitter-oauth2-access-token",
     default=None,
-    help="OAuth 2.0 user access token (Bearer). When set, OAuth1 flags are not required.",
+    help="OAuth 2.0 user access token (Bearer). Required.",
 )
 @click.option("--twitter-oauth2-refresh-token", default=None, help="OAuth 2.0 refresh token (optional)")
 @click.option("--json-file", type=click.Path(exists=True, dir_okay=False), default=None)
@@ -35,10 +31,6 @@ def main(
     account_id: str | None,
     niche: str | None,
     twitter_handle: str,
-    twitter_api_key: str | None,
-    twitter_api_secret: str | None,
-    twitter_access_token: str | None,
-    twitter_access_token_secret: str | None,
     twitter_oauth2_access_token: str | None,
     twitter_oauth2_refresh_token: str | None,
     json_file: str | None,
@@ -49,10 +41,6 @@ def main(
         account_id = payload["account_id"]
         niche = payload.get("niche")
         twitter_handle = payload.get("twitter_handle", "")
-        twitter_api_key = payload.get("twitter_api_key")
-        twitter_api_secret = payload.get("twitter_api_secret")
-        twitter_access_token = payload.get("twitter_access_token")
-        twitter_access_token_secret = payload.get("twitter_access_token_secret")
         twitter_oauth2_access_token = payload.get("twitter_oauth2_access_token")
         twitter_oauth2_refresh_token = payload.get("twitter_oauth2_refresh_token")
     if not account_id:
@@ -62,10 +50,6 @@ def main(
             account_id=account_id,
             niche=niche,
             twitter_handle=twitter_handle or "",
-            twitter_api_key=twitter_api_key,
-            twitter_api_secret=twitter_api_secret,
-            twitter_access_token=twitter_access_token,
-            twitter_access_token_secret=twitter_access_token_secret,
             twitter_oauth2_access_token=twitter_oauth2_access_token,
             twitter_oauth2_refresh_token=twitter_oauth2_refresh_token,
         )

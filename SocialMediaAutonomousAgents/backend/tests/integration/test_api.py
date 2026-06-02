@@ -28,7 +28,7 @@ def test_account_edit_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
     assert response.status_code == 404
 
 
-def test_account_patch_oauth1_partial_returns_400(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_account_patch_ignores_removed_oauth1_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.models.account import AccountDocument
 
     mock_repo = MagicMock()
@@ -43,9 +43,7 @@ def test_account_patch_oauth1_partial_returns_400(monkeypatch: pytest.MonkeyPatc
         "/api/accounts/u",
         json={"twitter_api_key": "only-one"},
     )
-    assert response.status_code == 400
-    body = response.json()
-    assert "detail" in body
+    assert response.status_code == 200
 
 
 def test_account_create_conflict_returns_409(monkeypatch: pytest.MonkeyPatch) -> None:

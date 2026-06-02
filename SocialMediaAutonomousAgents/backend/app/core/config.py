@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # Same pair for all automated accounts; user access/refresh tokens stay per account in RavenDB.
     twitter_oauth2_client_id: str = ""
     twitter_oauth2_client_secret: str = ""
+    oauth2_refresh_enabled: bool = True
+    oauth2_refresh_interval_minutes: int = 30
+    oauth2_refresh_batch_size: int = 200
     # Trends: try X personalized trends for the authenticated user before WOEID fallback
     trends_prefer_personalized: bool = True
     trends_fallback_woeid: int = 1

@@ -29,7 +29,7 @@ def test_create_requires_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
             return None
 
     body = AccountCreateBody(account_id="new-one")
-    with pytest.raises(ValueError, match="OAuth1"):
+    with pytest.raises(ValueError, match="oauth2_access_token"):
         apply_account_create(body, repo=R())
 
 

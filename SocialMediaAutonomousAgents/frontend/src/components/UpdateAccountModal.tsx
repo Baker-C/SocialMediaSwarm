@@ -22,12 +22,6 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
   const [systemPrompt, setSystemPrompt] = useState('');
   const [followers, setFollowers] = useState(0);
   const [postsTotal, setPostsTotal] = useState(0);
-  const [bufferOrg, setBufferOrg] = useState('');
-  const [bufferChannel, setBufferChannel] = useState('');
-  const [twitterApiKey, setTwitterApiKey] = useState('');
-  const [twitterApiSecret, setTwitterApiSecret] = useState('');
-  const [twitterAccessToken, setTwitterAccessToken] = useState('');
-  const [twitterAccessTokenSecret, setTwitterAccessTokenSecret] = useState('');
   const [twitterOauth2Access, setTwitterOauth2Access] = useState('');
   const [twitterOauth2Refresh, setTwitterOauth2Refresh] = useState('');
   const [saving, setSaving] = useState(false);
@@ -57,12 +51,6 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
         setSystemPrompt(data.system_prompt ?? '');
         setFollowers(typeof data.followers === 'number' ? data.followers : 0);
         setPostsTotal(typeof data.posts_total === 'number' ? data.posts_total : 0);
-        setBufferOrg(data.buffer_organization_id ?? '');
-        setBufferChannel(data.buffer_channel_id ?? '');
-        setTwitterApiKey('');
-        setTwitterApiSecret('');
-        setTwitterAccessToken('');
-        setTwitterAccessTokenSecret('');
         setTwitterOauth2Access('');
         setTwitterOauth2Refresh('');
         setSaveError('');
@@ -90,14 +78,8 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
         twitter_handle: twitterHandle,
         status,
         system_prompt: systemPrompt,
-        buffer_organization_id: bufferOrg,
-        buffer_channel_id: bufferChannel,
         followers,
         posts_total: postsTotal,
-        twitter_api_key: twitterApiKey,
-        twitter_api_secret: twitterApiSecret,
-        twitter_access_token: twitterAccessToken,
-        twitter_access_token_secret: twitterAccessTokenSecret,
         twitter_oauth2_access_token: twitterOauth2Access,
         twitter_oauth2_refresh_token: twitterOauth2Refresh,
       };
@@ -211,77 +193,9 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
               </label>
             </div>
 
-            <label className="modal-field">
-              <span>Buffer organization id (optional)</span>
-              <input
-                value={bufferOrg}
-                onChange={(ev) => setBufferOrg(ev.target.value)}
-                placeholder="Optional"
-                autoComplete="off"
-              />
-            </label>
-
-            <label className="modal-field">
-              <span>Buffer channel id (optional)</span>
-              <input
-                value={bufferChannel}
-                onChange={(ev) => setBufferChannel(ev.target.value)}
-                placeholder="Optional"
-                autoComplete="off"
-              />
-            </label>
-
-            <fieldset className="modal-fieldset">
-              <legend>OAuth 1.0a (X API key + user token)</legend>
-              <p className="modal-hint">
-                Stored keys are never shown. Use these fields only to replace all four values at once.
-              </p>
-              <label className="modal-field">
-                <span>API key (consumer key)</span>
-                <input
-                  type="password"
-                  value={twitterApiKey}
-                  onChange={(ev) => setTwitterApiKey(ev.target.value)}
-                  placeholder={SECRET_PLACEHOLDER}
-                  autoComplete="off"
-                />
-              </label>
-              <label className="modal-field">
-                <span>API secret (consumer secret)</span>
-                <input
-                  type="password"
-                  value={twitterApiSecret}
-                  onChange={(ev) => setTwitterApiSecret(ev.target.value)}
-                  placeholder={SECRET_PLACEHOLDER}
-                  autoComplete="off"
-                />
-              </label>
-              <label className="modal-field">
-                <span>Access token</span>
-                <input
-                  type="password"
-                  value={twitterAccessToken}
-                  onChange={(ev) => setTwitterAccessToken(ev.target.value)}
-                  placeholder={SECRET_PLACEHOLDER}
-                  autoComplete="off"
-                />
-              </label>
-              <label className="modal-field">
-                <span>Access token secret</span>
-                <input
-                  type="password"
-                  value={twitterAccessTokenSecret}
-                  onChange={(ev) => setTwitterAccessTokenSecret(ev.target.value)}
-                  placeholder={SECRET_PLACEHOLDER}
-                  autoComplete="off"
-                />
-              </label>
-            </fieldset>
-
             <fieldset className="modal-fieldset">
               <legend>OAuth 2.0 user (Bearer access)</legend>
               <p className="modal-hint">
-                If you paste a new user access token here, OAuth 1.0a fields on the account are cleared.
                 Leave both blank to keep the current OAuth2 tokens.
               </p>
               <label className="modal-field">

@@ -24,22 +24,12 @@ def run_create_account_job(
     account_id: str,
     niche: str | None = None,
     twitter_handle: str = "",
-    twitter_api_key: str | None = None,
-    twitter_api_secret: str | None = None,
-    twitter_access_token: str | None = None,
-    twitter_access_token_secret: str | None = None,
     twitter_oauth2_access_token: str | None = None,
     twitter_oauth2_refresh_token: str | None = None,
     repo: AccountRepository | None = None,
 ) -> AccountDocument:
     """
-    Upsert one account with encrypted X credentials.
-
-    **OAuth 2.0 user context** — when ``twitter_oauth2_access_token`` is non-empty:
-    encrypts access (and optional refresh) token, clears OAuth1 credential fields.
-
-    **OAuth 1.0a** — otherwise requires all four OAuth1 plaintext fields and clears
-    OAuth2 token fields on the document.
+    Upsert one account with encrypted OAuth2 X credentials.
     """
     aid = (account_id or "").strip()
     if not aid:
@@ -54,57 +44,20 @@ def run_create_account_job(
     r = repo or AccountRepository()
 
     oauth2_access = (twitter_oauth2_access_token or "").strip()
-    if oauth2_access:
-        enc_oauth2: dict[str, str | None] = {
-            "twitter_oauth2_access_token_enc": encrypt_value(f, oauth2_access),
-        }
-        ref = (twitter_oauth2_refresh_token or "").strip()
-        if ref:
-            enc_oauth2["twitter_oauth2_refresh_token_enc"] = encrypt_value(f, ref)
-        acc = r.upsert_credentials(
-            aid,
-            niche=niche,
-            twitter_handle=twitter_handle or None,
-            status="active",
-            twitter_api_key_enc=None,
-            twitter_api_secret_enc=None,
-            twitter_access_token_enc=None,
-            twitter_access_token_secret_enc=None,
-            **enc_oauth2,
-            clear_twitter_oauth1=True,
-        )
-        logger.info("create_account_job: upserted account_id=%s (OAuth2 user token)", acc.account_id)
-        return acc
-
-    missing = [
-        n
-        for n, v in [
-            ("twitter_api_key", twitter_api_key),
-            ("twitter_api_secret", twitter_api_secret),
-            ("twitter_access_token", twitter_access_token),
-            ("twitter_access_token_secret", twitter_access_token_secret),
-        ]
-        if not v
-    ]
-    if missing:
-        raise CreateAccountJobError(
-            "Account requires OAuth1: " + ", ".join(missing)
-            + " — or pass twitter_oauth2_access_token for OAuth 2.0 user context."
-        )
-
-    enc = {
-        "twitter_api_key_enc": encrypt_value(f, twitter_api_key or ""),
-        "twitter_api_secret_enc": encrypt_value(f, twitter_api_secret or ""),
-        "twitter_access_token_enc": encrypt_value(f, twitter_access_token or ""),
-        "twitter_access_token_secret_enc": encrypt_value(f, twitter_access_token_secret or ""),
+    if not oauth2_access:
+        raise CreateAccountJobError("twitter_oauth2_access_token is required")
+    enc_oauth2: dict[str, str | None] = {
+        "twitter_oauth2_access_token_enc": encrypt_value(f, oauth2_access),
     }
+    ref = (twitter_oauth2_refresh_token or "").strip()
+    if ref:
+        enc_oauth2["twitter_oauth2_refresh_token_enc"] = encrypt_value(f, ref)
     acc = r.upsert_credentials(
         aid,
         niche=niche,
         twitter_handle=twitter_handle or None,
         status="active",
-        **enc,
-        clear_twitter_oauth2=True,
+        **enc_oauth2,
     )
-    logger.info("create_account_job: upserted account_id=%s (OAuth1)", acc.account_id)
+    logger.info("create_account_job: upserted account_id=%s (OAuth2 user token)", acc.account_id)
     return acc

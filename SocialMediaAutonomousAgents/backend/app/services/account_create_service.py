@@ -22,12 +22,6 @@ class AccountCreateBody(BaseModel):
     system_prompt: str | None = Field(default=None, max_length=32000)
     personality: str | None = Field(default=None, max_length=16000)
     negative_semantics: list[str] | None = None
-    buffer_organization_id: str | None = Field(default=None, max_length=500)
-    buffer_channel_id: str | None = Field(default=None, max_length=500)
-    twitter_api_key: str | None = None
-    twitter_api_secret: str | None = None
-    twitter_access_token: str | None = None
-    twitter_access_token_secret: str | None = None
     twitter_oauth2_access_token: str | None = None
     twitter_oauth2_refresh_token: str | None = None
 
@@ -50,10 +44,6 @@ def apply_account_create(body: AccountCreateBody, repo: AccountRepository | None
             account_id=aid,
             niche=body.niche,
             twitter_handle=body.twitter_handle or "",
-            twitter_api_key=body.twitter_api_key,
-            twitter_api_secret=body.twitter_api_secret,
-            twitter_access_token=body.twitter_access_token,
-            twitter_access_token_secret=body.twitter_access_token_secret,
             twitter_oauth2_access_token=body.twitter_oauth2_access_token,
             twitter_oauth2_refresh_token=body.twitter_oauth2_refresh_token,
             repo=r,
@@ -66,8 +56,6 @@ def apply_account_create(body: AccountCreateBody, repo: AccountRepository | None
         body.system_prompt,
         body.personality,
         body.negative_semantics,
-        body.buffer_organization_id,
-        body.buffer_channel_id,
     )
     if any(v is not None for v in profile_fields):
         update = AccountUpdateBody(
@@ -75,8 +63,6 @@ def apply_account_create(body: AccountCreateBody, repo: AccountRepository | None
             system_prompt=body.system_prompt,
             personality=body.personality,
             negative_semantics=body.negative_semantics,
-            buffer_organization_id=body.buffer_organization_id,
-            buffer_channel_id=body.buffer_channel_id,
         )
         acc = apply_account_update(aid, update, repo=r)
 

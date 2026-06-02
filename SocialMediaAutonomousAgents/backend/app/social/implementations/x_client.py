@@ -1,4 +1,4 @@
-"""Live X (Twitter) client via Tweepy — OAuth 1.0a or OAuth 2.0 user Bearer."""
+"""Live X (Twitter) client via Tweepy — OAuth 2.0 user Bearer."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any
 
 import tweepy
 
-from app.social.credentials import XOAuth1Credentials, XOAuth2UserCredentials, XCredentials
+from app.social.credentials import XOAuth2UserCredentials, XCredentials
 from app.social.dtos import AccountData, CreatedPost, PostData, TrendItem, TrendsResult
 from app.social.exceptions import SocialPlatformError
 from app.social.reference_rows import post_data_to_reference_row
@@ -94,39 +94,21 @@ def _trend_name(item: dict[str, Any]) -> str:
 
 
 class XTwitterClient:
-    """X API via Tweepy — ``SocialMediaClient`` implementation for OAuth1 or OAuth2 user context."""
+    """X API via Tweepy — ``SocialMediaClient`` implementation for OAuth2 user context."""
 
     def __init__(self, creds: XCredentials) -> None:
+        if not isinstance(creds, XOAuth2UserCredentials):
+            raise SocialPlatformError("X client requires OAuth2 user credentials", vendor="x")
         self._creds = creds
-        if isinstance(creds, XOAuth2UserCredentials):
-            self._oauth2 = True
-            self._v2 = tweepy.Client(
-                bearer_token=creds.access_token.strip(),
-                wait_on_rate_limit=True,
-            )
-            self._v11 = None
-        else:
-            self._oauth2 = False
-            o1 = creds
-            self._v2 = tweepy.Client(
-                consumer_key=o1.consumer_key,
-                consumer_secret=o1.consumer_secret,
-                access_token=o1.access_token,
-                access_token_secret=o1.access_token_secret,
-                wait_on_rate_limit=True,
-            )
-            auth = tweepy.OAuth1UserHandler(
-                o1.consumer_key,
-                o1.consumer_secret,
-                o1.access_token,
-                o1.access_token_secret,
-            )
-            self._v11 = tweepy.API(auth, wait_on_rate_limit=True)
+        self._v2 = tweepy.Client(
+            bearer_token=creds.access_token.strip(),
+            wait_on_rate_limit=True,
+        )
 
     @property
     def _user_auth(self) -> bool:
-        """OAuth 1.0a user signing; OAuth2 user uses Bearer (``user_auth=False``)."""
-        return not self._oauth2
+        """OAuth2 user uses Bearer auth on v2 endpoints."""
+        return False
 
     def _wrap(self, exc: Exception) -> SocialPlatformError:
         if isinstance(exc, tweepy.TweepyException):
@@ -140,16 +122,11 @@ class XTwitterClient:
         limit: int = 30,
         prefer_personalized: bool = True,
     ) -> TrendsResult:
-        if prefer_personalized and self._oauth2:
+        if prefer_personalized:
             personalized = self._get_personalized_trends_v2(limit=limit)
             if personalized.trends:
                 return personalized
             logger.info("personalized trends empty or unavailable; falling back to woeid=%s", woeid)
-
-        if not self._oauth2:
-            assert self._v11 is not None
-            woeid = self._resolve_user_trend_woeid(woeid) if prefer_personalized else woeid
-            return self._get_trends_v11_woeid(woeid=woeid, limit=limit)
 
         return self._get_trends_oauth2_v2(woeid=woeid, limit=limit)
 
@@ -206,46 +183,6 @@ class XTwitterClient:
         except Exception as exc:
             logger.warning("OAuth2 personalized trends request failed: %s", exc)
             return TrendsResult(source="none")
-
-    def _resolve_user_trend_woeid(self, default: int) -> int:
-        """OAuth 1.0a: use the account's configured trend location instead of global WOEID 1."""
-        assert self._v11 is not None
-        try:
-            settings = self._v11.get_settings()
-            if isinstance(settings, dict):
-                raw = settings.get("trend_location_woeid")
-                if raw is not None:
-                    return int(raw)
-        except Exception as exc:
-            logger.debug("get_settings for trend_location_woeid failed: %s", exc)
-        return default
-
-    def _get_trends_v11_woeid(self, *, woeid: int, limit: int) -> TrendsResult:
-        assert self._v11 is not None
-        try:
-            places = self._v11.get_place_trends(woeid)
-        except Exception as exc:
-            raise self._wrap(exc) from exc
-        if not places:
-            return TrendsResult(woeid=woeid, source="none")
-        first = places[0]
-        loc_name = first.get("locations", [{}])[0].get("name")
-        raw_trends: list[dict[str, Any]] = first.get("trends", [])[:limit]
-        trends = [
-            TrendItem(
-                name=t.get("name", ""),
-                tweet_volume=t.get("tweet_volume"),
-                url=t.get("url"),
-            )
-            for t in raw_trends
-            if t.get("name")
-        ]
-        return TrendsResult(
-            trends=trends,
-            location_name=loc_name,
-            woeid=woeid,
-            source="woeid" if trends else "none",
-        )
 
     def _get_trends_oauth2_v2(self, *, woeid: int, limit: int) -> TrendsResult:
         """

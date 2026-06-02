@@ -25,8 +25,6 @@ export type AccountEditPayload = {
   twitter_handle: string;
   status: string;
   system_prompt: string;
-  buffer_organization_id: string;
-  buffer_channel_id: string;
   followers: number;
   posts_total: number;
   registered_at?: string | null;

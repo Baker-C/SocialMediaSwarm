@@ -11,14 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def _account_has_x_credentials(acc: AccountDocument) -> bool:
-    o1 = bool(
-        acc.twitter_api_key_enc
-        and acc.twitter_api_secret_enc
-        and acc.twitter_access_token_enc
-        and acc.twitter_access_token_secret_enc
-    )
-    o2 = bool((acc.twitter_oauth2_access_token_enc or "").strip())
-    return o1 or o2
+    return bool((acc.credentials.oauth2_access_token_enc or "").strip())
 
 
 def _account_public(acc: AccountDocument) -> dict:

@@ -13,10 +13,11 @@ Do **not** commit `.env` or keys. Use `.env.example` as a template only.
 
 ## Adding an account
 
-Choose **one** auth mode:
+Use **OAuth 2.0 user** only:
 
-- **OAuth 2.0 user** — `twitter_oauth2_access_token` (and optional `twitter_oauth2_refresh_token`). Stored encrypted; clears OAuth1 fields on the document.
-- **OAuth 1.0a** — all four `twitter_api_key`, `twitter_api_secret`, `twitter_access_token`, `twitter_access_token_secret` are required; clears OAuth2 token fields on the document.
+- Required: `twitter_oauth2_access_token`
+- Optional: `twitter_oauth2_refresh_token`
+- Stored encrypted on the account document.
 
 ### HTTP API
 
@@ -28,14 +29,10 @@ Content-Type: application/json
   "account_id": "my-handle",
   "niche": "Your niche",
   "twitter_handle": "@myhandle",
-  "twitter_api_key": "...",
-  "twitter_api_secret": "...",
-  "twitter_access_token": "...",
-  "twitter_access_token_secret": "..."
+  "twitter_oauth2_access_token": "...",
+  "twitter_oauth2_refresh_token": "..."
 }
 ```
-
-OAuth 2.0 example body: `account_id`, `niche`, `twitter_handle`, `twitter_oauth2_access_token`, optional `twitter_oauth2_refresh_token`.
 
 Update an existing account (non-secret fields and credential rotation):
 
@@ -54,20 +51,10 @@ cd backend
 python scripts/add_account.py --account-id my-handle ^
   --niche "Your niche" ^
   --twitter-handle "@myhandle" ^
-  --twitter-api-key "..." ^
-  --twitter-api-secret "..." ^
-  --twitter-access-token "..." ^
-  --twitter-access-token-secret "..."
+  --twitter-oauth2-access-token "..." ^
+  --twitter-oauth2-refresh-token "..."
 ```
-
-OAuth 2.0 example:
-
-```bash
-python scripts/add_account.py --account-id my-handle --niche "Your niche" ^
-  --twitter-handle "@myhandle" --twitter-oauth2-access-token "..." --twitter-oauth2-refresh-token "..."
-```
-
-Or pass `--json-file path/to/account.json` with `account_id`, `niche`, `twitter_handle`, and either the four OAuth1 `twitter_*` fields or `twitter_oauth2_access_token` / `twitter_oauth2_refresh_token`.
+Or pass `--json-file path/to/account.json` with `account_id`, `niche`, `twitter_handle`, `twitter_oauth2_access_token`, and optional `twitter_oauth2_refresh_token`.
 
 ## Scheduler
 
