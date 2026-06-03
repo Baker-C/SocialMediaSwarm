@@ -1,7 +1,7 @@
 import logging
 
 from app.agents.base_agent import BaseAgent
-from app.hourly_crew import llm_pipeline
+from app.interval_crew import llm_pipeline
 
 logger = logging.getLogger(__name__)
 

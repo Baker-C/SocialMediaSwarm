@@ -20,19 +20,15 @@ def main() -> None:
     account_id = click.prompt("account_id")
     niche = click.prompt("niche", default=account_id, show_default=True)
     handle = click.prompt("twitter_handle", default="", show_default=False)
-    key = click.prompt("twitter_api_key", hide_input=True)
-    secret = click.prompt("twitter_api_secret", hide_input=True)
-    token = click.prompt("twitter_access_token", hide_input=True)
-    token_secret = click.prompt("twitter_access_token_secret", hide_input=True)
+    access = click.prompt("twitter_oauth2_access_token", hide_input=True)
+    refresh = click.prompt("twitter_oauth2_refresh_token (optional)", default="", show_default=False, hide_input=True)
     try:
         acc = run_create_account_job(
             account_id=account_id,
             niche=niche,
             twitter_handle=handle or "",
-            twitter_api_key=key,
-            twitter_api_secret=secret,
-            twitter_access_token=token,
-            twitter_access_token_secret=token_secret,
+            twitter_oauth2_access_token=access,
+            twitter_oauth2_refresh_token=(refresh or None),
         )
     except CreateAccountJobError as exc:
         raise click.ClickException(str(exc)) from exc

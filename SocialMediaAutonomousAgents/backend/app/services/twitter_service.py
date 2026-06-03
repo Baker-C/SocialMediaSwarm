@@ -1,9 +1,4 @@
-"""Per-account posting and reads via the unified ``SocialMediaService`` (X via Tweepy).
-
-Supports **OAuth 2.0 user** (Bearer access token on the account document) or
-**OAuth 1.0a** (consumer + user token pair). OAuth2 takes precedence when an
-encrypted OAuth2 access token is present and decrypts successfully.
-"""
+"""Per-account posting and reads via the unified ``SocialMediaService`` (X via Tweepy)."""
 
 from __future__ import annotations
 
@@ -12,7 +7,7 @@ import logging
 from app.core.config import settings
 from app.models.account import AccountDocument
 from app.services.account_repository import AccountRepository
-from app.social.credentials import XCredentials, XOAuth1Credentials, XOAuth2UserCredentials
+from app.social.credentials import XCredentials, XOAuth2UserCredentials
 from app.social.enums import SocialPlatform
 from app.social.exceptions import SocialPlatformError
 from app.social.service import get_social_media_service
@@ -22,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class TwitterService:
-    """X reads and posts via ``SocialMediaService`` / Tweepy (OAuth2 or OAuth1)."""
+    """X reads and posts via ``SocialMediaService`` / Tweepy (OAuth2 only)."""
 
     def __init__(self, repo: AccountRepository | None = None) -> None:
         self._repo = repo or AccountRepository()
@@ -34,64 +29,34 @@ class TwitterService:
         return fernet_from_key(settings.encryption_key.strip())
 
     def _x_credentials(self, acc: AccountDocument) -> XCredentials | None:
-        """OAuth2 user token wins over OAuth1 when present and decryptable."""
         f = self._fernet()
         if f is None:
             logger.warning("ENCRYPTION_KEY missing; cannot decrypt credentials for %s", acc.account_id)
             return None
 
-        o2_enc = (acc.twitter_oauth2_access_token_enc or "").strip()
+        o2_enc = (acc.credentials.oauth2_access_token_enc or "").strip()
         if o2_enc:
             try:
                 access = decrypt_value(f, o2_enc).strip()
                 if access:
                     refresh: str | None = None
-                    if acc.twitter_oauth2_refresh_token_enc:
-                        r = decrypt_value(f, acc.twitter_oauth2_refresh_token_enc).strip()
+                    if acc.credentials.oauth2_refresh_token_enc:
+                        r = decrypt_value(f, acc.credentials.oauth2_refresh_token_enc).strip()
                         refresh = r or None
                     return XOAuth2UserCredentials(access_token=access, refresh_token=refresh)
             except ValueError as exc:
                 logger.warning("Decrypt failed for OAuth2 fields %s: %s", acc.account_id, exc)
-
-        if not (
-            acc.twitter_api_key_enc
-            and acc.twitter_api_secret_enc
-            and acc.twitter_access_token_enc
-            and acc.twitter_access_token_secret_enc
-        ):
-            return None
-        try:
-            return XOAuth1Credentials(
-                consumer_key=decrypt_value(f, acc.twitter_api_key_enc),
-                consumer_secret=decrypt_value(f, acc.twitter_api_secret_enc),
-                access_token=decrypt_value(f, acc.twitter_access_token_enc),
-                access_token_secret=decrypt_value(f, acc.twitter_access_token_secret_enc),
-            )
-        except ValueError as exc:
-            logger.warning("Decrypt failed for %s: %s", acc.account_id, exc)
-            return None
+        return None
 
     def _x_credentials_unavailable_reason(self, acc: AccountDocument) -> str:
         if not settings.encryption_key or not settings.encryption_key.strip():
             return "ENCRYPTION_KEY is missing or empty; cannot decrypt X credentials"
-        if (acc.twitter_oauth2_access_token_enc or "").strip():
+        if (acc.credentials.oauth2_access_token_enc or "").strip():
             return (
                 "OAuth2 user access token could not be decrypted "
                 "(wrong ENCRYPTION_KEY or corrupt ciphertext)"
             )
-        pairs = [
-            ("twitter_api_key_enc", acc.twitter_api_key_enc),
-            ("twitter_api_secret_enc", acc.twitter_api_secret_enc),
-            ("twitter_access_token_enc", acc.twitter_access_token_enc),
-            ("twitter_access_token_secret_enc", acc.twitter_access_token_secret_enc),
-        ]
-        missing = [name for name, val in pairs if not val]
-        if missing:
-            return (
-                "missing encrypted OAuth1 field(s) on account document: "
-                f"{', '.join(missing)} — or set twitter_oauth2_access_token_enc for OAuth2"
-            )
-        return "OAuth1 secrets could not be decrypted (wrong ENCRYPTION_KEY or corrupt ciphertext)"
+        return "missing encrypted OAuth2 access token on account document"
 
     def verify_api_health(self, account_id: str) -> list[str]:
         """

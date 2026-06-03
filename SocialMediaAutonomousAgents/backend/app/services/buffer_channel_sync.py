@@ -1,4 +1,4 @@
-"""Match RavenDB accounts to Buffer X channels and persist org + channel ids."""
+"""Match RavenDB accounts to Buffer X channels (read-only helper)."""
 
 from __future__ import annotations
 
@@ -87,8 +87,8 @@ def sync_buffer_x_channels_for_accounts(
     dry_run: bool = False,
 ) -> list[BufferSyncRow]:
     """
-    For each account in RavenDB, pick the best-matching Buffer X channel in ``organization_id``
-    and save ``buffer_organization_id`` + ``buffer_channel_id`` (unless ``dry_run``).
+    For each account in RavenDB, pick the best-matching Buffer X channel in ``organization_id``.
+    Account model no longer stores Buffer ids, so this returns matches only.
     """
     oid = (organization_id or "").strip()
     key = (api_key or "").strip()
@@ -119,22 +119,16 @@ def sync_buffer_x_channels_for_accounts(
         cid = str(ch.get("id") or "")
         cname = ch.get("displayName") or ch.get("name")
         cname_s = str(cname) if cname else None
-        if not dry_run:
-            r.upsert_credentials(
-                acc.account_id,
-                buffer_organization_id=oid,
-                buffer_channel_id=cid,
-            )
-            logger.info(
-                "buffer_sync: account_id=%s buffer_channel_id=%s (channel=%r)",
-                acc.account_id,
-                cid,
-                cname_s,
-            )
+        logger.info(
+            "buffer_sync: account_id=%s best_buffer_channel_id=%s (channel=%r)",
+            acc.account_id,
+            cid,
+            cname_s,
+        )
         out.append(
             BufferSyncRow(
                 account_id=acc.account_id,
-                status="dry_run" if dry_run else "updated",
+                status="dry_run" if dry_run else "matched",
                 buffer_organization_id=oid,
                 buffer_channel_id=cid,
                 channel_name=cname_s,

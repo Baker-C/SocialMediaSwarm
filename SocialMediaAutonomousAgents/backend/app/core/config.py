@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,7 +22,15 @@ class Settings(BaseSettings):
     # When false, this process will not start APScheduler (use on extra uvicorn workers)
     run_scheduler: bool = True
     # When false, skip the scheduled posting job (forced posts via scripts still work)
-    hourly_posting_enabled: bool = True
+    interval_posting_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "interval_posting_enabled",
+            "hourly_posting_enabled",
+            "INTERVAL_POSTING_ENABLED",
+            "HOURLY_POSTING_ENABLED",
+        ),
+    )
     # Wall-clock interval between scheduled posting ticks (APScheduler)
     post_interval_minutes: int = 18
     # Min minutes between posts per account (scheduled + force); must be < post_interval_minutes
@@ -46,10 +55,13 @@ class Settings(BaseSettings):
     # Same pair for all automated accounts; user access/refresh tokens stay per account in RavenDB.
     twitter_oauth2_client_id: str = ""
     twitter_oauth2_client_secret: str = ""
+    oauth2_refresh_enabled: bool = True
+    oauth2_refresh_interval_minutes: int = 30
+    oauth2_refresh_batch_size: int = 200
     # Trends: try X personalized trends for the authenticated user before WOEID fallback
     trends_prefer_personalized: bool = True
     trends_fallback_woeid: int = 1
-    # Print/log JSON payloads between hourly pipeline steps
+    # Print/log JSON payloads between interval pipeline steps
     tick_pipeline_trace: bool = True
     # External reference tweets (Stream A: search, Stream B: following timeline)
     trend_tweet_search_enabled: bool = False

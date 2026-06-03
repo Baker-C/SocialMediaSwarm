@@ -8,18 +8,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 import tweepy
 
-from app.social.credentials import XOAuth1Credentials, XOAuth2UserCredentials
+from app.social.credentials import XOAuth2UserCredentials
 from app.social.exceptions import SocialPlatformError
 from app.social.implementations.x_client import XTwitterClient
-
-
-def _oauth1_creds() -> XOAuth1Credentials:
-    return XOAuth1Credentials(
-        consumer_key="k",
-        consumer_secret="s",
-        access_token="t",
-        access_token_secret="ts",
-    )
 
 
 def _oauth2_creds() -> XOAuth2UserCredentials:
@@ -76,11 +67,8 @@ def _tweepy_error(exc_cls: type, message: str, *, status_code: int = 400) -> Exc
 
 
 def _oauth1_client() -> XTwitterClient:
-    with patch("app.social.implementations.x_client.tweepy.Client"), patch(
-        "app.social.implementations.x_client.tweepy.OAuth1UserHandler"
-    ), patch("app.social.implementations.x_client.tweepy.API") as api_cls:
-        api_cls.return_value = MagicMock()
-        return XTwitterClient(_oauth1_creds())
+    with patch("app.social.implementations.x_client.tweepy.Client"):
+        return XTwitterClient(_oauth2_creds())
 
 
 def _oauth2_client() -> XTwitterClient:
@@ -91,8 +79,8 @@ def _oauth2_client() -> XTwitterClient:
 # --- create_post ---
 
 
-def test_oauth1_create_post_uses_user_auth_true() -> None:
-    creds = _oauth1_creds()
+def test_oauth2_create_post_uses_user_auth_false() -> None:
+    creds = _oauth2_creds()
 
     class _Created:
         id = "77"
@@ -101,15 +89,12 @@ def test_oauth1_create_post_uses_user_auth_true() -> None:
         mock_v2 = MagicMock()
         mock_v2.create_tweet.return_value = MagicMock(data=_Created())
         ClientCls.return_value = mock_v2
-        with patch("app.social.implementations.x_client.tweepy.OAuth1UserHandler"), patch(
-            "app.social.implementations.x_client.tweepy.API"
-        ):
-            client = XTwitterClient(creds)
-            out = client.create_post("posted text")
+        client = XTwitterClient(creds)
+        out = client.create_post("posted text")
 
     assert out.id == "77"
     assert out.text == "posted text"
-    mock_v2.create_tweet.assert_called_once_with(text="posted text", user_auth=True)
+    mock_v2.create_tweet.assert_called_once_with(text="posted text", user_auth=False)
 
 
 def test_create_post_empty_response_raises() -> None:
@@ -292,7 +277,7 @@ def test_following_timeline_calls_home_timeline_with_retweet_exclude() -> None:
     kw = client._v2.get_home_timeline.call_args.kwargs
     assert kw["max_results"] == 50
     assert kw["exclude"] == ["retweets"]
-    assert kw["user_auth"] is True
+    assert kw["user_auth"] is False
     assert "attachments" in kw["tweet_fields"]
 
 
@@ -323,84 +308,6 @@ def test_oauth2_following_timeline_uses_user_auth_false() -> None:
     client._v2.get_home_timeline.return_value = _tweet_response(_tweet())
     client.get_following_timeline_tweets(max_results=10)
     assert client._v2.get_home_timeline.call_args.kwargs["user_auth"] is False
-
-
-# --- get_trends (OAuth 1.0a v1.1) ---
-
-
-def test_oauth1_get_trends_uses_place_trends() -> None:
-    creds = _oauth1_creds()
-    mock_v11 = MagicMock()
-    mock_v11.get_settings.return_value = {"trend_location_woeid": 23424977}
-    mock_v11.get_place_trends.return_value = [
-        {
-            "locations": [{"name": "United States"}],
-            "trends": [
-                {"name": "#TrendA", "tweet_volume": 1000, "url": "https://x.com/t/a"},
-                {"name": "", "tweet_volume": 0},
-            ],
-        }
-    ]
-    with patch("app.social.implementations.x_client.tweepy.Client") as ClientCls:
-        mock_v2 = MagicMock()
-        ClientCls.return_value = mock_v2
-        with patch("app.social.implementations.x_client.tweepy.OAuth1UserHandler"), patch(
-            "app.social.implementations.x_client.tweepy.API", return_value=mock_v11
-        ):
-            client = XTwitterClient(creds)
-            tr = client.get_trends(woeid=1, limit=5, prefer_personalized=True)
-
-    mock_v11.get_settings.assert_called_once()
-    mock_v11.get_place_trends.assert_called_once_with(23424977)
-    assert tr.source == "woeid"
-    assert len(tr.trends) == 1
-    assert tr.trends[0].name == "#TrendA"
-    assert tr.trends[0].tweet_volume == 1000
-    assert tr.location_name == "United States"
-
-
-def test_oauth1_get_trends_skips_settings_when_not_prefer_personalized() -> None:
-    creds = _oauth1_creds()
-    mock_v11 = MagicMock()
-    mock_v11.get_place_trends.return_value = [
-        {"locations": [{}], "trends": [{"name": "Global", "tweet_volume": 1}]}
-    ]
-    with patch("app.social.implementations.x_client.tweepy.Client"), patch(
-        "app.social.implementations.x_client.tweepy.OAuth1UserHandler"
-    ), patch("app.social.implementations.x_client.tweepy.API", return_value=mock_v11):
-        client = XTwitterClient(creds)
-        tr = client.get_trends(woeid=1, prefer_personalized=False)
-
-    mock_v11.get_settings.assert_not_called()
-    mock_v11.get_place_trends.assert_called_once_with(1)
-    assert tr.trends[0].name == "Global"
-
-
-def test_oauth1_get_trends_empty_places() -> None:
-    creds = _oauth1_creds()
-    mock_v11 = MagicMock()
-    mock_v11.get_place_trends.return_value = []
-    with patch("app.social.implementations.x_client.tweepy.Client"), patch(
-        "app.social.implementations.x_client.tweepy.OAuth1UserHandler"
-    ), patch("app.social.implementations.x_client.tweepy.API", return_value=mock_v11):
-        client = XTwitterClient(creds)
-        tr = client.get_trends(woeid=99, prefer_personalized=False)
-
-    assert tr.trends == []
-    assert tr.source == "none"
-    assert tr.woeid == 99
-
-
-def test_oauth1_get_trends_wraps_api_errors() -> None:
-    creds = _oauth1_creds()
-    mock_v11 = MagicMock()
-    mock_v11.get_place_trends.side_effect = _tweepy_error(tweepy.Unauthorized, "bad token", status_code=401)
-    with patch("app.social.implementations.x_client.tweepy.Client"), patch(
-        "app.social.implementations.x_client.tweepy.OAuth1UserHandler"
-    ), patch("app.social.implementations.x_client.tweepy.API", return_value=mock_v11):
-        client = XTwitterClient(creds)
-        with pytest.raises(SocialPlatformError, match="bad token"):
-            client.get_trends(prefer_personalized=False)
 
 
 # --- _fetch_reference_tweets media expansion fallback ---

@@ -6,20 +6,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.social.credentials import XOAuth1Credentials
+from app.social.credentials import XOAuth2UserCredentials
 from app.social.dtos import AccountData, CreatedPost, PostData, TrendsResult, TrendItem
 from app.social.enums import SocialPlatform
 from app.social.exceptions import SocialPlatformError
 from app.social.service import SocialMediaService
 
 
-def _creds() -> XOAuth1Credentials:
-    return XOAuth1Credentials(
-        consumer_key="k",
-        consumer_secret="s",
-        access_token="t",
-        access_token_secret="ts",
-    )
+def _creds() -> XOAuth2UserCredentials:
+    return XOAuth2UserCredentials(access_token="tok")
 
 
 @pytest.fixture

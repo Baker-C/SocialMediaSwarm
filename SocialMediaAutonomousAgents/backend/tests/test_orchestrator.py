@@ -6,23 +6,23 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.agents.orchestrator import Orchestrator
-from app.hourly.orchestration.slot_claim import (
-    finalize_hourly_slot_reservation,
-    try_reserve_hourly_slot,
+from app.interval.orchestration.slot_claim import (
+    finalize_interval_slot_reservation,
+    try_reserve_interval_slot,
 )
-from app.hourly.runner import build_tick_context, run_account_pipeline
+from app.interval.runner import build_tick_context, run_account_pipeline
 from app.models.account import AccountDocument
 from app.services.twitter_service import TwitterService
 
 
 @pytest.fixture(autouse=True)
-def _clear_hourly_slot_locks():
-    for name in ("sma_hourly_slots", "sma_account_post"):
+def _clear_interval_slot_locks():
+    for name in ("sma_interval_slots", "sma_account_post"):
         path = Path(tempfile.gettempdir()) / name
         if path.is_dir():
             shutil.rmtree(path, ignore_errors=True)
     yield
-    for name in ("sma_hourly_slots", "sma_account_post"):
+    for name in ("sma_interval_slots", "sma_account_post"):
         path = Path(tempfile.gettempdir()) / name
         if path.is_dir():
             shutil.rmtree(path, ignore_errors=True)
@@ -30,7 +30,7 @@ def _clear_hourly_slot_locks():
 
 @pytest.fixture(autouse=True)
 def _mock_ravendb_post_lock():
-    with patch("app.hourly.orchestration.post_guard.PostLockRepository") as cls:
+    with patch("app.interval.orchestration.post_guard.PostLockRepository") as cls:
         cls.return_value.try_acquire.return_value = True
         cls.return_value.release.return_value = None
         yield
@@ -52,22 +52,22 @@ class FakeRepo:
         self._by_id[account.account_id] = account.model_copy(deep=True)
 
 
-def test_hourly_idempotency_same_slot():
+def test_interval_idempotency_same_slot():
     acc = AccountDocument(
         account_id="a1",
         niche="Test",
-        last_post_slot="2026-05-13-14",
+        last_interval_slot="2026-05-13-14",
     )
     repo = FakeRepo([acc])
     tw = TwitterService(repo)
     orch = Orchestrator(repo=repo, twitter=tw, post_registry=None)
-    with patch("app.hourly.runner.current_post_slot_key", return_value="2026-05-13-14"):
+    with patch("app.interval.runner.current_interval_slot_key", return_value="2026-05-13-14"):
         out = orch.run_tick()
     assert len(out["results"]) == 1
-    assert out["results"][0].get("skipped") == "already_posted_this_hour"
+    assert out["results"][0].get("skipped") == "already_posted_this_interval"
 
 
-def test_hourly_posts_once_per_slot():
+def test_interval_posts_once_per_slot():
     acc = AccountDocument(account_id="a2", niche="Test")
     repo = FakeRepo([acc])
     tw = TwitterService(repo)
@@ -89,7 +89,7 @@ def test_hourly_posts_once_per_slot():
     }
     with (
         patch("app.agents.orchestrator.TickDataService") as mock_tds_cls,
-        patch("app.hourly.runner.compose_formatted_post", return_value=composed),
+        patch("app.interval.runner.compose_formatted_post", return_value=composed),
         patch.object(tw, "post_tweet", return_value={"id": "1", "text": composed}),
     ):
         mock_td = mock_tds_cls.return_value
@@ -104,18 +104,18 @@ def test_hourly_posts_once_per_slot():
             post_registry=None,
             pulled_tweets=None,
         )
-        with patch("app.hourly.runner.current_post_slot_key", return_value="2026-05-13-15"):
+        with patch("app.interval.runner.current_interval_slot_key", return_value="2026-05-13-15"):
             out = orch.run_tick()
     assert len(out["results"]) == 1
     assert "tweet" in out["results"][0]
     assert repo.load("a2").posts_total == 1
-    assert repo.load("a2").last_post_slot == "2026-05-13-15"
+    assert repo.load("a2").last_interval_slot == "2026-05-13-15"
 
     with patch.object(tw, "post_tweet", return_value={"id": "1", "text": "body"}):
         orch = Orchestrator(repo=repo, twitter=tw, post_registry=None)
-        with patch("app.hourly.runner.current_post_slot_key", return_value="2026-05-13-15"):
+        with patch("app.interval.runner.current_interval_slot_key", return_value="2026-05-13-15"):
             out2 = orch.run_tick()
-    assert out2["results"][0].get("skipped") == "already_posted_this_hour"
+    assert out2["results"][0].get("skipped") == "already_posted_this_interval"
     assert repo.load("a2").posts_total == 1
 
 
@@ -148,8 +148,8 @@ def test_pipeline_posts_composed_body_after_safety():
     working = repo.load("a2")
     assert working is not None
     with (
-        patch("app.hourly.runner.current_post_slot_key", return_value="2026-05-13-20"),
-        patch("app.hourly.runner.compose_formatted_post", return_value=composed),
+        patch("app.interval.runner.current_interval_slot_key", return_value="2026-05-13-20"),
+        patch("app.interval.runner.compose_formatted_post", return_value=composed),
         patch.object(tw, "post_tweet", return_value={"id": "99", "text": composed}) as pt,
     ):
         ctx = build_tick_context(
@@ -183,7 +183,7 @@ def test_pipeline_skips_when_no_url_references():
     working = repo.load("a2")
     assert working is not None
     with (
-        patch("app.hourly.runner.current_post_slot_key", return_value="2026-05-13-21"),
+        patch("app.interval.runner.current_interval_slot_key", return_value="2026-05-13-21"),
         patch.object(tw, "post_tweet") as pt,
     ):
         ctx = build_tick_context(
@@ -203,7 +203,7 @@ def test_pipeline_skips_when_no_url_references():
 def test_slot_reserve_blocks_second_pipeline_same_slot():
     acc = AccountDocument(account_id="a3", niche="Test")
     repo = FakeRepo([acc])
-    with patch("app.hourly.runner.current_post_slot_key", return_value="2026-05-13-16"):
+    with patch("app.interval.runner.current_interval_slot_key", return_value="2026-05-13-16"):
         ctx = build_tick_context(
             repo=repo,
             twitter=MagicMock(),
@@ -213,19 +213,19 @@ def test_slot_reserve_blocks_second_pipeline_same_slot():
             post_registry=None,
             mode="scheduled",
         )
-        first, skip1 = try_reserve_hourly_slot(ctx, "a3")
-        finalize_hourly_slot_reservation(ctx, "a3")
-        second, skip2 = try_reserve_hourly_slot(ctx, "a3")
+        first, skip1 = try_reserve_interval_slot(ctx, "a3")
+        finalize_interval_slot_reservation(ctx, "a3")
+        second, skip2 = try_reserve_interval_slot(ctx, "a3")
     assert skip1 is None and first is not None
-    assert skip2 == "already_posted_this_hour"
-    assert repo.load("a3").last_post_slot == "2026-05-13-16"
+    assert skip2 == "already_posted_this_interval"
+    assert repo.load("a3").last_interval_slot == "2026-05-13-16"
 
 
 def test_force_mode_bypasses_slot_guard():
     acc = AccountDocument(
         account_id="a2",
         niche="Test",
-        last_post_slot="2026-05-13-15",
+        last_interval_slot="2026-05-13-15",
     )
     repo = FakeRepo([acc])
     tw = TwitterService(repo)
@@ -247,7 +247,7 @@ def test_force_mode_bypasses_slot_guard():
     }
     with (
         patch("app.agents.orchestrator.TickDataService") as mock_tds_cls,
-        patch("app.hourly.runner.compose_formatted_post", return_value=composed),
+        patch("app.interval.runner.compose_formatted_post", return_value=composed),
         patch.object(tw, "post_tweet", return_value={"id": "99", "text": composed}),
     ):
         mock_td = mock_tds_cls.return_value
@@ -262,7 +262,7 @@ def test_force_mode_bypasses_slot_guard():
             post_registry=None,
             pulled_tweets=None,
         )
-        with patch("app.hourly.runner.current_post_slot_key", return_value="2026-05-13-15"):
+        with patch("app.interval.runner.current_interval_slot_key", return_value="2026-05-13-15"):
             out = orch.run_tick(mode="force", account_ids=["a2"])
     assert "tweet" in out["results"][0]
     assert repo.load("a2").posts_total == 1

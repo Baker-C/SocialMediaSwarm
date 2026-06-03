@@ -1,6 +1,6 @@
 """Timeline reference selection tests."""
 
-from app.hourly.tweet_topic_preanalysis import (
+from app.interval.tweet_topic_preanalysis import (
     popularity_score,
     run_reference_preanalysis,
     select_top_timeline_reference,

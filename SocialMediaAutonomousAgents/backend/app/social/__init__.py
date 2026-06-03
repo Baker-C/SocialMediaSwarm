@@ -1,6 +1,6 @@
 """Public exports for the social / multi-platform layer."""
 
-from app.social.credentials import XCredentials, XOAuth1Credentials, XOAuth2UserCredentials
+from app.social.credentials import XCredentials, XOAuth2UserCredentials
 from app.social.dtos import AccountData, CreatedPost, PostData, TrendItem, TrendsResult
 from app.social.enums import SocialPlatform
 from app.social.exceptions import SocialPlatformError
@@ -18,7 +18,6 @@ __all__ = [
     "TrendItem",
     "TrendsResult",
     "XCredentials",
-    "XOAuth1Credentials",
     "XOAuth2UserCredentials",
     "get_social_media_service",
 ]

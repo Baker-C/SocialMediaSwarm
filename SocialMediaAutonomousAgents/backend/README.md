@@ -1,6 +1,8 @@
 # Social Media Autonomous Agents — Backend
 
-FastAPI service with RavenDB (`SocialMediaSwarm` at `https://localhost`), encrypted per-account X (OAuth1) credentials, and an in-process **APScheduler** (scheduled posting every `POST_INTERVAL_MINUTES`, default 20; engagement **:05**, metrics **:10** each hour in `SCHEDULER_TIMEZONE`). **New accounts are created only via CLI** (`scripts/add_account.py` / `run_create_account_job`), not via HTTP.
+**Documentation:** [`docs/PROJECT.md`](../../docs/PROJECT.md) (subsystem docs under `docs/subsystems/`). Account provisioning: [ACCOUNT_SETUP](docs/ACCOUNT_SETUP.md).
+
+FastAPI backend with RavenDB and in-process scheduling. Accounts can be created and updated via HTTP or CLI (`scripts/add_account.py`).
 
 ## Setup
 
@@ -43,14 +45,6 @@ Forced post (inside the backend container, not on the host):
 
 Local `uvicorn` is optional for development; do **not** run local `uvicorn` and Docker backend together (duplicate posts). The compose file sets `RUN_SCHEDULER=true` only on the container.
 
-## Database backups
-
-RavenDB **full database backups** are an **operations** concern (Studio scheduled backup, infrastructure snapshots, etc.). The hourly orchestrator **does not** run in-process database exports or binary backups.
-
-## Optional: Claude (Anthropic)
-
-For multi-candidate generation and ranking, set **`ANTHROPIC_API_KEY`** and optionally **`CLAUDE_MODEL`** (see `.env.example`). If unset, the pipeline falls back to deterministic candidate text.
-
 ## Scripts
 
 | Script | Purpose |
@@ -65,7 +59,10 @@ For multi-candidate generation and ranking, set **`ANTHROPIC_API_KEY`** and opti
 
 - `GET /api/accounts` — redacted list  
 - `GET /api/accounts/{id}`  
+- `POST /api/accounts` — create account with encrypted X credentials (409 if id exists)  
+- `GET /api/accounts/{id}/edit` — non-secret fields for the dashboard form  
+- `PATCH /api/accounts/{id}` — update niche, handle, status, prompts, Buffer ids, credentials  
 - `PATCH /api/accounts/{id}/archive` — set `inactive`  
 - `GET /api/accounts/{id}/status` — `POST /api/accounts/{id}/test`  
 
-Create or change credentials only via **`python scripts/add_account.py`** (or `run_create_account_job` from code).
+CLI upsert (create or replace credentials): **`python scripts/add_account.py`** (or `run_create_account_job` from code).

@@ -1,19 +1,12 @@
 from unittest.mock import MagicMock, patch
 
-from app.social.credentials import XOAuth1Credentials
+from app.social.credentials import XOAuth2UserCredentials
 from app.social.implementations.x_client import XTwitterClient
 from app.social.reference_rows import filter_out_own_tweets
 
 
-def _oauth1_client() -> XTwitterClient:
-    return XTwitterClient(
-        XOAuth1Credentials(
-            consumer_key="k",
-            consumer_secret="s",
-            access_token="t",
-            access_token_secret="ts",
-        )
-    )
+def _oauth2_client() -> XTwitterClient:
+    return XTwitterClient(XOAuth2UserCredentials(access_token="tok"))
 
 
 def test_filter_out_own_tweets():
@@ -40,7 +33,7 @@ def test_search_recent_maps_rows(mock_search):
     resp.data = [tweet]
     mock_search.return_value = resp
 
-    client = _oauth1_client()
+    client = _oauth2_client()
     rows = client.search_recent_tweets("#test -is:retweet lang:en", max_results=10, trend_query="test")
     assert len(rows) == 1
     assert rows[0]["id"] == "999"

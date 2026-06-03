@@ -2,8 +2,8 @@
 
 from unittest.mock import patch
 
-from app.hourly.compose_timeline_post import compose_formatted_post
-from app.hourly.tweet_topic_preanalysis import GatheredTweet
+from app.interval.compose_timeline_post import compose_formatted_post
+from app.interval.tweet_topic_preanalysis import GatheredTweet
 from app.models.account import (
     AccountDocument,
     default_negative_semantics,
@@ -40,7 +40,7 @@ def test_compose_user_prompt_includes_negative_semantics() -> None:
     )
     custom = ["Custom banned phrase"]
 
-    with patch("app.hourly.compose_timeline_post.get_claude_client") as mock_claude:
+    with patch("app.interval.compose_timeline_post.get_claude_client") as mock_claude:
         mock_claude.return_value.enabled = True
         mock_claude.return_value.messages_json_dict.return_value = {
             "headline": "Head",

@@ -26,7 +26,7 @@ services:
 
       RUN_SCHEDULER: "true"
 
-      HOURLY_POSTING_ENABLED: "true"
+      INTERVAL_POSTING_ENABLED: "true"
 
       POST_INTERVAL_MINUTES: "18"
 
@@ -77,6 +77,8 @@ services:
     environment:
 
       - REACT_APP_API_URL=http://localhost:8000
+
+      - REACT_APP_PROXY_TARGET=http://backend:8000
 
       - REACT_APP_POLLING_INTERVAL=5000
 

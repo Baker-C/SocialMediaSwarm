@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from app.models.account import AccountDocument
 from app.services.twitter_service import TwitterService
-from app.social.credentials import XOAuth1Credentials
+from app.social.credentials import XOAuth2UserCredentials
 from app.social.exceptions import SocialPlatformError
 
 
@@ -26,12 +26,7 @@ def test_verify_x_connection_missing_document():
 def test_verify_x_connection_social_platform_error_includes_cause():
     acc = AccountDocument(account_id="u1", niche="t")
     tw = TwitterService(repo=FakeRepo(acc))
-    creds = XOAuth1Credentials(
-        consumer_key="a",
-        consumer_secret="b",
-        access_token="c",
-        access_token_secret="d",
-    )
+    creds = XOAuth2UserCredentials(access_token="tok")
     tw._social = MagicMock()
     tw._social.get_account_data.side_effect = SocialPlatformError(
         "401 Unauthorized", vendor="x", cause=RuntimeError("inner")

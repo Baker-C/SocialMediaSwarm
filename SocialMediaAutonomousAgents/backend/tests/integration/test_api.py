@@ -28,7 +28,7 @@ def test_account_edit_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
     assert response.status_code == 404
 
 
-def test_account_patch_oauth1_partial_returns_400(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_account_patch_ignores_removed_oauth1_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.models.account import AccountDocument
 
     mock_repo = MagicMock()
@@ -43,6 +43,56 @@ def test_account_patch_oauth1_partial_returns_400(monkeypatch: pytest.MonkeyPatc
         "/api/accounts/u",
         json={"twitter_api_key": "only-one"},
     )
+    assert response.status_code == 200
+
+
+def test_account_create_conflict_returns_409(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.models.account import AccountDocument
+
+    mock_repo = MagicMock()
+    mock_repo.load.return_value = AccountDocument(
+        account_id="taken",
+        niche="n",
+        twitter_handle="",
+        status="active",
+    )
+    monkeypatch.setattr(accounts_routes, "repo", mock_repo)
+    response = client.post(
+        "/api/accounts",
+        json={"account_id": "taken", "twitter_oauth2_access_token": "tok"},
+    )
+    assert response.status_code == 409
+
+
+def test_account_create_missing_credentials_returns_400(monkeypatch: pytest.MonkeyPatch) -> None:
+    mock_repo = MagicMock()
+    mock_repo.load.return_value = None
+    monkeypatch.setattr(accounts_routes, "repo", mock_repo)
+    response = client.post("/api/accounts", json={"account_id": "new"})
     assert response.status_code == 400
-    body = response.json()
-    assert "detail" in body
+
+
+def test_account_create_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.models.account import AccountDocument
+
+    created = AccountDocument(
+        account_id="new",
+        niche="niche",
+        twitter_handle="@n",
+        status="active",
+        twitter_oauth2_access_token_enc="enc",
+    )
+    mock_repo = MagicMock()
+    mock_repo.load.return_value = None
+    monkeypatch.setattr(accounts_routes, "repo", mock_repo)
+    monkeypatch.setattr(
+        accounts_routes,
+        "apply_account_create",
+        MagicMock(return_value=created),
+    )
+    response = client.post(
+        "/api/accounts",
+        json={"account_id": "new", "twitter_oauth2_access_token": "tok"},
+    )
+    assert response.status_code == 201
+    assert response.json() == {"ok": True, "account_id": "new"}

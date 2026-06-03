@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from app.models.account import AccountDocument
 from app.services.twitter_service import TwitterService
-from app.social.credentials import XOAuth1Credentials
+from app.social.credentials import XOAuth2UserCredentials
 from app.social.exceptions import SocialPlatformError
 
 
@@ -32,12 +32,7 @@ def test_verify_api_health_missing_x_credentials():
 def test_verify_api_health_x_api_failure():
     acc = AccountDocument(account_id="a1", niche="n")
     tw = TwitterService(repo=FakeRepo(acc))
-    creds = XOAuth1Credentials(
-        consumer_key="a",
-        consumer_secret="b",
-        access_token="c",
-        access_token_secret="d",
-    )
+    creds = XOAuth2UserCredentials(access_token="tok")
     tw._social = MagicMock()
     tw._social.get_account_data.side_effect = SocialPlatformError("401", vendor="x")
     with patch.object(TwitterService, "_x_credentials", return_value=creds):
@@ -50,12 +45,7 @@ def test_verify_api_health_x_api_failure():
 def test_verify_api_health_all_clear():
     acc = AccountDocument(account_id="a1", niche="n")
     tw = TwitterService(repo=FakeRepo(acc))
-    creds = XOAuth1Credentials(
-        consumer_key="a",
-        consumer_secret="b",
-        access_token="c",
-        access_token_secret="d",
-    )
+    creds = XOAuth2UserCredentials(access_token="tok")
     tw._social = MagicMock()
     with patch.object(TwitterService, "_x_credentials", return_value=creds):
         assert tw.verify_api_health("a1") == []
