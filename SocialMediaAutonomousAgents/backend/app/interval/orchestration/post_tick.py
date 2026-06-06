@@ -11,6 +11,7 @@ from app.interval.orchestration.slot_claim import (
     finalize_interval_slot_reservation,
     release_interval_slot_reservation,
 )
+from app.interval_crew.tools.take_snapshot_tool import take_snapshot
 from app.models.account import AccountDocument
 from app.models.tracked_post import PostCreationMetrics
 from app.services.copied_references import record_copied_reference
@@ -60,6 +61,15 @@ def finalize_post(
         except Exception as exc:
             logger.warning("post-registry / metrics priming failed: %s", exc)
     ctx.repo.save(account)
+    try:
+        take_snapshot(
+            account.account_id,
+            refresh_from_x=True,
+            repo=ctx.repo,
+            post_registry=ctx.post_registry,
+        )
+    except Exception as exc:
+        logger.warning("account snapshot failed for %s: %s", account.account_id, exc)
     finalize_interval_slot_reservation(ctx, account.account_id)
     release_post_guard(ctx, account.account_id)
     out: dict[str, Any] = {

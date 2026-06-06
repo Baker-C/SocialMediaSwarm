@@ -4,6 +4,8 @@ from app.infrastructure.ravendb_http import RavenDBHttpError
 from app.models.account import AccountDocument
 from app.services.account_repository import AccountRepository
 from app.services.account_create_service import AccountAlreadyExistsError, AccountCreateBody, apply_account_create
+from app.services.account_snapshot_repository import AccountSnapshotRepository
+from app.services.account_snapshot_service import create_account_snapshot
 from app.services.account_update_service import AccountUpdateBody, account_edit_view, apply_account_update
 from app.services.pulled_tweet_repository import PulledTweetRepository
 from app.services.ravendb_service import RavenDBService
@@ -13,6 +15,7 @@ router = APIRouter()
 service = RavenDBService()
 repo = AccountRepository()
 pulled_tweets = PulledTweetRepository()
+account_snapshots = AccountSnapshotRepository()
 
 
 @router.get("/accounts")
@@ -22,7 +25,7 @@ def get_accounts():
 
 @router.post("/accounts", status_code=201)
 def create_account(body: AccountCreateBody):
-    """Create a new account with encrypted X credentials."""
+    """Create a new account profile (connect X OAuth separately)."""
     try:
         acc = apply_account_create(body, repo=repo)
     except AccountAlreadyExistsError as exc:
@@ -102,6 +105,42 @@ def list_pulled_tweets_for_account(
         raise HTTPException(status_code=503, detail=f"RavenDB error: {exc}") from exc
     tweets = [r.model_dump(exclude_none=True) for r in rows]
     return {"account_id": account_id, "count": len(tweets), "tweets": tweets}
+
+
+@router.post("/accounts/{account_id}/snapshot", status_code=201)
+def create_snapshot(
+    account_id: str,
+    refresh_from_x: bool = Query(default=False, description="Refresh follower/following/post counts live from X"),
+):
+    """Capture a point-in-time snapshot of this account's profile, voice, and engagement totals."""
+    try:
+        snapshot = create_account_snapshot(account_id, refresh_from_x=refresh_from_x, repo=repo)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Account not found") from None
+    except RavenDBHttpError as exc:
+        raise HTTPException(status_code=503, detail=f"RavenDB error: {exc}") from exc
+    document_id = type(snapshot).document_id(snapshot.account_id, snapshot.created_at)
+    return {"ok": True, "account_id": account_id, "document_id": document_id}
+
+
+@router.get("/accounts/{account_id}/snapshots")
+def list_snapshots_for_account(
+    account_id: str,
+    limit: int = Query(default=100, ge=1, le=500),
+):
+    """Saved point-in-time snapshots for this account, newest first."""
+    try:
+        acc = repo.load(account_id)
+    except RavenDBHttpError as exc:
+        raise HTTPException(status_code=503, detail=f"RavenDB unavailable: {exc}") from exc
+    if acc is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    try:
+        rows = account_snapshots.list_for_account(account_id, limit=limit)
+    except RavenDBHttpError as exc:
+        raise HTTPException(status_code=503, detail=f"RavenDB error: {exc}") from exc
+    snapshots = [r.model_dump(exclude_none=True) for r in rows]
+    return {"account_id": account_id, "count": len(snapshots), "snapshots": snapshots}
 
 
 @router.get("/accounts/{account_id}/status")

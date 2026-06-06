@@ -28,7 +28,7 @@ class TrackedPostRepository:
     def client(self) -> RavenDBHttpClient:
         return self._client or get_ravendb_client()
 
-    def list_tweet_ids(self, account_id: str) -> list[str]:
+    def _query_account_rows(self, account_id: str) -> list[dict]:
         aid = _safe_rql_string(account_id)
         if not aid:
             return []
@@ -41,17 +41,47 @@ class TrackedPostRepository:
             except RavenDBHttpError as exc:
                 logger.warning("TrackedPosts query failed: %s", exc)
                 return []
-        rows_sorted = sorted(
-            rows,
-            key=lambda r: str(r.get("posted_at") or ""),
-            reverse=True,
-        )
+        return sorted(rows, key=lambda r: str(r.get("posted_at") or ""), reverse=True)
+
+    def list_for_account(self, account_id: str) -> list[dict]:
+        """TrackedPost rows for an account, newest first."""
+        return self._query_account_rows(account_id)
+
+    def list_tweet_ids(self, account_id: str) -> list[str]:
         ids: list[str] = []
-        for r in rows_sorted:
+        for r in self._query_account_rows(account_id):
             tid = r.get("tweet_id")
             if isinstance(tid, str) and tid and tid not in ids:
                 ids.append(tid)
         return ids
+
+    def totals_for_account(self, account_id: str) -> tuple[int, int]:
+        """Sum like_count and impression_count across the account's TrackedPosts.
+
+        Returns ``(total_likes, total_views)`` treating missing metrics as 0.
+        """
+        aid = _safe_rql_string(account_id)
+        if not aid:
+            return 0, 0
+        rql = f'from TrackedPosts where account_id == "{aid}"'
+        try:
+            rows = self.client.query(rql)
+        except RavenDBHttpError:
+            try:
+                rows = self.client.query(f'from @all where startsWith(id(), "trackedposts/{aid}-")')
+            except RavenDBHttpError as exc:
+                logger.warning("TrackedPosts totals query failed: %s", exc)
+                return 0, 0
+        total_likes = 0
+        total_views = 0
+        for r in rows:
+            like = r.get("like_count")
+            views = r.get("impression_count")
+            if isinstance(like, int):
+                total_likes += like
+            if isinstance(views, int):
+                total_views += views
+        return total_likes, total_views
 
     def record_post(
         self,
