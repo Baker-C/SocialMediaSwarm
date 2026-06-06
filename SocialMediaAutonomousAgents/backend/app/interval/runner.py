@@ -32,6 +32,7 @@ from app.models.tracked_post import PostCreationMetrics
 from app.models.account import AccountDocument
 from app.core.config import settings
 from app.services.account_repository import AccountRepository, current_interval_slot_key
+from app.services.force_post_progress import progress_active, progress_done, progress_error
 from app.social.tweet_enrichment import filter_rows_with_urls
 
 logger = logging.getLogger(__name__)
@@ -107,8 +108,10 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
         handoff_to="reload_account",
     )
 
+    progress_active("load_account")
     fresh = reload_account(ctx, aid)
     if fresh is None:
+        progress_error("load_account", "account_not_found")
         out = {"account_id": aid, "skipped": "account_not_found"}
         trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
         return out
@@ -116,17 +119,22 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
 
     skip = should_skip_account(ctx, account)
     if skip:
+        progress_error("load_account", skip)
         out = {"account_id": aid, "skipped": skip}
         trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
         return out
 
     if ctx.mode == "scheduled" and account.last_interval_slot == ctx.slot:
+        progress_error("load_account", "already_posted_this_interval")
         out = {"account_id": aid, "skipped": "already_posted_this_interval"}
         trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
         return out
+    progress_done("load_account")
 
+    progress_active("post_lock")
     _, guard_skip = try_begin_post(ctx, aid, account)
     if guard_skip:
+        progress_error("post_lock", guard_skip)
         out = {"account_id": aid, "skipped": guard_skip}
         trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
         return out
@@ -134,11 +142,13 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
     reservation, reserve_skip = try_reserve_interval_slot(ctx, aid)
     if reserve_skip:
         release_post_guard(ctx, aid)
+        progress_error("post_lock", reserve_skip)
         out = {"account_id": aid, "skipped": reserve_skip}
         trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
         return out
     assert reservation is not None
     account = reservation.account
+    progress_done("post_lock")
 
     trace_step(
         aid,
@@ -147,8 +157,10 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
         handoff_to="2a_compile_account_bundle",
     )
 
+    progress_active("fetch_profile")
     bundle_account = tick_data_tools.compile_account_bundle(ctx.tick_data, account.account_id)
     trace_step(aid, "2a_account_bundle", bundle_account, handoff_to="2a_timeline_references")
+    progress_done("fetch_profile")
 
     prof = bundle_account.get("profile") or {}
     fc = prof.get("followers_count")
@@ -160,6 +172,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
     if isinstance(prof, dict) and prof.get("id") is not None:
         auth_user_id = str(prof["id"])
 
+    progress_active("fetch_timeline")
     refs_payload = tick_data_tools.compile_timeline_reference_tweets(
         ctx.tick_data,
         account.account_id,
@@ -169,6 +182,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
     bundle_account["timeline_reference_tweets"] = refs_payload.get("timeline_reference_tweets") or []
     bundle_account["reference_errors"] = refs_payload.get("reference_errors") or []
     trace_step(aid, "2a_timeline_references", refs_payload, handoff_to="2a_reference_pool")
+    progress_done("fetch_timeline")
 
     reference_pool = tick_data_tools.merge_reference_pool(refs_payload)
     reference_pool = filter_rows_with_urls(reference_pool)
@@ -182,12 +196,14 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
     copied_exclude = copied_reference_exclude_set(account)
     pool_skip = reference_pool_skip_reason(reference_pool, exclude_ids=copied_exclude)
     if pool_skip:
+        progress_error("rank_references", pool_skip)
         release_interval_slot_reservation(ctx, aid)
         release_post_guard(ctx, aid)
         out = {"account_id": aid, "skipped": pool_skip}
         trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
         return out
 
+    progress_active("rank_references")
     ranked_refs = rank_timeline_references(reference_pool, exclude_ids=copied_exclude)
     max_ref_attempts = max(0, int(settings.max_reference_fallback_attempts))
     if max_ref_attempts > 0:
@@ -203,6 +219,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
         },
         handoff_to="compose_post",
     )
+    progress_done("rank_references")
 
     tick_input = TickInput(
         account_id=account.account_id,
@@ -222,6 +239,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
     winner: GatheredTweet | None = None
     topic_preanalysis = None
     references_tried = 0
+    progress_active("compose")
 
     for ref_idx, candidate in enumerate(ranked_refs):
         winner = candidate
@@ -256,6 +274,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
                 {"body": body, "chosen_embed_url": topic_preanalysis.chosen_embed_url},
                 handoff_to="safety_filter",
             )
+            progress_active("safety")
             approved, reject = ctx.guardian.evaluate(body, niche=account.niche)
             trace_step(
                 aid,
@@ -282,6 +301,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
         last_reject = candidate_reject or last_reject
 
     if selected_body is None or winner is None or topic_preanalysis is None:
+        progress_error("compose", last_reject or "all_compose_attempts_failed")
         release_interval_slot_reservation(ctx, aid)
         release_post_guard(ctx, aid)
         out = {
@@ -291,6 +311,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
         }
         trace_step(aid, "pipeline_rejected", out, handoff_to="(end)")
         return out
+    progress_done("compose")
 
     trace_step(
         aid,
@@ -317,6 +338,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
         source_reference_tweet_id=source_id,
         chosen_embed_url=topic_preanalysis.chosen_embed_url,
     )
+    progress_active("publish")
     result = finalize_post(
         ctx,
         account,
@@ -326,6 +348,9 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
         creation_metrics=creation_metrics,
         source_reference_tweet_id=source_id,
     )
+    progress_done("publish")
+    progress_active("complete")
+    progress_done("complete")
     trace_step(aid, "post_tick_result", result, handoff_to="(end)")
     return result
 
