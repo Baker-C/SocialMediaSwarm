@@ -22,6 +22,7 @@ A FastAPI backend with an in-process APScheduler autonomously posts plain-text t
 |-----|--------|-----------------|
 | [entry-and-runtime](subsystems/entry-and-runtime.md) | Process startup, APScheduler, Docker | `backend/app/main.py`, `backend/app/jobs/*.py` |
 | [interval-orchestration](subsystems/interval-orchestration.md) | Tick gateway, guards, slot idempotency | `backend/app/interval/runner.py`, `backend/app/agents/orchestrator.py` |
+| [pipeline-runbook](subsystems/pipeline-runbook.md) | Tools catalog, subagents, reference-analysis runbook | `backend/app/pipeline/` |
 | [reference-ingestion](subsystems/reference-ingestion.md) | Timeline fetch, rank, cache, dedup | `backend/app/services/tick_data_service.py` |
 | [compose-and-safety](subsystems/compose-and-safety.md) | LLM compose, length budget, safety | `backend/app/interval/compose_timeline_post.py` |
 | [interval-crew-llm](subsystems/interval-crew-llm.md) | Prompts, Claude client, alternate generate/rank | `backend/app/interval_crew/`, `backend/app/infrastructure/claude_client.py` |
@@ -44,6 +45,7 @@ flowchart TB
     ENTRY[entry-and-runtime]
     API[api-and-dashboard]
     ORCH[interval-orchestration]
+    PIPE[pipeline-runbook]
     REF[reference-ingestion]
     COMPOSE[compose-and-safety]
     CREW[interval-crew-llm]
@@ -53,12 +55,15 @@ flowchart TB
     FE[frontend-dashboard]
     OPS[operations]
 
-    PROJECT --> ENTRY & API & ORCH & FE & OPS
+    PROJECT --> ENTRY & API & ORCH & PIPE & FE & OPS
 
     ENTRY -->|APScheduler| ORCH
     ENTRY -->|APScheduler| ENG
 
     ORCH --> REF
+    ORCH --> PIPE
+    PIPE --> REF
+    PIPE --> COMPOSE
     ORCH --> COMPOSE
     ORCH --> RDB
     ORCH --> SOCIAL
@@ -81,15 +86,16 @@ flowchart TB
 1. **entry-and-runtime** — APScheduler fires `interval_job` (respects quiet hours)
 2. **interval-orchestration** — loads accounts, applies guards, reserves slot
 3. **reference-ingestion** — fetches timeline via **social-x-integration**, ranks, excludes copied refs
-4. **compose-and-safety** — Claude compose (prompts from **interval-crew-llm**), safety/niche checks
-5. **interval-orchestration** — posts via **social-x-integration**, persists to **persistence-ravendb**
-6. **engagement-and-metrics** — later polls views/likes on tracked posts
+4. **pipeline-runbook** (reference phase) — optional modular path: data tools → timeline + own-post subagents → pattern summaries (see [pipeline-runbook](subsystems/pipeline-runbook.md)); integrating into the full tick is in progress
+5. **compose-and-safety** — Claude compose (prompts from **interval-crew-llm**), safety/niche checks
+6. **interval-orchestration** — posts via **social-x-integration**, persists to **persistence-ravendb**
+7. **engagement-and-metrics** — later polls views/likes on tracked posts
 
 ## Suggested reading paths
 
 | Goal | Read first | Then |
 |------|------------|------|
-| New contributor | This doc → [entry-and-runtime](subsystems/entry-and-runtime.md) | [interval-orchestration](subsystems/interval-orchestration.md) → [reference-ingestion](subsystems/reference-ingestion.md) → [compose-and-safety](subsystems/compose-and-safety.md) |
+| New contributor | This doc → [entry-and-runtime](subsystems/entry-and-runtime.md) | [interval-orchestration](subsystems/interval-orchestration.md) → [pipeline-runbook](subsystems/pipeline-runbook.md) → [reference-ingestion](subsystems/reference-ingestion.md) → [compose-and-safety](subsystems/compose-and-safety.md) |
 | Run the stack | [operations](subsystems/operations.md) | [backend/README](../SocialMediaAutonomousAgents/backend/README.md) |
 | Add an account | [ACCOUNT_SETUP](../SocialMediaAutonomousAgents/backend/docs/ACCOUNT_SETUP.md) | [persistence-ravendb](subsystems/persistence-ravendb.md) |
 | Debug a failed post | [interval-orchestration](subsystems/interval-orchestration.md) (skip reasons) | Enable `TICK_PIPELINE_TRACE=true` → [compose-and-safety](subsystems/compose-and-safety.md) |
@@ -123,6 +129,7 @@ All project documentation lives under this tree or is linked below. Paths under 
 | [PROJECT.md](PROJECT.md) | This entry point |
 | [subsystems/entry-and-runtime.md](subsystems/entry-and-runtime.md) | Startup, APScheduler, Docker |
 | [subsystems/interval-orchestration.md](subsystems/interval-orchestration.md) | Tick gateway, guards, slots |
+| [subsystems/pipeline-runbook.md](subsystems/pipeline-runbook.md) | Tools, subagents, runbook |
 | [subsystems/reference-ingestion.md](subsystems/reference-ingestion.md) | Timeline fetch, rank, cache |
 | [subsystems/compose-and-safety.md](subsystems/compose-and-safety.md) | LLM compose, safety checks |
 | [subsystems/interval-crew-llm.md](subsystems/interval-crew-llm.md) | Claude client, prompt inventory |

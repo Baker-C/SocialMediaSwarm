@@ -13,6 +13,8 @@ Scope: FastAPI HTTP layer consumed by the React dashboard and operators. Parent:
 | `SocialMediaAutonomousAgents/backend/app/api/routes/posts.py` | Posts list (stub) |
 | `SocialMediaAutonomousAgents/backend/app/api/routes/patterns.py` | Patterns list (stub) |
 | `SocialMediaAutonomousAgents/backend/app/api/routes/metrics.py` | Per-account metrics (stub) |
+| `SocialMediaAutonomousAgents/backend/app/api/routes/force_post.py` | On-demand force post (JSON or SSE) |
+| `SocialMediaAutonomousAgents/backend/app/api/routes/oauth.py` | X OAuth2 connect / status / disconnect |
 | `SocialMediaAutonomousAgents/backend/app/services/ravendb_service.py` | Read models for API responses |
 | `SocialMediaAutonomousAgents/backend/app/services/account_update_service.py` | PATCH account updates from dashboard |
 | `SocialMediaAutonomousAgents/backend/app/services/account_create_service.py` | POST account creation |
@@ -44,8 +46,19 @@ All routes are prefixed with `/api`.
 | GET | `/accounts/{id}/status` | `last_interval_slot`, `posts_total` |
 | POST | `/accounts/{id}/test` | Posts a short credential test tweet via X |
 | GET | `/accounts/{id}/pulled-tweets` | Stored reference tweets (`limit`, optional `since`) |
+| POST | `/accounts/{id}/force-post` | Run force-post pipeline for one account. Default: JSON result. With `Accept: text/event-stream`: SSE progress events (`progress`, `complete`, `error`). |
 
 Account provisioning details: [ACCOUNT_SETUP](../../SocialMediaAutonomousAgents/backend/docs/ACCOUNT_SETUP.md).
+
+### OAuth (X)
+
+| Method | Path | Behavior |
+|--------|------|----------|
+| GET | `/oauth/x/authorize` | Start OAuth2 PKCE (query: `account_id`) |
+| GET | `/oauth/x/callback` | Token exchange (browser redirect) |
+| GET | `/oauth/x/status/{account_id}` | Connection status |
+| DELETE | `/oauth/x/disconnect/{account_id}` | Remove stored tokens |
+| GET | `/oauth/x/setup` | Portal setup hints for operators |
 
 ### Dashboard aggregates
 

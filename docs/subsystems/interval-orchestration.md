@@ -18,6 +18,8 @@ Scope: scheduled and forced posting ticks — gateway from scheduler/CLI to per-
 | `SocialMediaAutonomousAgents/backend/app/interval/orchestration/posting_hours.py` | Quiet hours window |
 | `SocialMediaAutonomousAgents/backend/app/interval/pipeline_trace.py` | Optional JSON step tracing (`TICK_PIPELINE_TRACE`) |
 | `SocialMediaAutonomousAgents/backend/scripts/create_forced_post.py` | Manual force post CLI |
+| `SocialMediaAutonomousAgents/backend/app/pipeline/runbook.py` | Reference-analysis runbook entry (`reference_analysis`) |
+| `SocialMediaAutonomousAgents/backend/app/api/routes/force_post.py` | HTTP force post + SSE progress |
 
 ## Entry points
 
@@ -51,8 +53,9 @@ flowchart TB
 1. **Pre-tick** — reload account; skip inactive; skip if `last_interval_slot == slot` (scheduled); [post guards](#guards)
 2. **Data** — profile + tracked metrics bundle ([reference-ingestion](reference-ingestion.md))
 3. **References** — timeline tweets, URL filter, rank, exclude copied refs
-4. **Compose loop** — try ranked refs; [compose-and-safety](compose-and-safety.md) per ref
-5. **Post-tick** — `post_tweet`, update account, `TrackedPosts`, copied-reference list
+4. **Reference analysis (modular)** — the same work can be expressed as the [pipeline runbook](pipeline-runbook.md): `runbook.reference_analysis()` runs profile → timeline/own pools → timeline + own-post subagents (top-10 pattern summaries). Full tick integration into `runner.py` is in progress.
+5. **Compose loop** — try ranked refs; [compose-and-safety](compose-and-safety.md) per ref
+6. **Post-tick** — `post_tweet`, update account, `TrackedPosts`, copied-reference list
 
 On compose/safety failure for a reference, tries next ranked tweet (up to `MAX_REFERENCE_FALLBACK_ATTEMPTS` when &gt; 0).
 
@@ -78,8 +81,19 @@ Scheduled mode **writes** `last_interval_slot` early during slot reservation so 
 
 `interval/orchestration/safety_filter.py`, `voice_select.py`, and `voice_polish.py` implement generate→rank→polish selection. The **live** timeline pipeline calls `SafetyGuardian.evaluate` directly in `runner.py`, not these helpers.
 
+## Force post entry points
+
+| Entry | Path |
+|-------|------|
+| CLI | `scripts/create_forced_post.py` → `Orchestrator.run_tick(mode="force")` |
+| HTTP | `POST /api/accounts/{id}/force-post` (JSON or SSE with `Accept: text/event-stream`) |
+| Dashboard | Overview → Force post ([frontend-dashboard](frontend-dashboard.md)) |
+
+Progress checkpoints are defined in `force_post_progress.py` and should stay aligned with [pipeline-runbook](pipeline-runbook.md) step IDs as integration proceeds.
+
 ## Related docs
 
+- Pipeline tools / runbook: [pipeline-runbook](pipeline-runbook.md)
 - Reference fetch/rank: [reference-ingestion](reference-ingestion.md)
 - Compose + safety: [compose-and-safety](compose-and-safety.md)
 - Persistence updates: [persistence-ravendb](persistence-ravendb.md)

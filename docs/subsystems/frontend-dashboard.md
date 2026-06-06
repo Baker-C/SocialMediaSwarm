@@ -30,7 +30,10 @@ Sidebar tabs (see `navigation/tabs.ts`):
 | `navigation/tabs.ts` | `TabId`, `buildNavItems` — add new tabs here |
 | `navigation/Sidebar.tsx` | Sidebar tab list |
 | `panels/renderPanel.tsx` | Maps `TabId` → panel component |
-| `panels/OverviewPanel.tsx` | Overview content |
+| `panels/OverviewPanel.tsx` | Overview content, force-post section |
+| `components/ForcePostSection.tsx` | Account picker + force post + step tracker |
+| `components/ForcePostTracker.tsx` | Pipeline progress UI (spinner / checkmark / error) |
+| `lib/forcePostSteps.ts` | Step order + error label formatting |
 | `panels/AccountPanel.tsx` | Single-account view |
 | `components/AccountCard.tsx` | Account stats and update button |
 | `components/UpdateAccountModal.tsx` | PATCH account + credentials |
@@ -56,7 +59,9 @@ Polling interval env `REACT_APP_POLLING_INTERVAL` is defined in compose but **no
 ## UI sections
 
 1. **Sidebar** — Overview + one tab per account (sorted by `account_id`)
-2. **Overview panel** — bento stats + account list; debug JSON in `<details>`
+2. **Overview panel** — bento stats, **Force post** (account dropdown, step tracker, error banner), account list; debug JSON in `<details>`
+
+Force post calls `POST /api/accounts/{id}/force-post` with `Accept: text/event-stream` and maps SSE `progress` events to [pipeline-runbook](pipeline-runbook.md) step IDs where aligned.
 3. **Account panel** — full-width account card for the selected tab
 
 Stub endpoints (`/posts`, `/patterns`) are fetched but not displayed in the main UI.

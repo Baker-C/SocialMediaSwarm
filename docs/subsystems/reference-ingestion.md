@@ -12,6 +12,9 @@ Scope: fetching timeline tweets, ranking, caching, and deduplication for the pos
 | `SocialMediaAutonomousAgents/backend/app/services/copied_references.py` | Exclude already-reposted source ids |
 | `SocialMediaAutonomousAgents/backend/app/services/pulled_tweet_repository.py` | Persist pulled rows |
 | `SocialMediaAutonomousAgents/backend/app/interval_crew/tools/tick_data.py` | Thin wrappers used by `interval/runner.py` |
+| `SocialMediaAutonomousAgents/backend/app/pipeline/tools/data/timeline_fetch.py` | Pipeline data tool wrapping `TickDataService` |
+| `SocialMediaAutonomousAgents/backend/app/pipeline/tools/data/own_posts_fetch.py` | Own-post history from `TrackedPosts` |
+| `SocialMediaAutonomousAgents/backend/app/pipeline/tools/deterministic/reference_rank.py` | Shared top-N ranking |
 | `SocialMediaAutonomousAgents/backend/app/social/tweet_enrichment.py` | `filter_rows_with_urls`, media URL selection |
 
 ## Flow
@@ -72,8 +75,21 @@ After a successful post, `record_copied_reference` appends the source tweet id s
 
 `TREND_TWEET_SEARCH_ENABLED=false` — search stream exists in `TickDataService` / X client but is **not** the live reference source. Niche discourse/trends may still be compiled for optional context in alternate pipelines.
 
+## Own-post references (pipeline)
+
+The live tick uses **timeline** tweets as compose sources. The pipeline also loads **own** posts from `TrackedPosts` for performance analysis:
+
+- `tools.data.own_posts_fetch` — RavenDB rows via `TrackedPostRepository.list_for_account()`
+- `subagents.own_posts` — ranks top 10 by the same `popularity_score` weights, then `llm.reference_pattern_summary` with `source=own_posts`
+- Skips when fewer than 3 tracked posts (does not block posting)
+
+Own-post text may come from `raw_metrics.text` until `post_text` is stored on `TrackedPostDocument` at publish time.
+
+See [pipeline-runbook](pipeline-runbook.md).
+
 ## Related docs
 
+- Pipeline catalog: [pipeline-runbook](pipeline-runbook.md)
 - X timeline API: [social-x-integration](social-x-integration.md)
 - Compose from winner: [compose-and-safety](compose-and-safety.md)
 - Orchestration loop: [interval-orchestration](interval-orchestration.md)

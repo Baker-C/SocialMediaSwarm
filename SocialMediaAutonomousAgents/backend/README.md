@@ -1,6 +1,6 @@
 # Social Media Autonomous Agents — Backend
 
-**Documentation:** [`docs/PROJECT.md`](../../docs/PROJECT.md) (subsystem docs under `docs/subsystems/`). Account provisioning: [ACCOUNT_SETUP](docs/ACCOUNT_SETUP.md).
+**Documentation:** [`docs/PROJECT.md`](../../docs/PROJECT.md) (subsystem docs under `docs/subsystems/`). Posting pipeline catalog: [pipeline-runbook](../../docs/subsystems/pipeline-runbook.md). Account provisioning: [ACCOUNT_SETUP](docs/ACCOUNT_SETUP.md).
 
 FastAPI backend with RavenDB and in-process scheduling. Accounts can be created and updated via HTTP or CLI (`scripts/add_account.py`).
 
@@ -18,17 +18,7 @@ pip install -r requirements.txt
 
 3. Copy `.env.example` to `.env`, set **`ENCRYPTION_KEY`** (Fernet) and optional **`SCHEDULER_TIMEZONE`** (IANA, e.g. `America/Chicago`).
 4. Ensure RavenDB is running and the database exists.
-5. Add at least one active account with X credentials (all four OAuth1 secrets are required):
-
-```bash
-python scripts/add_account.py --account-id my-handle ^
-  --niche "Your niche" ^
-  --twitter-handle "@myhandle" ^
-  --twitter-api-key "..." ^
-  --twitter-api-secret "..." ^
-  --twitter-access-token "..." ^
-  --twitter-access-token-secret "..."
-```
+5. Add at least one active account, then connect X via OAuth from the dashboard (or see [ACCOUNT_SETUP](docs/ACCOUNT_SETUP.md)). Legacy CLI OAuth1 upsert is deprecated in favor of OAuth2 token storage.
 
 6. **Docker-only (recommended)** — from repo root:
 
@@ -55,14 +45,26 @@ Local `uvicorn` is optional for development; do **not** run local `uvicorn` and 
 | `docker compose exec backend python scripts/create_forced_post.py acc1` | Force post via Docker backend (preferred) |
 | `python scripts/create_forced_post.py acc1 --force-now` | Bypass cooldown only; use inside container or when no Docker scheduler is running |
 
+## Pipeline package (`app/pipeline`)
+
+Tools, subagents, and the reference-analysis runbook. See [pipeline-runbook](../../docs/subsystems/pipeline-runbook.md).
+
+```python
+from app.pipeline import runbook
+result = runbook.reference_analysis("account_id", niche="News")
+```
+
 ## API
 
 - `GET /api/accounts` — redacted list  
 - `GET /api/accounts/{id}`  
-- `POST /api/accounts` — create account with encrypted X credentials (409 if id exists)  
+- `POST /api/accounts` — create account profile (409 if id exists); connect X via OAuth separately  
 - `GET /api/accounts/{id}/edit` — non-secret fields for the dashboard form  
-- `PATCH /api/accounts/{id}` — update niche, handle, status, prompts, Buffer ids, credentials  
+- `PATCH /api/accounts/{id}` — update niche, handle, status, prompts  
 - `PATCH /api/accounts/{id}/archive` — set `inactive`  
-- `GET /api/accounts/{id}/status` — `POST /api/accounts/{id}/test`  
+- `GET /api/accounts/{id}/status`  
+- `POST /api/accounts/{id}/test` — credential test tweet  
+- `POST /api/accounts/{id}/force-post` — on-demand post (JSON or SSE progress)  
+- `GET /api/oauth/x/authorize`, `/status/{id}`, `/disconnect/{id}` — X OAuth2  
 
-CLI upsert (create or replace credentials): **`python scripts/add_account.py`** (or `run_create_account_job` from code).
+Full route table: [api-and-dashboard](../../docs/subsystems/api-and-dashboard.md).

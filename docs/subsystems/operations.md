@@ -59,6 +59,8 @@ Full list: `backend/app/core/config.py` and `.env.example`.
 |---------|---------|
 | `python scripts/add_account.py --account-id ...` | Create/update account with encrypted creds |
 | `python scripts/create_forced_post.py acc1 --force-now` | Force post (use inside container when scheduler runs) |
+| Overview → **Force post** (frontend) | `POST /api/accounts/{id}/force-post` with SSE progress |
+| `runbook.reference_analysis(...)` (Python) | Reference-analysis slice only — see [pipeline-runbook](pipeline-runbook.md) |
 | `python scripts/test_twitter_credentials.py` | Post test tweet per active account |
 | `.\scripts\docker-forced-post.ps1 JohnJames_News` | Host wrapper for forced post in container |
 

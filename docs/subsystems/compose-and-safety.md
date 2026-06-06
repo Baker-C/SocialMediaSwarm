@@ -11,6 +11,8 @@ Scope: turning a ranked timeline reference into a post and validating it before 
 | `SocialMediaAutonomousAgents/backend/app/interval/tweet_topic_preanalysis.py` | `GatheredTweet`, `preanalysis_from_winner` |
 | `SocialMediaAutonomousAgents/backend/app/interval/orchestration/voice_polish.py` | Voice heuristics (alternate rank path) |
 | `SocialMediaAutonomousAgents/backend/app/interval/orchestration/safety_filter.py` | Ranked-candidate selection (not live tick) |
+| `SocialMediaAutonomousAgents/backend/app/pipeline/tools/llm/compose_timeline_post.py` | Pipeline wrapper around `compose_formatted_post` |
+| `SocialMediaAutonomousAgents/backend/app/pipeline/tools/llm/reference_pattern_summary.py` | Pattern analysis across top reference posts |
 
 ## Live compose path
 
@@ -43,6 +45,15 @@ Loaded from `interval_crew/prompts/tasks/compose_timeline_post.*.md`. Account fi
 
 Without Claude, deterministic `_fallback_compose` + shrink-to-budget is used.
 
+### Reference context (pipeline, incoming)
+
+The [pipeline runbook](pipeline-runbook.md) produces structured briefs before compose:
+
+- **Timeline analysis** — top external posts, `selected_winner_id`, `pattern_summary`, `voice_signals`
+- **Own-posts analysis** — top own posts, style/success patterns (skipped when history is thin)
+
+Wiring these into `compose_timeline_post.user.md` (alongside the single winner text) is the next compose integration step. Intended split: **timeline winner = topic/link**, **own-post brief = voice/structure**.
+
 ## Safety guardian
 
 `SafetyGuardian.evaluate(content, niche)` checks:
@@ -62,6 +73,7 @@ If Claude is disabled, niche fit check is **skipped** (passes unless other rules
 
 ## Related docs
 
+- Pipeline runbook + subagents: [pipeline-runbook](pipeline-runbook.md)
 - Prompt files overview: [interval-crew-llm](interval-crew-llm.md)
 - Reference selection: [reference-ingestion](reference-ingestion.md)
 - Post after approval: [interval-orchestration](interval-orchestration.md)
