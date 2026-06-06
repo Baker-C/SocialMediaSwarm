@@ -1,18 +1,23 @@
 import type { AccountSummary, ApiState } from '../types';
 import type { TabId } from '../navigation/tabs';
+import { ForcePostSection } from '../components/ForcePostSection';
 
 type OverviewPanelProps = {
+  apiBase: string;
   activeAccounts: number | null;
   accounts: AccountSummary[];
   apiData: ApiState;
   onOpenAccount: (tab: TabId) => void;
+  onForcePostComplete?: () => void;
 };
 
 export function OverviewPanel({
+  apiBase,
   activeAccounts,
   accounts,
   apiData,
   onOpenAccount,
+  onForcePostComplete,
 }: OverviewPanelProps) {
   return (
     <>
@@ -38,6 +43,8 @@ export function OverviewPanel({
           </article>
         </div>
       </section>
+
+      <ForcePostSection apiBase={apiBase} accounts={accounts} onComplete={onForcePostComplete} />
 
       <section className="accounts-section" aria-label="Registered accounts">
         <h2 className="accounts-section__title">Accounts</h2>

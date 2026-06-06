@@ -6,11 +6,13 @@ import { AccountPanel } from './AccountPanel';
 import { OverviewPanel } from './OverviewPanel';
 
 export type PanelContext = {
+  apiBase: string;
   activeAccounts: number | null;
   accounts: AccountSummary[];
   apiData: ApiState;
   onOpenAccount: (tab: TabId) => void;
   onUpdateClick: (accountId: string) => void;
+  onForcePostComplete?: () => void;
 };
 
 /** Map each TabId kind to its panel. Add new tab kinds here. */
@@ -28,10 +30,12 @@ export function renderPanel(tab: TabId, ctx: PanelContext): ReactNode {
           className="main-panel__content"
         >
           <OverviewPanel
+            apiBase={ctx.apiBase}
             activeAccounts={ctx.activeAccounts}
             accounts={ctx.accounts}
             apiData={ctx.apiData}
             onOpenAccount={ctx.onOpenAccount}
+            onForcePostComplete={ctx.onForcePostComplete}
           />
         </div>
       );

@@ -31,6 +31,24 @@ export type AccountEditPayload = {
   last_interval_slot?: string | null;
   last_post_id?: string | null;
   credential_mode: string;
+  oauth_connected?: boolean;
+  oauth_expires_at?: string | null;
+};
+
+export type OAuthStatus = {
+  account_id: string;
+  connected: boolean;
+  expires_at?: string | null;
+  scopes?: string | null;
+  x_user_id?: string | null;
+  updated_at?: string | null;
+};
+
+export type OAuthAuthorizeResponse = {
+  account_id: string;
+  authorization_url: string;
+  state: string;
+  redirect_uri?: string;
 };
 
 export type ApiState = {

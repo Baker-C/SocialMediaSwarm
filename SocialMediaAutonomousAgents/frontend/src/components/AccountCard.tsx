@@ -89,8 +89,8 @@ export function AccountCard({ account, onUpdateClick, variant = 'card' }: Accoun
         ) : null}
         {account.has_credentials === false ? (
           <div className="account-card__stat account-card__stat--wide">
-            <dt>Credentials</dt>
-            <dd className="account-card__warn">Incomplete</dd>
+            <dt>X connection</dt>
+            <dd className="account-card__warn">Not connected — use Update account → Connect with X</dd>
           </div>
         ) : null}
       </dl>

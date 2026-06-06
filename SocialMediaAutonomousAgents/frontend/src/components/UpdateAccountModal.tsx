@@ -1,9 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { apiPrefix, parseHttpError } from '../lib/api';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  apiPrefix,
+  disconnectOAuth,
+  fetchOAuthAuthorizeUrl,
+  fetchOAuthStatus,
+  parseHttpError,
+} from '../lib/api';
 import { formatShortDate } from '../lib/format';
 import type { AccountEditPayload } from '../types';
-
-const SECRET_PLACEHOLDER = 'Leave blank to keep stored credentials unchanged';
 
 type UpdateModalProps = {
   apiBase: string;
@@ -22,10 +26,26 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
   const [systemPrompt, setSystemPrompt] = useState('');
   const [followers, setFollowers] = useState(0);
   const [postsTotal, setPostsTotal] = useState(0);
-  const [twitterOauth2Access, setTwitterOauth2Access] = useState('');
-  const [twitterOauth2Refresh, setTwitterOauth2Refresh] = useState('');
+  const [oauthConnected, setOauthConnected] = useState(false);
+  const [oauthExpiresAt, setOauthExpiresAt] = useState<string | null>(null);
+  const [oauthRedirectUri, setOauthRedirectUri] = useState('');
+  const [oauthBusy, setOauthBusy] = useState(false);
+  const [oauthError, setOauthError] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+
+  const refreshOAuthStatus = useCallback(async () => {
+    try {
+      const oauth = await fetchOAuthStatus(apiBase, accountId);
+      setOauthConnected(oauth.connected);
+      setOauthExpiresAt(oauth.expires_at ?? null);
+      setOauthError('');
+    } catch (err) {
+      const detail =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error';
+      setOauthError(detail);
+    }
+  }, [apiBase, accountId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,9 +71,10 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
         setSystemPrompt(data.system_prompt ?? '');
         setFollowers(typeof data.followers === 'number' ? data.followers : 0);
         setPostsTotal(typeof data.posts_total === 'number' ? data.posts_total : 0);
-        setTwitterOauth2Access('');
-        setTwitterOauth2Refresh('');
+        setOauthConnected(Boolean(data.oauth_connected));
+        setOauthExpiresAt(data.oauth_expires_at ?? null);
         setSaveError('');
+        setOauthError('');
       } catch (err) {
         const detail =
           err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error';
@@ -62,11 +83,46 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
         }
       }
     };
-    load();
+    void load();
     return () => {
       cancelled = true;
     };
   }, [accountId, prefix]);
+
+  const handleConnectX = async () => {
+    setOauthError('');
+    setOauthBusy(true);
+    try {
+      const result = await fetchOAuthAuthorizeUrl(apiBase, accountId);
+      if (result.redirect_uri) {
+        setOauthRedirectUri(result.redirect_uri);
+      }
+      window.open(result.authorization_url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      const detail =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error';
+      setOauthError(detail);
+    } finally {
+      setOauthBusy(false);
+    }
+  };
+
+  const handleDisconnectX = async () => {
+    setOauthError('');
+    setOauthBusy(true);
+    try {
+      await disconnectOAuth(apiBase, accountId);
+      setOauthConnected(false);
+      setOauthExpiresAt(null);
+      await refreshOAuthStatus();
+    } catch (err) {
+      const detail =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error';
+      setOauthError(detail);
+    } finally {
+      setOauthBusy(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,8 +136,6 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
         system_prompt: systemPrompt,
         followers,
         posts_total: postsTotal,
-        twitter_oauth2_access_token: twitterOauth2Access,
-        twitter_oauth2_refresh_token: twitterOauth2Refresh,
       };
       const res = await fetch(`${prefix}/accounts/${encodeURIComponent(accountId)}`, {
         method: 'PATCH',
@@ -131,13 +185,70 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
           <form className="modal-form" onSubmit={handleSubmit}>
             <p className="modal-meta">
               Account id <strong>{payload.account_id}</strong>
-              {payload.credential_mode ? (
-                <>
-                  {' '}
-                  · credentials: <code>{payload.credential_mode}</code>
-                </>
-              ) : null}
             </p>
+
+            <fieldset className="modal-fieldset">
+              <legend>X connection</legend>
+              <p className="modal-hint">
+                Connect opens X in a new tab. After you authorize, return here and close/reopen
+                this dialog to refresh connection status (or reload the dashboard).
+              </p>
+              <p className="modal-hint modal-hint--checklist">
+                In X Developer Portal → <strong>User authentication settings → Edit</strong>:
+              </p>
+              <ul className="modal-hint-list">
+                <li>
+                  Callback URI:{' '}
+                  <code>{oauthRedirectUri || 'http://localhost:8000/api/oauth/x/callback'}</code>
+                </li>
+                <li>
+                  Website URL (https://, TLD, <strong>no port</strong>):{' '}
+                  <code>https://example.com</code>
+                </li>
+              </ul>
+              <p className="modal-hint">
+                If you stay on the X authorize page after login, the callback URL is usually missing
+                or mismatched in User authentication settings. Log into x.com in a normal tab first,
+                disable ad-blockers for x.com, then try Connect again.
+              </p>
+              <p className="modal-oauth-status">
+                Status:{' '}
+                <strong className={oauthConnected ? 'modal-oauth-status--ok' : 'modal-oauth-status--warn'}>
+                  {oauthConnected ? 'Connected' : 'Not connected'}
+                </strong>
+                {oauthExpiresAt ? (
+                  <>
+                    {' '}
+                    · access expires {formatShortDate(oauthExpiresAt)}
+                  </>
+                ) : null}
+              </p>
+              <div className="modal-oauth-actions">
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => void handleConnectX()}
+                  disabled={oauthBusy || saving}
+                >
+                  {oauthBusy ? 'Working…' : oauthConnected ? 'Reconnect X' : 'Connect with X'}
+                </button>
+                {oauthConnected ? (
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={() => void handleDisconnectX()}
+                    disabled={oauthBusy || saving}
+                  >
+                    Disconnect
+                  </button>
+                ) : null}
+              </div>
+              {oauthError ? (
+                <p className="modal-error" role="alert">
+                  {oauthError}
+                </p>
+              ) : null}
+            </fieldset>
 
             <label className="modal-field">
               <span>Niche</span>
@@ -192,33 +303,6 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
                 />
               </label>
             </div>
-
-            <fieldset className="modal-fieldset">
-              <legend>OAuth 2.0 user (Bearer access)</legend>
-              <p className="modal-hint">
-                Leave both blank to keep the current OAuth2 tokens.
-              </p>
-              <label className="modal-field">
-                <span>OAuth2 access token</span>
-                <input
-                  type="password"
-                  value={twitterOauth2Access}
-                  onChange={(ev) => setTwitterOauth2Access(ev.target.value)}
-                  placeholder={SECRET_PLACEHOLDER}
-                  autoComplete="off"
-                />
-              </label>
-              <label className="modal-field">
-                <span>OAuth2 refresh token (optional)</span>
-                <input
-                  type="password"
-                  value={twitterOauth2Refresh}
-                  onChange={(ev) => setTwitterOauth2Refresh(ev.target.value)}
-                  placeholder={SECRET_PLACEHOLDER}
-                  autoComplete="off"
-                />
-              </label>
-            </fieldset>
 
             <p className="modal-readonly">
               Registered: {formatShortDate(payload.registered_at ?? undefined)} · Last slot:{' '}

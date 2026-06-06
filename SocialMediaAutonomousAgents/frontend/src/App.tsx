@@ -64,6 +64,35 @@ function App() {
   }, [loadApi]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = params.get('oauth_error')?.trim();
+    if (oauthError) {
+      setToast(`X connection failed: ${oauthError}`);
+      const accountId = params.get('account_id')?.trim();
+      if (accountId) {
+        setActiveTab({ kind: 'account', accountId });
+        setUpdateAccountId(accountId);
+      }
+      const url = new URL(window.location.href);
+      url.search = '';
+      window.history.replaceState({}, '', url.pathname);
+      return;
+    }
+    if (params.get('connected') !== '1') {
+      return;
+    }
+    const accountId = params.get('account_id')?.trim();
+    if (accountId) {
+      setToast(`Connected X for ${accountId}`);
+      setActiveTab({ kind: 'account', accountId });
+      void loadApi();
+    }
+    const url = new URL(window.location.href);
+    url.search = '';
+    window.history.replaceState({}, '', url.pathname);
+  }, [loadApi]);
+
+  useEffect(() => {
     if (!toast) {
       return undefined;
     }
@@ -93,13 +122,17 @@ function App() {
 
   const panelContext = useMemo(
     () => ({
+      apiBase,
       activeAccounts,
       accounts,
       apiData: data,
       onOpenAccount: setActiveTab,
       onUpdateClick: setUpdateAccountId,
+      onForcePostComplete: () => {
+        void loadApi();
+      },
     }),
-    [activeAccounts, accounts, data]
+    [apiBase, activeAccounts, accounts, data, loadApi]
   );
 
   const mainTitle =

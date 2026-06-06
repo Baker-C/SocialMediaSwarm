@@ -1,4 +1,10 @@
-import type { AccountSummary, DashboardPayload } from '../types';
+import type {
+  AccountSummary,
+  DashboardPayload,
+  OAuthAuthorizeResponse,
+  OAuthStatus,
+} from '../types';
+import type { ForcePostStreamEvent } from './forcePostSteps';
 
 export function apiBaseUrl(): string {
   const fromEnv = process.env.REACT_APP_API_URL?.trim();
@@ -39,6 +45,39 @@ export function parseAccounts(raw: unknown): AccountSummary[] {
   }) as AccountSummary[];
 }
 
+export async function fetchOAuthAuthorizeUrl(
+  apiBase: string,
+  accountId: string
+): Promise<OAuthAuthorizeResponse> {
+  const prefix = apiPrefix(apiBase);
+  const res = await fetch(
+    `${prefix}/oauth/x/authorize?account_id=${encodeURIComponent(accountId)}`
+  );
+  if (!res.ok) {
+    throw new Error(await parseHttpError(res));
+  }
+  return (await res.json()) as OAuthAuthorizeResponse;
+}
+
+export async function fetchOAuthStatus(apiBase: string, accountId: string): Promise<OAuthStatus> {
+  const prefix = apiPrefix(apiBase);
+  const res = await fetch(`${prefix}/oauth/x/status/${encodeURIComponent(accountId)}`);
+  if (!res.ok) {
+    throw new Error(await parseHttpError(res));
+  }
+  return (await res.json()) as OAuthStatus;
+}
+
+export async function disconnectOAuth(apiBase: string, accountId: string): Promise<void> {
+  const prefix = apiPrefix(apiBase);
+  const res = await fetch(`${prefix}/oauth/x/disconnect/${encodeURIComponent(accountId)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error(await parseHttpError(res));
+  }
+}
+
 export async function parseHttpError(res: Response): Promise<string> {
   const text = await res.text();
   let detail: unknown;
@@ -57,4 +96,67 @@ export async function parseHttpError(res: Response): Promise<string> {
     return `${res.status}: ${JSON.stringify(detail)}`;
   }
   return `${res.status} ${res.statusText}`;
+}
+
+function parseSseData(line: string): ForcePostStreamEvent | null {
+  const payload = line.startsWith('data: ') ? line.slice(6) : line;
+  if (!payload.trim()) {
+    return null;
+  }
+  try {
+    return JSON.parse(payload) as ForcePostStreamEvent;
+  } catch {
+    return null;
+  }
+}
+
+export async function streamForcePost(
+  apiBase: string,
+  accountId: string,
+  onEvent: (event: ForcePostStreamEvent) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const prefix = apiPrefix(apiBase);
+  const res = await fetch(`${prefix}/accounts/${encodeURIComponent(accountId)}/force-post`, {
+    method: 'POST',
+    headers: { Accept: 'text/event-stream' },
+    signal,
+  });
+  if (!res.ok) {
+    throw new Error(await parseHttpError(res));
+  }
+  if (!res.body) {
+    throw new Error('No response body from force post stream');
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() ?? '';
+    for (const chunk of parts) {
+      for (const line of chunk.split('\n')) {
+        const event = parseSseData(line);
+        if (event) {
+          onEvent(event);
+        }
+      }
+    }
+  }
+
+  if (buffer.trim()) {
+    for (const line of buffer.split('\n')) {
+      const event = parseSseData(line);
+      if (event) {
+        onEvent(event);
+      }
+    }
+  }
 }
