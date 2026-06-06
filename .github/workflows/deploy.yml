@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Sync and redeploy Docker stack
-        shell: pwsh
+        shell: powershell
         env:
           SMA_REPO_ROOT: C:\Users\cdbak\_SocialMediaDomination
           DEPLOY_SHA: ${{ github.sha }}
