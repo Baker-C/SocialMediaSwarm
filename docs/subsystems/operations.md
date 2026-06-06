@@ -40,6 +40,8 @@ The workflow syncs the live repo at `C:\Users\cdbak\_SocialMediaDomination` (ove
 
 Deploy logs: `SocialMediaAutonomousAgents/scripts/logs/`.
 
+The runner auto-starts at Windows logon via scheduled task `SMA-GitHub-Actions-Runner`. Docker services use compose `restart: unless-stopped`.
+
 ## Docker stack
 
 RavenDB is **not** in this compose file. Typical startup:

@@ -49,11 +49,21 @@ Write-Host "Configuring runner $RunnerName with label $RunnerLabel"
 [Environment]::SetEnvironmentVariable("SMA_REPO_ROOT", $RepoRoot, "User")
 Write-Host "Set user env SMA_REPO_ROOT=$RepoRoot"
 
+Write-Host "Registering logon scheduled task for runner auto-start"
+$runCmd = Join-Path $RunnerDir "run.cmd"
+$action = New-ScheduledTaskAction -Execute $runCmd -WorkingDirectory $RunnerDir
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+Register-ScheduledTask `
+    -TaskName "SMA-GitHub-Actions-Runner" `
+    -Action $action `
+    -Trigger $trigger `
+    -Settings $settings `
+    -Description "Self-hosted runner for SocialMediaSwarm push deploy" `
+    -Force | Out-Null
+
 Write-Host "Starting runner process (must run as the Docker Desktop user)"
-$runnerProcess = Start-Process -FilePath (Join-Path $RunnerDir "run.cmd") `
-    -WorkingDirectory $RunnerDir `
-    -WindowStyle Hidden `
-    -PassThru
-Write-Host "Runner PID $($runnerProcess.Id). Re-run run.cmd after reboot, or register a logon scheduled task."
+$runnerProcess = Start-Process -FilePath $runCmd -WorkingDirectory $RunnerDir -WindowStyle Hidden -PassThru
+Write-Host "Runner PID $($runnerProcess.Id)"
 
 Write-Host "Runner installed. Verify with: gh api repos/$RepoSlug/actions/runners"
