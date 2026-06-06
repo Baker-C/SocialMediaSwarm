@@ -81,7 +81,7 @@ if ($ExpectedSha -and $currentSha -ne $ExpectedSha.Trim()) {
 }
 
 if (-not (Test-Path (Join-Path $ComposeDir "backend\.env"))) {
-    throw "Missing backend/.env — create it from backend/.env.example before deploying"
+    throw "Missing backend/.env - create it from backend/.env.example before deploying"
 }
 
 Set-Location $ComposeDir
