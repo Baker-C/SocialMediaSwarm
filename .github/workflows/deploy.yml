@@ -1,0 +1,44 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, sma-deploy]
+    timeout-minutes: 45
+    steps:
+      - name: Sync and redeploy Docker stack
+        shell: pwsh
+        env:
+          SMA_REPO_ROOT: C:\Users\cdbak\_SocialMediaDomination
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $root = $env:SMA_REPO_ROOT
+
+          if (-not (Test-Path $root)) {
+            throw "SMA_REPO_ROOT does not exist: $root"
+          }
+
+          # Bootstrap: ensure live tree matches the pushed commit before invoking the deploy script.
+          git -C $root fetch origin main
+          git -C $root reset --hard origin/main
+
+          $activeSha = (git -C $root rev-parse HEAD).Trim()
+          if ($activeSha -ne $env:DEPLOY_SHA) {
+            throw "Live repo at $activeSha does not match workflow commit $env:DEPLOY_SHA"
+          }
+
+          $script = Join-Path $root "SocialMediaAutonomousAgents\scripts\auto-deploy.ps1"
+          if (-not (Test-Path $script)) {
+            throw "Deploy script missing after sync: $script"
+          }
+
+          & $script -RepoRoot $root -ExpectedSha $env:DEPLOY_SHA -SkipGitSync

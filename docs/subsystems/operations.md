@@ -16,6 +16,30 @@ Scope: Docker deployment, environment variables, CLI scripts, and operator workf
 | `SocialMediaAutonomousAgents/backend/scripts/test_twitter_credentials.py` | Credential smoke test |
 | `SocialMediaAutonomousAgents/backend/docs/ACCOUNT_SETUP.md` | Detailed account setup guide |
 
+## Push-based deploy (GitHub Actions)
+
+A self-hosted runner on the Docker host redeploys on every push to `main`.
+
+| Path | Role |
+|------|------|
+| `.github/workflows/deploy.yml` | Triggers deploy job on push to `main` |
+| `SocialMediaAutonomousAgents/scripts/auto-deploy.ps1` | `git fetch` + `reset --hard origin/main`, then `docker compose up -d --build` |
+| `SocialMediaAutonomousAgents/scripts/setup-deploy-runner.ps1` | One-time runner install on the deploy machine |
+| `SocialMediaAutonomousAgents/.deploy-stamp` | Bump to verify a redeploy in logs / health checks |
+
+**One-time host setup** (run as the same Windows user that owns Docker Desktop):
+
+```powershell
+cd SocialMediaAutonomousAgents
+.\scripts\setup-deploy-runner.ps1
+```
+
+Prerequisites on the host: `gh` CLI (authenticated), Docker Desktop, RavenDB up, `backend/.env` filled in.
+
+The workflow syncs the live repo at `C:\Users\cdbak\_SocialMediaDomination` (override via user env `SMA_REPO_ROOT`), rebuilds images, and restarts containers. Compose `restart: unless-stopped` keeps services up across Docker daemon restarts; each deploy briefly restarts backend (APScheduler) and frontend.
+
+Deploy logs: `SocialMediaAutonomousAgents/scripts/logs/`.
+
 ## Docker stack
 
 RavenDB is **not** in this compose file. Typical startup:
