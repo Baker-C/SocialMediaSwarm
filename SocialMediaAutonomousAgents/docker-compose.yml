@@ -52,6 +52,12 @@ services:
 
       TICK_PIPELINE_TRACE: "false"
 
+      TWITTER_OAUTH2_REDIRECT_URI: "http://localhost:8000/api/oauth/x/callback"
+
+      TWITTER_OAUTH2_SUCCESS_REDIRECT_URL: "http://localhost:3000"
+
+      TWITTER_OAUTH2_WEBSITE_URL: "https://example.com"
+
     volumes:
 
       - ${RAVENDB_CERTS_DIR:-C:/Users/cdbak/ravendb/certs}:/certs:ro

@@ -8,7 +8,6 @@ from zoneinfo import ZoneInfo
 from app.core.config import settings
 from app.infrastructure.ravendb_http import RavenDBHttpClient, RavenDBHttpError, get_ravendb_client
 from app.models.account import (
-    AccountCredentials,
     AccountDocument,
     AccountPostingState,
     AccountProfile,
@@ -23,11 +22,10 @@ def _strip_metadata(doc: dict) -> dict:
 
 
 def normalize_account_document(raw: dict) -> dict:
-    """Map legacy flat account keys into nested profile/voice/credentials/posting groups."""
+    """Map legacy flat account keys into nested profile/voice/posting groups."""
     d = _strip_metadata(raw)
     profile = dict(d.get("profile") or {})
     voice = dict(d.get("voice") or {})
-    credentials = dict(d.get("credentials") or {})
     posting = dict(d.get("posting") or {})
 
     profile.setdefault("niche", d.get("niche") or d.get("account_id") or "")
@@ -44,15 +42,6 @@ def normalize_account_document(raw: dict) -> dict:
     if not neg:
         neg = d.get("negative_semantics")
     voice["negative_semantics"] = list(neg) if neg else default_negative_semantics()
-
-    credentials.setdefault(
-        "oauth2_access_token_enc",
-        d.get("twitter_oauth2_access_token_enc"),
-    )
-    credentials.setdefault(
-        "oauth2_refresh_token_enc",
-        d.get("twitter_oauth2_refresh_token_enc"),
-    )
 
     slot = posting.get("last_interval_slot")
     if slot is None:
@@ -73,7 +62,6 @@ def normalize_account_document(raw: dict) -> dict:
         "account_id": d.get("account_id"),
         "profile": profile,
         "voice": voice,
-        "credentials": credentials,
         "posting": posting,
     }
 
@@ -129,16 +117,13 @@ class AccountRepository:
             rows = self.client.query("from @all where startsWith(id(), 'accounts/')")
         return [document_to_account(r) for r in rows]
 
-    def upsert_credentials(
+    def upsert_profile(
         self,
         account_id: str,
         *,
         niche: str | None = None,
         twitter_handle: str | None = None,
         status: str | None = None,
-        twitter_oauth2_access_token_enc: str | None = None,
-        twitter_oauth2_refresh_token_enc: str | None = None,
-        clear_twitter_oauth2: bool = False,
     ) -> AccountDocument:
         existing = self.load(account_id)
         if existing is None:
@@ -156,29 +141,17 @@ class AccountRepository:
                     system_prompt=default_system_prompt(niche or account_id),
                     negative_semantics=default_negative_semantics(),
                 ),
-                credentials=AccountCredentials(
-                    oauth2_access_token_enc=twitter_oauth2_access_token_enc,
-                    oauth2_refresh_token_enc=twitter_oauth2_refresh_token_enc,
-                ),
                 posting=AccountPostingState(),
             )
         else:
             data = existing.model_dump()
             profile = data.setdefault("profile", {})
-            credentials = data.setdefault("credentials", {})
             if niche is not None:
                 profile["niche"] = niche
             if twitter_handle is not None:
                 profile["twitter_handle"] = twitter_handle
             if status is not None:
                 profile["status"] = status
-            if twitter_oauth2_access_token_enc is not None:
-                credentials["oauth2_access_token_enc"] = twitter_oauth2_access_token_enc
-            if twitter_oauth2_refresh_token_enc is not None:
-                credentials["oauth2_refresh_token_enc"] = twitter_oauth2_refresh_token_enc
-            if clear_twitter_oauth2:
-                credentials["oauth2_access_token_enc"] = None
-                credentials["oauth2_refresh_token_enc"] = None
             if profile.get("registered_at") is None:
                 profile["registered_at"] = datetime.now(timezone.utc).isoformat()
             if profile.get("followers_when_registered") is None:

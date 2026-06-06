@@ -54,12 +54,6 @@ class AccountVoice(BaseModel):
     negative_semantics: list[str] = Field(default_factory=default_negative_semantics)
 
 
-class AccountCredentials(BaseModel):
-    # X OAuth 2.0 user context (Bearer user access token; optional refresh for token rotation)
-    oauth2_access_token_enc: str | None = None
-    oauth2_refresh_token_enc: str | None = None
-
-
 class AccountPostingState(BaseModel):
     last_interval_slot: str | None = Field(
         default=None,
@@ -79,7 +73,6 @@ class AccountDocument(BaseModel):
     account_id: str
     profile: AccountProfile
     voice: AccountVoice = Field(default_factory=AccountVoice)
-    credentials: AccountCredentials = Field(default_factory=AccountCredentials)
     posting: AccountPostingState = Field(default_factory=AccountPostingState)
 
     @model_validator(mode="before")
@@ -105,10 +98,6 @@ class AccountDocument(BaseModel):
                 "system_prompt": value.get("system_prompt") or "",
                 "personality": value.get("personality") or "",
                 "negative_semantics": value.get("negative_semantics") or default_negative_semantics(),
-            },
-            "credentials": {
-                "oauth2_access_token_enc": value.get("twitter_oauth2_access_token_enc"),
-                "oauth2_refresh_token_enc": value.get("twitter_oauth2_refresh_token_enc"),
             },
             "posting": {
                 "last_interval_slot": value.get("last_interval_slot") or value.get("last_post_slot"),
@@ -200,22 +189,6 @@ class AccountDocument(BaseModel):
     @negative_semantics.setter
     def negative_semantics(self, value: list[str]) -> None:
         self.voice.negative_semantics = value
-
-    @property
-    def twitter_oauth2_access_token_enc(self) -> str | None:
-        return self.credentials.oauth2_access_token_enc
-
-    @twitter_oauth2_access_token_enc.setter
-    def twitter_oauth2_access_token_enc(self, value: str | None) -> None:
-        self.credentials.oauth2_access_token_enc = value
-
-    @property
-    def twitter_oauth2_refresh_token_enc(self) -> str | None:
-        return self.credentials.oauth2_refresh_token_enc
-
-    @twitter_oauth2_refresh_token_enc.setter
-    def twitter_oauth2_refresh_token_enc(self, value: str | None) -> None:
-        self.credentials.oauth2_refresh_token_enc = value
 
     @property
     def last_interval_slot(self) -> str | None:

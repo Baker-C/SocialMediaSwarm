@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.config import settings
 from app.models.account import AccountDocument, default_negative_semantics, default_system_prompt
 from app.services.account_repository import AccountRepository
-from app.utils.encryption import encrypt_value, fernet_from_key
+from app.services.twitter_oauth2_service import TwitterOAuth2Service
 
 
 class AccountUpdateBody(BaseModel):
@@ -23,18 +22,14 @@ class AccountUpdateBody(BaseModel):
     negative_semantics: list[str] | None = None
     followers: int | None = Field(default=None, ge=0)
     posts_total: int | None = Field(default=None, ge=0)
-    twitter_oauth2_access_token: str | None = None
-    twitter_oauth2_refresh_token: str | None = None
 
 
-def _has_oauth2_on_doc(acc: AccountDocument) -> bool:
-    return bool((acc.credentials.oauth2_access_token_enc or "").strip())
-
-
-def account_edit_view(acc: AccountDocument) -> dict:
-    """Safe JSON for the dashboard edit form (no ciphertext or plaintext secrets)."""
+def account_edit_view(acc: AccountDocument, oauth: TwitterOAuth2Service | None = None) -> dict:
+    """Safe JSON for the dashboard update-account form (no ciphertext or plaintext secrets)."""
+    oauth_svc = oauth or TwitterOAuth2Service()
+    status = oauth_svc.connection_status(acc.account_id)
     niche = acc.niche or ""
-    mode = "oauth2" if _has_oauth2_on_doc(acc) else "none"
+    mode = "oauth2" if status.connected else "none"
     return {
         "account_id": acc.account_id,
         "niche": niche,
@@ -49,6 +44,8 @@ def account_edit_view(acc: AccountDocument) -> dict:
         "last_interval_slot": acc.last_interval_slot,
         "last_post_id": acc.last_post_id,
         "credential_mode": mode,
+        "oauth_connected": status.connected,
+        "oauth_expires_at": status.expires_at,
     }
 
 
@@ -62,14 +59,9 @@ def apply_account_update(account_id: str, body: AccountUpdateBody, repo: Account
     if existing is None:
         raise LookupError("Account not found")
 
-    if not settings.encryption_key or not settings.encryption_key.strip():
-        raise ValueError("ENCRYPTION_KEY is missing or empty; cannot encrypt X credentials")
-
-    f = fernet_from_key(settings.encryption_key.strip())
     data = existing.model_dump()
     profile = data.setdefault("profile", {})
     voice = data.setdefault("voice", {})
-    credentials = data.setdefault("credentials", {})
 
     if body.niche is not None:
         niche = body.niche.strip() or existing.niche or aid
@@ -98,20 +90,6 @@ def apply_account_update(account_id: str, body: AccountUpdateBody, repo: Account
 
     if body.posts_total is not None:
         profile["posts_total"] = body.posts_total
-
-    o2 = ((body.twitter_oauth2_access_token or "") if body.twitter_oauth2_access_token is not None else "").strip()
-
-    if o2:
-        credentials["oauth2_access_token_enc"] = encrypt_value(f, o2)
-        ref = (
-            (body.twitter_oauth2_refresh_token or "").strip()
-            if body.twitter_oauth2_refresh_token is not None
-            else ""
-        )
-        if ref:
-            credentials["oauth2_refresh_token_enc"] = encrypt_value(f, ref)
-        else:
-            credentials["oauth2_refresh_token_enc"] = None
 
     acc = AccountDocument.model_validate(data)
     r.save(acc)

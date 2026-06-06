@@ -6,15 +6,17 @@ from collections import Counter
 from app.infrastructure.ravendb_http import RavenDBHttpError
 from app.models.account import AccountDocument
 from app.services.account_repository import AccountRepository
+from app.services.twitter_oauth2_service import TwitterOAuth2Service
 
 logger = logging.getLogger(__name__)
 
 
-def _account_has_x_credentials(acc: AccountDocument) -> bool:
-    return bool((acc.credentials.oauth2_access_token_enc or "").strip())
+def _account_has_x_credentials(acc: AccountDocument, oauth: TwitterOAuth2Service | None = None) -> bool:
+    svc = oauth or TwitterOAuth2Service()
+    return svc.is_connected(acc.account_id)
 
 
-def _account_public(acc: AccountDocument) -> dict:
+def _account_public(acc: AccountDocument, oauth: TwitterOAuth2Service | None = None) -> dict:
     follower_growth = None
     if acc.followers_when_registered is not None:
         follower_growth = acc.followers - acc.followers_when_registered
@@ -36,7 +38,7 @@ def _account_public(acc: AccountDocument) -> dict:
         "status": acc.status,
         "followers": acc.followers,
         "posts_total": acc.posts_total,
-        "has_credentials": _account_has_x_credentials(acc),
+        "has_credentials": _account_has_x_credentials(acc, oauth),
         "registered_at": acc.registered_at,
         "follower_growth_vs_registered": follower_growth,
         "last_interval_slot": acc.last_interval_slot,
@@ -45,8 +47,13 @@ def _account_public(acc: AccountDocument) -> dict:
 
 
 class RavenDBService:
-    def __init__(self, account_repo: AccountRepository | None = None) -> None:
+    def __init__(
+        self,
+        account_repo: AccountRepository | None = None,
+        oauth: TwitterOAuth2Service | None = None,
+    ) -> None:
         self._accounts = account_repo or AccountRepository()
+        self._oauth = oauth or TwitterOAuth2Service(account_repo=self._accounts)
 
     def get_accounts(self) -> list[dict]:
         try:
@@ -61,7 +68,7 @@ class RavenDBService:
             acc = self._accounts.load(account_id)
             if acc is None:
                 return None
-            return _account_public(acc)
+            return _account_public(acc, self._oauth)
         except RavenDBHttpError as exc:
             logger.warning("RavenDB unavailable for account %s: %s", account_id, exc)
             return None

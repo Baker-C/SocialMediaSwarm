@@ -52,9 +52,15 @@ class Settings(BaseSettings):
     # Default Buffer organization (same for all accounts unless overridden per account)
     buffer_organization_id: str = ""
     # X / Twitter OAuth 2.0 app credentials (developer portal → your app → Keys and tokens).
-    # Same pair for all automated accounts; user access/refresh tokens stay per account in RavenDB.
+    # User access/refresh tokens are stored at runtime in OAuthTokens collection (not on account docs).
     twitter_oauth2_client_id: str = ""
     twitter_oauth2_client_secret: str = ""
+    twitter_oauth2_redirect_uri: str = "http://localhost:8000/api/oauth/x/callback"
+    twitter_oauth2_success_redirect_url: str = "http://localhost:3000"
+    # X Developer Portal → Website URL (https:// + TLD required; no :port; not used for redirects)
+    twitter_oauth2_website_url: str = "https://example.com"
+    twitter_oauth2_scopes: str = "tweet.read tweet.write users.read follows.read offline.access"
+    oauth2_session_ttl_seconds: int = 600
     oauth2_refresh_enabled: bool = True
     oauth2_refresh_interval_minutes: int = 30
     oauth2_refresh_batch_size: int = 200

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import time
+from collections.abc import Callable
 from datetime import date, datetime
-from typing import Any
+from typing import Any, TypeVar
 
 import tweepy
 
@@ -15,6 +17,10 @@ from app.social.reference_rows import post_data_to_reference_row
 from app.social.tweet_enrichment import apply_enrichment_to_post_data, enrich_tweet
 
 logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
+_SERVER_ERROR_MAX_RETRIES = 2
+_SERVER_ERROR_BASE_DELAY_SECONDS = 1.0
 
 _REFERENCE_TWEET_FIELDS = [
     "created_at",
@@ -110,10 +116,71 @@ class XTwitterClient:
         """OAuth2 user uses Bearer auth on v2 endpoints."""
         return False
 
+    @staticmethod
+    def _http_status(exc: Exception) -> int | None:
+        if not isinstance(exc, tweepy.TweepyException):
+            return None
+        response = getattr(exc, "response", None)
+        if response is None:
+            return None
+        status = getattr(response, "status_code", None) or getattr(response, "status", None)
+        return int(status) if status is not None else None
+
     def _wrap(self, exc: Exception) -> SocialPlatformError:
+        status = self._http_status(exc)
+        if status == 401:
+            return SocialPlatformError(
+                "X API authentication failed (401). Access token may be expired.",
+                vendor="x",
+                cause=exc,
+            )
+        if status == 403:
+            return SocialPlatformError(
+                "Insufficient OAuth scopes for this X API endpoint (403). "
+                "Reconnect the account with the required scopes.",
+                vendor="x",
+                cause=exc,
+            )
+        if status == 429:
+            logger.warning("X API rate limit exceeded (429): %s", exc)
+            return SocialPlatformError(
+                "X API rate limit exceeded (429). Try again later.",
+                vendor="x",
+                cause=exc,
+            )
+        if status is not None and status >= 500:
+            return SocialPlatformError(
+                f"X API server error ({status}).",
+                vendor="x",
+                cause=exc,
+            )
         if isinstance(exc, tweepy.TweepyException):
             return SocialPlatformError(str(exc), vendor="x", cause=exc)
         return SocialPlatformError(str(exc), vendor="x", cause=exc)
+
+    def _execute_with_backoff(self, fn: Callable[[], _T]) -> _T:
+        last_exc: Exception | None = None
+        for attempt in range(_SERVER_ERROR_MAX_RETRIES + 1):
+            try:
+                return fn()
+            except Exception as exc:
+                status = self._http_status(exc)
+                if status is not None and status >= 500 and attempt < _SERVER_ERROR_MAX_RETRIES:
+                    delay = _SERVER_ERROR_BASE_DELAY_SECONDS * (2**attempt)
+                    logger.warning(
+                        "X API %s, retrying in %.1fs (attempt %s/%s)",
+                        status,
+                        delay,
+                        attempt + 1,
+                        _SERVER_ERROR_MAX_RETRIES,
+                    )
+                    time.sleep(delay)
+                    last_exc = exc
+                    continue
+                raise self._wrap(exc) from exc
+        if last_exc is not None:
+            raise self._wrap(last_exc) from last_exc
+        raise SocialPlatformError("X API call failed without an exception", vendor="x")
 
     def get_trends(
         self,
@@ -210,16 +277,15 @@ class XTwitterClient:
     def get_account_data(self, *, user_id: str | None = None, username: str | None = None) -> AccountData:
         fields = ["created_at", "description", "public_metrics", "profile_image_url", "verified", "name"]
         ua = self._user_auth
-        try:
+        def _fetch():
             if user_id:
-                resp = self._v2.get_user(id=user_id, user_fields=fields, user_auth=ua)
-            elif username:
+                return self._v2.get_user(id=user_id, user_fields=fields, user_auth=ua)
+            if username:
                 handle = username.lstrip("@")
-                resp = self._v2.get_user(username=handle, user_fields=fields, user_auth=ua)
-            else:
-                resp = self._v2.get_me(user_fields=fields, user_auth=ua)
-        except Exception as exc:
-            raise self._wrap(exc) from exc
+                return self._v2.get_user(username=handle, user_fields=fields, user_auth=ua)
+            return self._v2.get_me(user_fields=fields, user_auth=ua)
+
+        resp = self._execute_with_backoff(_fetch)
         if not resp or not resp.data:
             raise SocialPlatformError("Empty user response from X", vendor="x")
         u = resp.data
@@ -329,15 +395,14 @@ class XTwitterClient:
             return []
         ua = self._user_auth
         cap = max(10, min(int(max_results), 100))
-        try:
-            resp = self._fetch_reference_tweets(
+        resp = self._execute_with_backoff(
+            lambda: self._fetch_reference_tweets(
                 lambda **kw: self._v2.search_recent_tweets(
                     q, max_results=cap, sort_order=sort_order, **kw
                 ),
                 user_auth=ua,
             )
-        except Exception as exc:
-            raise self._wrap(exc) from exc
+        )
         extra = {"trend_query": trend_query or q}
         return self._tweets_from_response(resp, source="search_recent", extra=extra)
 
@@ -351,26 +416,24 @@ class XTwitterClient:
         ua = self._user_auth
         cap = max(1, min(int(max_results), 100))
         exclude = ["retweets"] if exclude_retweets else None
-        try:
-            resp = self._fetch_reference_tweets(
+        resp = self._execute_with_backoff(
+            lambda: self._fetch_reference_tweets(
                 lambda **kw: self._v2.get_home_timeline(
                     max_results=cap, exclude=exclude, **kw
                 ),
                 user_auth=ua,
             )
-        except Exception as exc:
-            raise self._wrap(exc) from exc
+        )
         return self._tweets_from_response(resp, source="following_timeline")
 
     def get_post_data(self, post_id: str) -> PostData:
         ua = self._user_auth
-        try:
-            resp = self._fetch_reference_tweets(
+        resp = self._execute_with_backoff(
+            lambda: self._fetch_reference_tweets(
                 lambda **kw: self._v2.get_tweet(id=post_id, **kw),
                 user_auth=ua,
             )
-        except Exception as exc:
-            raise self._wrap(exc) from exc
+        )
         if not resp or not resp.data:
             raise SocialPlatformError(f"Tweet not found: {post_id}", vendor="x")
         post = self._tweet_object_to_post_data(resp.data)
@@ -379,10 +442,7 @@ class XTwitterClient:
 
     def create_post(self, text: str) -> CreatedPost:
         ua = self._user_auth
-        try:
-            resp = self._v2.create_tweet(text=text, user_auth=ua)
-        except Exception as exc:
-            raise self._wrap(exc) from exc
+        resp = self._execute_with_backoff(lambda: self._v2.create_tweet(text=text, user_auth=ua))
         if not resp or not resp.data:
             raise SocialPlatformError("Empty response from create_tweet", vendor="x")
         d = resp.data

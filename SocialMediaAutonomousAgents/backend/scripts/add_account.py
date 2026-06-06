@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upsert an account via ``run_create_account_job`` (CLI flags or JSON). Run from backend/."""
+"""Upsert an account profile via ``run_create_account_job`` (CLI flags or JSON). Run from backend/."""
 
 from __future__ import annotations
 
@@ -20,19 +20,11 @@ from app.jobs.create_account_job import CreateAccountJobError, run_create_accoun
 @click.option("--account-id", default=None)
 @click.option("--niche", default=None)
 @click.option("--twitter-handle", default="")
-@click.option(
-    "--twitter-oauth2-access-token",
-    default=None,
-    help="OAuth 2.0 user access token (Bearer). Required.",
-)
-@click.option("--twitter-oauth2-refresh-token", default=None, help="OAuth 2.0 refresh token (optional)")
 @click.option("--json-file", type=click.Path(exists=True, dir_okay=False), default=None)
 def main(
     account_id: str | None,
     niche: str | None,
     twitter_handle: str,
-    twitter_oauth2_access_token: str | None,
-    twitter_oauth2_refresh_token: str | None,
     json_file: str | None,
 ) -> None:
     if json_file:
@@ -41,8 +33,6 @@ def main(
         account_id = payload["account_id"]
         niche = payload.get("niche")
         twitter_handle = payload.get("twitter_handle", "")
-        twitter_oauth2_access_token = payload.get("twitter_oauth2_access_token")
-        twitter_oauth2_refresh_token = payload.get("twitter_oauth2_refresh_token")
     if not account_id:
         raise click.ClickException("--account-id is required (or use --json-file).")
     try:
@@ -50,12 +40,11 @@ def main(
             account_id=account_id,
             niche=niche,
             twitter_handle=twitter_handle or "",
-            twitter_oauth2_access_token=twitter_oauth2_access_token,
-            twitter_oauth2_refresh_token=twitter_oauth2_refresh_token,
         )
     except CreateAccountJobError as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(f"Saved account {acc.account_id}")
+    click.echo(f"Connect OAuth: GET /api/oauth/x/authorize?account_id={acc.account_id}")
 
 
 if __name__ == "__main__":

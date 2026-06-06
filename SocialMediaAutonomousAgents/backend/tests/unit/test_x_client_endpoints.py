@@ -339,3 +339,27 @@ def test_fetch_reference_tweets_non_403_reraises_wrapped() -> None:
 
     with pytest.raises(SocialPlatformError):
         client._fetch_reference_tweets(fetcher, user_auth=True)
+
+
+def test_create_post_403_insufficient_scopes_message() -> None:
+    client = _oauth1_client()
+    client._v2.create_tweet.side_effect = _tweepy_error(
+        tweepy.Forbidden, "forbidden", status_code=403
+    )
+    with pytest.raises(SocialPlatformError, match="Insufficient OAuth scopes"):
+        client.create_post("x")
+
+
+def test_create_post_5xx_retries_then_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _oauth1_client()
+    err = _tweepy_error(tweepy.TwitterServerError, "server down", status_code=503)
+    client._v2.create_tweet.side_effect = err
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        "app.social.implementations.x_client.time.sleep",
+        lambda s: sleeps.append(s),
+    )
+    with pytest.raises(SocialPlatformError, match="server error"):
+        client.create_post("x")
+    assert client._v2.create_tweet.call_count == 3
+    assert sleeps == [1.0, 2.0]

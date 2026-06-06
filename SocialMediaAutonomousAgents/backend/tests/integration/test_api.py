@@ -64,15 +64,7 @@ def test_account_create_conflict_returns_409(monkeypatch: pytest.MonkeyPatch) ->
     assert response.status_code == 409
 
 
-def test_account_create_missing_credentials_returns_400(monkeypatch: pytest.MonkeyPatch) -> None:
-    mock_repo = MagicMock()
-    mock_repo.load.return_value = None
-    monkeypatch.setattr(accounts_routes, "repo", mock_repo)
-    response = client.post("/api/accounts", json={"account_id": "new"})
-    assert response.status_code == 400
-
-
-def test_account_create_success(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_account_create_success_without_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.models.account import AccountDocument
 
     created = AccountDocument(
@@ -80,7 +72,6 @@ def test_account_create_success(monkeypatch: pytest.MonkeyPatch) -> None:
         niche="niche",
         twitter_handle="@n",
         status="active",
-        twitter_oauth2_access_token_enc="enc",
     )
     mock_repo = MagicMock()
     mock_repo.load.return_value = None
@@ -92,7 +83,7 @@ def test_account_create_success(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     response = client.post(
         "/api/accounts",
-        json={"account_id": "new", "twitter_oauth2_access_token": "tok"},
+        json={"account_id": "new", "niche": "niche", "twitter_handle": "@n"},
     )
     assert response.status_code == 201
     assert response.json() == {"ok": True, "account_id": "new"}

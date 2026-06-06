@@ -11,7 +11,7 @@ from app.services.account_update_service import AccountUpdateBody, apply_account
 
 
 class AccountCreateBody(BaseModel):
-    """POST body for provisioning a new account (credentials required)."""
+    """POST body for provisioning a new account profile (OAuth connected separately)."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -22,8 +22,6 @@ class AccountCreateBody(BaseModel):
     system_prompt: str | None = Field(default=None, max_length=32000)
     personality: str | None = Field(default=None, max_length=16000)
     negative_semantics: list[str] | None = None
-    twitter_oauth2_access_token: str | None = None
-    twitter_oauth2_refresh_token: str | None = None
 
 
 class AccountAlreadyExistsError(ValueError):
@@ -44,8 +42,6 @@ def apply_account_create(body: AccountCreateBody, repo: AccountRepository | None
             account_id=aid,
             niche=body.niche,
             twitter_handle=body.twitter_handle or "",
-            twitter_oauth2_access_token=body.twitter_oauth2_access_token,
-            twitter_oauth2_refresh_token=body.twitter_oauth2_refresh_token,
             repo=r,
         )
     except CreateAccountJobError as exc:

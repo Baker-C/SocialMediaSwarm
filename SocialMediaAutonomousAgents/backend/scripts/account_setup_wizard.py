@@ -20,19 +20,16 @@ def main() -> None:
     account_id = click.prompt("account_id")
     niche = click.prompt("niche", default=account_id, show_default=True)
     handle = click.prompt("twitter_handle", default="", show_default=False)
-    access = click.prompt("twitter_oauth2_access_token", hide_input=True)
-    refresh = click.prompt("twitter_oauth2_refresh_token (optional)", default="", show_default=False, hide_input=True)
     try:
         acc = run_create_account_job(
             account_id=account_id,
             niche=niche,
             twitter_handle=handle or "",
-            twitter_oauth2_access_token=access,
-            twitter_oauth2_refresh_token=(refresh or None),
         )
     except CreateAccountJobError as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(f"Saved {acc.account_id}")
+    click.echo(f"Connect OAuth in browser: GET /api/oauth/x/authorize?account_id={acc.account_id}")
 
 
 if __name__ == "__main__":
