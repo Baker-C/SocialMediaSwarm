@@ -22,6 +22,10 @@ def test_tools_namespace_data() -> None:
     assert mod.source == "x_timeline"
     assert callable(mod.run)
 
+    search_mod = tools.data.search_fetch
+    assert search_mod.id == "data.search_fetch"
+    assert search_mod.source == "x_search"
+
 
 def test_tools_namespace_llm() -> None:
     mod = tools.llm.compose_timeline_post
@@ -54,3 +58,8 @@ def test_registry_lists_llm_tools() -> None:
     llm_ids = pipeline.registry.tool_ids(kind="llm")
     assert "llm.compose_timeline_post" in llm_ids
     assert "llm.reference_pattern_summary" in llm_ids
+
+
+def test_registry_lists_data_search_fetch() -> None:
+    data_ids = pipeline.registry.tool_ids(kind="data")
+    assert "data.search_fetch" in data_ids

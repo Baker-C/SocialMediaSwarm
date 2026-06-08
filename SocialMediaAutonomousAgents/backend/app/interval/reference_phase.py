@@ -91,6 +91,10 @@ def run_reference_phase(
 
     bundle_account["timeline_reference_tweets"] = refs_payload.get("timeline_reference_tweets") or []
     bundle_account["reference_errors"] = refs_payload.get("reference_errors") or []
+    if refs_payload.get("search_merged_count") is not None:
+        bundle_account["search_merged_count"] = refs_payload.get("search_merged_count")
+    if refs_payload.get("search_queries_run"):
+        bundle_account["search_queries_run"] = refs_payload.get("search_queries_run")
     if isinstance(timeline_analysis, dict):
         bundle_account["timeline_analysis"] = timeline_analysis
     if isinstance(own_posts_analysis, dict):

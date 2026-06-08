@@ -52,7 +52,7 @@ The [pipeline runbook](pipeline-runbook.md) produces structured briefs before co
 - **Timeline analysis** — top external posts, `selected_winner_id`, `pattern_summary`, `voice_signals`
 - **Own-posts analysis** — top own posts, style/success patterns (skipped when history is thin)
 
-Wiring these into `compose_timeline_post.user.md` (alongside the single winner text) is the next compose integration step. Intended split: **timeline winner = topic/link**, **own-post brief = voice/structure**.
+These briefs are injected via `reference_context_block` in `compose_timeline_post.user.md` (alongside the single winner text). **Timeline/search winner = topic/link**; **own-post brief = voice/structure**.
 
 ## Safety guardian
 

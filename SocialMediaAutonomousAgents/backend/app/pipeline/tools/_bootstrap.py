@@ -23,6 +23,14 @@ _TOOL_DEFINITIONS: list[dict] = [
         "source": "x_timeline",
     },
     {
+        "id": "data.search_fetch",
+        "kind": "data",
+        "name": "search_fetch",
+        "purpose": "Acquire reference tweets from X recent-search queries",
+        "module": "app.pipeline.tools.data.search_fetch",
+        "source": "x_search",
+    },
+    {
         "id": "data.own_posts_fetch",
         "kind": "data",
         "name": "own_posts_fetch",

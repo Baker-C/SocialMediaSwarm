@@ -33,6 +33,33 @@ def test_get_following_feed_delegates(mock_creds: MagicMock) -> None:
 
 
 @patch.object(TwitterService, "_x_credentials", return_value=XOAuth2UserCredentials(access_token="tok"))
+def test_search_tweets_delegates_raw_query(mock_creds: MagicMock) -> None:
+    tw = _tw()
+    with patch.object(
+        tw._social,
+        "search_recent_tweets",
+        return_value=[{"id": "raw"}],
+    ) as srt:
+        rows = tw.search_tweets("a1", "pentagon lang:en -is:retweet", max_results=20)
+    assert rows == [{"id": "raw"}]
+    srt.assert_called_once_with(
+        SocialPlatform.X,
+        mock_creds.return_value,
+        "pentagon lang:en -is:retweet",
+        max_results=20,
+        trend_query="pentagon lang:en -is:retweet",
+    )
+
+
+@patch.object(TwitterService, "_x_credentials", return_value=XOAuth2UserCredentials(access_token="tok"))
+def test_search_tweets_empty_query_returns_empty(mock_creds: MagicMock) -> None:
+    tw = _tw()
+    with patch.object(tw._social, "search_recent_tweets") as srt:
+        assert tw.search_tweets("a1", "   ") == []
+    srt.assert_not_called()
+
+
+@patch.object(TwitterService, "_x_credentials", return_value=XOAuth2UserCredentials(access_token="tok"))
 def test_search_tweets_for_trend_builds_query(mock_creds: MagicMock) -> None:
     tw = _tw()
     with patch.object(

@@ -23,6 +23,7 @@ class AccountUpdateBody(BaseModel):
     negative_semantics: list[str] | None = None
     followers: int | None = Field(default=None, ge=0)
     posts_total: int | None = Field(default=None, ge=0)
+    search_queries: list[str] | None = None
     voice_version_label: str | None = Field(default=None, max_length=120)
 
 
@@ -48,6 +49,7 @@ def account_edit_view(acc: AccountDocument, oauth: TwitterOAuth2Service | None =
         "credential_mode": mode,
         "oauth_connected": status.connected,
         "oauth_expires_at": status.expires_at,
+        "search_queries": list(acc.search_queries or []),
     }
 
 
@@ -92,6 +94,9 @@ def apply_account_update(account_id: str, body: AccountUpdateBody, repo: Account
 
     if body.posts_total is not None:
         profile["posts_total"] = body.posts_total
+
+    if body.search_queries is not None:
+        profile["search_queries"] = [s.strip() for s in body.search_queries if s and str(s).strip()]
 
     previous_hash = existing.voice_version_hash
     acc = AccountDocument.model_validate(data)

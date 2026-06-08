@@ -52,9 +52,8 @@ flowchart TB
 
 1. **Pre-tick** — reload account; skip inactive; skip if `last_interval_slot == slot` (scheduled); [post guards](#guards)
 2. **Data** — profile + tracked metrics bundle ([reference-ingestion](reference-ingestion.md))
-3. **References** — timeline tweets, URL filter, rank, exclude copied refs
-4. **Reference analysis (modular)** — the same work can be expressed as the [pipeline runbook](pipeline-runbook.md): `runbook.reference_analysis()` runs profile → timeline/own pools → timeline + own-post subagents (top-10 pattern summaries). Full tick integration into `runner.py` is in progress.
-5. **Compose loop** — try ranked refs; [compose-and-safety](compose-and-safety.md) per ref
+3. **Reference phase** — `run_reference_phase` executes the [pipeline runbook](pipeline-runbook.md): profile → timeline pool → optional search pool (per-account `search_queries`) → merge → own-post pool → timeline + own-post subagents (pattern summaries, normalized rank)
+4. **Compose loop** — try ranked refs with `reference_context_block`; [compose-and-safety](compose-and-safety.md) per ref
 6. **Post-tick** — `post_tweet`, update account, `TrackedPosts`, copied-reference list
 
 On compose/safety failure for a reference, tries next ranked tweet (up to `MAX_REFERENCE_FALLBACK_ATTEMPTS` when &gt; 0).

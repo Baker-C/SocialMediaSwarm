@@ -19,6 +19,8 @@ StepFn = Callable[[TickRunContext, PostRunDeps], StepResult]
 POST_TICK_REFERENCE_STEPS: tuple[tuple[str, StepFn], ...] = (
     ("profile", steps.profile),
     ("timeline_pool", steps.timeline_pool),
+    ("search_pool", steps.search_pool),
+    ("merge_reference_pools", steps.merge_reference_pools),
     ("own_posts_pool", steps.own_posts_pool),
     ("timeline_analysis", timeline.run),
     ("own_posts_analysis", own_posts.run),

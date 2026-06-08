@@ -24,6 +24,8 @@ def test_runbook_step_names_are_readable() -> None:
     assert names == [
         "profile",
         "timeline_pool",
+        "search_pool",
+        "merge_reference_pools",
         "own_posts_pool",
         "timeline_analysis",
         "own_posts_analysis",

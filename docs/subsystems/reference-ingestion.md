@@ -71,9 +71,13 @@ Excludes ids in `copied_reference_tweet_ids` on the account document.
 
 After a successful post, `record_copied_reference` appends the source tweet id so it is not reused. Stored on the account document (not a separate collection).
 
-## Trend search (disabled by default)
+## X recent search (disabled by default)
 
-`TREND_TWEET_SEARCH_ENABLED=false` — search stream exists in `TickDataService` / X client but is **not** the live reference source. Niche discourse/trends may still be compiled for optional context in alternate pipelines.
+When `TREND_TWEET_SEARCH_ENABLED=true` and the account has `profile.search_queries` (list of raw X query strings), the runbook step `search_pool` calls `data.search_fetch` → `TickDataService.compile_search_reference_tweets`. Results merge with the following timeline in `merge_reference_pools` before rank/analysis.
+
+Per-query failures (e.g. 402) append to `reference_errors` and do not abort the runbook. Search rows are tagged `source=search_recent` with `search_query` provenance.
+
+Configure queries via account PATCH (`search_queries`) or RavenDB directly. Niche discourse/trends (`compile_niche_discourse`) remain separate optional context.
 
 ## Own-post references (pipeline)
 

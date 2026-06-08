@@ -35,6 +35,10 @@ def normalize_account_document(raw: dict) -> dict:
     profile.setdefault("posts_total", int(d.get("posts_total") or 0))
     profile.setdefault("registered_at", d.get("registered_at"))
     profile.setdefault("followers_when_registered", d.get("followers_when_registered"))
+    sq = profile.get("search_queries")
+    if sq is None:
+        sq = d.get("search_queries")
+    profile["search_queries"] = list(sq or [])
 
     voice.setdefault("system_prompt", d.get("system_prompt") or "")
     voice.setdefault("personality", d.get("personality") or "")

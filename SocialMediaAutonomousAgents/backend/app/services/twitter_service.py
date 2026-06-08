@@ -195,6 +195,34 @@ class TwitterService:
         )
         return trends.model_dump()
 
+    def search_tweets(
+        self,
+        account_id: str,
+        query: str,
+        *,
+        max_results: int | None = None,
+    ) -> list[dict]:
+        from app.core.config import settings
+        from app.social.enums import SocialPlatform
+
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        q = (query or "").strip()
+        if not q:
+            return []
+        cap = max_results if max_results is not None else settings.trend_search_max_results
+        return self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.search_recent_tweets(
+                SocialPlatform.X,
+                c,
+                q,
+                max_results=cap,
+                trend_query=q,
+            ),
+        )
+
     def search_tweets_for_trend(
         self,
         account_id: str,

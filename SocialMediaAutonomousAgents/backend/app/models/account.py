@@ -44,6 +44,8 @@ class AccountProfile(BaseModel):
     # Provenance / dashboard (optional for legacy documents)
     registered_at: str | None = None
     followers_when_registered: int | None = None
+    # Raw X recent-search queries for reference ingestion (see data.search_fetch)
+    search_queries: list[str] = Field(default_factory=list)
 
 
 class AccountVoice(BaseModel):
@@ -96,6 +98,7 @@ class AccountDocument(BaseModel):
                 "posts_total": value.get("posts_total") or 0,
                 "registered_at": value.get("registered_at"),
                 "followers_when_registered": value.get("followers_when_registered"),
+                "search_queries": list(value.get("search_queries") or []),
             },
             "voice": {
                 "system_prompt": value.get("system_prompt") or "",
@@ -171,6 +174,14 @@ class AccountDocument(BaseModel):
     @followers_when_registered.setter
     def followers_when_registered(self, value: int | None) -> None:
         self.profile.followers_when_registered = value
+
+    @property
+    def search_queries(self) -> list[str]:
+        return self.profile.search_queries
+
+    @search_queries.setter
+    def search_queries(self, value: list[str]) -> None:
+        self.profile.search_queries = value
 
     @property
     def system_prompt(self) -> str:

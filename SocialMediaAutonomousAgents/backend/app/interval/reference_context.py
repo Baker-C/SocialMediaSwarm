@@ -40,9 +40,9 @@ def format_reference_context_for_compose(
     parts: list[str] = []
     parts.extend(
         _brief_section(
-            "### External timeline patterns (topic + what's viral now)",
+            "### External reference patterns (timeline + search; topic + what's viral now)",
             timeline_analysis,
-            skipped_note="External timeline pattern analysis was skipped this tick.",
+            skipped_note="External reference pattern analysis was skipped this tick.",
         )
     )
     own_lines = _brief_section(

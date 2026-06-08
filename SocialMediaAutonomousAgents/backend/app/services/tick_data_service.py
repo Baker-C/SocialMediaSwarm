@@ -156,6 +156,86 @@ class TickDataService:
         )
         return payload
 
+    def compile_search_reference_tweets(
+        self,
+        account_id: str,
+        *,
+        queries: list[str],
+        slot: str,
+        authenticated_user_id: str | None = None,
+        max_results_per_query: int | None = None,
+    ) -> dict[str, Any]:
+        """Recent-search reference rows for one or more raw X query strings."""
+        normalized: list[str] = []
+        seen_q: set[str] = set()
+        for raw in queries:
+            q = (raw or "").strip()
+            if not q or q in seen_q:
+                continue
+            seen_q.add(q)
+            normalized.append(q)
+
+        errors: list[str] = []
+        per_query_counts: dict[str, int] = {}
+        merged_by_id: dict[str, dict[str, Any]] = {}
+
+        for query in normalized:
+            try:
+                rows = self._twitter.search_tweets(
+                    account_id,
+                    query,
+                    max_results=max_results_per_query,
+                )
+            except Exception as exc:
+                msg = f"search:{query}:{exc}"
+                errors.append(msg)
+                logger.warning("TickData search failed %s %s: %s", account_id, query, exc)
+                per_query_counts[query] = 0
+                continue
+
+            rows = filter_out_own_tweets(rows, authenticated_user_id)
+            per_query_counts[query] = len(rows)
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                tid = str(row.get("id") or row.get("tweet_id") or "").strip()
+                if not tid:
+                    continue
+                tagged = dict(row)
+                tagged["source"] = "search_recent"
+                tagged["search_query"] = query
+                tagged.setdefault("trend_query", query)
+                if tid in merged_by_id:
+                    existing = merged_by_id[tid]
+                    matched = list(existing.get("matched_queries") or [existing.get("search_query") or ""])
+                    if query not in matched:
+                        matched.append(query)
+                    existing["matched_queries"] = matched
+                else:
+                    merged_by_id[tid] = tagged
+
+        search_rows = list(merged_by_id.values())
+        payload: dict[str, Any] = {
+            "search_reference_tweets": search_rows,
+            "search_queries": normalized,
+            "per_query_counts": per_query_counts,
+            "reference_errors": errors,
+        }
+        if self._pulled_tweets and search_rows:
+            stats = self._pulled_tweets.record_pulls(
+                search_rows,
+                account_id=account_id,
+                slot=slot,
+            )
+            payload["pulled_tweet_stats"] = stats.model_dump()
+        logger.info(
+            "search_reference fetched account=%s queries=%d tweets=%d",
+            account_id,
+            len(normalized),
+            len(search_rows),
+        )
+        return payload
+
     def _finalize_reference_payload(
         self,
         payload: dict[str, Any],
@@ -175,19 +255,27 @@ class TickDataService:
         return out
 
     @staticmethod
-    def merge_reference_pool(payload: dict[str, Any]) -> list[dict[str, Any]]:
-        """Timeline rows deduped by tweet id."""
+    def merge_reference_pool_rows(*row_lists: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Union reference rows deduped by tweet id (first occurrence wins)."""
         out: list[dict[str, Any]] = []
         seen: set[str] = set()
-        for row in payload.get("timeline_reference_tweets") or []:
-            if not isinstance(row, dict):
-                continue
-            tid = str(row.get("id") or row.get("tweet_id") or "").strip()
-            if not tid or tid in seen:
-                continue
-            seen.add(tid)
-            out.append(row)
+        for rows in row_lists:
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                tid = str(row.get("id") or row.get("tweet_id") or "").strip()
+                if not tid or tid in seen:
+                    continue
+                seen.add(tid)
+                out.append(row)
         return out
+
+    @staticmethod
+    def merge_reference_pool(payload: dict[str, Any]) -> list[dict[str, Any]]:
+        """Timeline rows deduped by tweet id."""
+        return TickDataService.merge_reference_pool_rows(
+            list(payload.get("timeline_reference_tweets") or []),
+        )
 
     def merge_for_prompt(self, account_bundle: dict[str, Any], niche_bundle: dict[str, Any]) -> str:
         acct = dict(account_bundle)

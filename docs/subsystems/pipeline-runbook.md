@@ -86,6 +86,7 @@ Each tool module exports:
 |----|------------|------|
 | `data.account_profile` | `tools.data.account_profile` | data |
 | `data.timeline_fetch` | `tools.data.timeline_fetch` | data |
+| `data.search_fetch` | `tools.data.search_fetch` | data |
 | `data.own_posts_fetch` | `tools.data.own_posts_fetch` | data |
 | `deterministic.reference_score` | `tools.deterministic.reference_score` | deterministic |
 | `deterministic.reference_rank` | `tools.deterministic.reference_rank` | deterministic |
@@ -130,6 +131,8 @@ File: `runbooks/post_tick.py`
 POST_TICK_REFERENCE_STEPS = (
     ("profile", steps.profile),
     ("timeline_pool", steps.timeline_pool),
+    ("search_pool", steps.search_pool),
+    ("merge_reference_pools", steps.merge_reference_pools),
     ("own_posts_pool", steps.own_posts_pool),
     ("timeline_analysis", timeline.run),
     ("own_posts_analysis", own_posts.run),
@@ -150,15 +153,13 @@ Execution engine (`_runbook_engine.run_steps`) logs per-step `ok` / `skipped` / 
 
 ## Relationship to `interval/runner.py`
 
-Today the **production post tick** still flows through `Orchestrator` → `run_account_pipeline` in `interval/runner.py` (guards, slot claim, compose loop, publish).
-
-The pipeline runbook implements the **reference analysis** slice (profile + pools + dual subagents) as a modular, documented path. Wiring the full tick to `runbook` (compose, safety, publish steps) is the next integration step.
+The **production post tick** flows through `Orchestrator` → `run_account_pipeline` → `run_reference_phase` in `interval/reference_phase.py`, which executes `POST_TICK_REFERENCE_STEPS` before compose and publish.
 
 | Layer | Today |
 |-------|--------|
 | Guards, slot, publish | `interval/runner.py` |
-| Reference analysis runbook | `app/pipeline/runbooks/post_tick.py` |
-| Compose (live) | `interval/compose_timeline_post.py` (also exposed as `tools.llm.compose_timeline_post`) |
+| Reference analysis runbook | `app/pipeline/runbooks/post_tick.py` (via `reference_phase.py`) |
+| Compose (live) | `interval/compose_timeline_post.py` with `reference_context_block` from analysis briefs |
 
 ## Prompt ↔ LLM tool mapping
 
@@ -174,7 +175,8 @@ Files live under `backend/app/interval_crew/prompts/tasks/`. LLM tools load them
 | Key | Set by |
 |-----|--------|
 | `account_bundle` | `steps.profile` |
-| `timeline_references` | `steps.timeline_pool` |
+| `timeline_references` | `steps.timeline_pool`, then `steps.merge_reference_pools` |
+| `search_references` | `steps.search_pool` (`data.search_fetch`) |
 | `own_posts` | `steps.own_posts_pool` |
 | `timeline_ranked` | timeline subagent |
 | `timeline_analysis` | timeline subagent |
