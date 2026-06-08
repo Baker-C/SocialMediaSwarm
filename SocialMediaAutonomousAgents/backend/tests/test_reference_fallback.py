@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+from app.interval.reference_phase import ReferencePhaseResult
 from app.interval.runner import build_tick_context, run_account_pipeline
 from app.interval.tweet_topic_preanalysis import rank_timeline_references
 from app.models.account import AccountDocument
@@ -20,7 +21,6 @@ def test_rank_timeline_references_orders_by_popularity() -> None:
 
 def test_runner_tries_next_reference_on_niche_mismatch() -> None:
     from app.interval.tweet_topic_preanalysis import GatheredTweet
-    from app.services.tick_data_service import TickDataService
 
     acc = AccountDocument(account_id="a1", niche="Breaking Political News Commentary")
     repo = FakeRepo([acc])
@@ -61,25 +61,35 @@ def test_runner_tries_next_reference_on_niche_mismatch() -> None:
         compose_calls.append(winner.tweet_id)
         return f"body for {winner.tweet_id}"
 
-    tick_data = MagicMock()
-    tick_data.compile_account_bundle.return_value = {"profile": {"id": "u1"}}
-    tick_data.compile_timeline_reference_tweets.return_value = {
-        "timeline_reference_tweets": [
+    ref_result = ReferencePhaseResult(
+        ok=True,
+        bundle_account={"profile": {"id": "u1"}},
+        refs_payload={
+            "timeline_reference_tweets": [
+                {"id": "viral", "text": viral_text, "like_count": 100},
+                {"id": "pol", "text": pol_text, "like_count": 10},
+            ],
+            "reference_errors": [],
+        },
+        reference_pool=[
             {"id": "viral", "text": viral_text, "like_count": 100},
             {"id": "pol", "text": pol_text, "like_count": 10},
         ],
-    }
-    tick_data.merge_reference_pool.side_effect = TickDataService.merge_reference_pool
+        ranked_refs=[viral, political],
+        timeline_analysis={"pattern_summary": "viral political mix"},
+        own_posts_analysis={"skipped": True, "skip_reason": "insufficient_own_posts"},
+    )
 
     working = repo.load("a1")
     assert working is not None
 
     with (
         patch("app.interval.orchestration.post_guard.PostLockRepository") as lock_cls,
+        patch("app.interval.orchestration.post_guard._acquire_file_lock", return_value=True),
+        patch("app.interval.orchestration.post_guard._release_file_lock"),
         patch("app.interval.runner.current_interval_slot_key", return_value="2026-05-19-12"),
         patch("app.interval.runner.compose_formatted_post", side_effect=fake_compose),
-        patch("app.interval.runner.rank_timeline_references", return_value=[viral, political]),
-        patch("app.interval.runner.copied_reference_exclude_set", return_value=frozenset()),
+        patch("app.interval.runner.run_reference_phase", return_value=ref_result),
         patch(
             "app.interval.runner.finalize_post",
             return_value={"account_id": "a1", "tweet": {"id": "99"}},
@@ -92,7 +102,7 @@ def test_runner_tries_next_reference_on_niche_mismatch() -> None:
             twitter=tw,
             creator=MagicMock(),
             guardian=guardian,
-            tick_data=tick_data,
+            tick_data=MagicMock(),
             post_registry=None,
             mode="force",
         )

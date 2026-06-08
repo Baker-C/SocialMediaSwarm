@@ -21,6 +21,7 @@ def run(
     account_system_prompt: str = "",
     account_personality: str = "",
     negative_semantics: list[str] | None = None,
+    reference_context_block: str = "",
     regeneration_round: int = 0,
     safety_reject_reason: str | None = None,
 ) -> StepResult:
@@ -30,6 +31,7 @@ def run(
         account_system_prompt=account_system_prompt,
         account_personality=account_personality,
         negative_semantics=negative_semantics,
+        reference_context_block=reference_context_block,
         regeneration_round=regeneration_round,
         safety_reject_reason=safety_reject_reason,
     )

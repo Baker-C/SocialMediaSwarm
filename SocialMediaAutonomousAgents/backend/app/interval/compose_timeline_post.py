@@ -201,6 +201,7 @@ def _generate_post_parts(
     account_system_prompt: str = "",
     account_personality: str = "",
     negative_semantics: list[str] | None = None,
+    reference_context_block: str = "",
     regeneration_round: int,
     length_attempt: int,
     previous: tuple[str, str] | None,
@@ -218,12 +219,14 @@ def _generate_post_parts(
         "Energetic, emotional opinion on the story and linked media, then a topic-tailored quip. "
         "Loose X grammar (spotty caps, emphatic NOT, ?!) — like someone in the country venting, not AI."
     )
+    ref_block = (reference_context_block or "").strip() or "(No reference analysis available for this tick.)"
     user = prompt_loader.load_template(
         "tasks/compose_timeline_post.user.md",
         niche=(niche or "general").strip(),
         account_system_prompt=structure,
         account_personality=_personality_section(account_personality),
         negative_semantics_block=format_negative_semantics_for_prompt(negative_semantics),
+        reference_context_block=ref_block,
         tweet_id=winner.tweet_id,
         popularity_score=winner.popularity_score,
         source_text=winner.text[:2000],
@@ -268,6 +271,7 @@ def compose_formatted_post(
     account_system_prompt: str = "",
     account_personality: str = "",
     negative_semantics: list[str] | None = None,
+    reference_context_block: str = "",
     regeneration_round: int = 0,
     safety_reject_reason: str | None = None,
 ) -> str:
@@ -292,6 +296,7 @@ def compose_formatted_post(
             account_system_prompt=account_system_prompt,
             account_personality=account_personality,
             negative_semantics=negative_semantics,
+            reference_context_block=reference_context_block,
             regeneration_round=regeneration_round,
             length_attempt=length_attempt,
             previous=previous,

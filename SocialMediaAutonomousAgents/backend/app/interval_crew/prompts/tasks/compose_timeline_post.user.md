@@ -9,6 +9,9 @@ Post structure and formatting rules:
 Banned semantics, phrases, characters, and sentence structures (never use in opinion or quip):
 {negative_semantics_block}
 
+Reference analysis (patterns from top external + own posts — nudge voice, not topic):
+{reference_context_block}
+
 Source tweet (id={tweet_id}, popularity_score={popularity_score}):
 {source_text}
 
