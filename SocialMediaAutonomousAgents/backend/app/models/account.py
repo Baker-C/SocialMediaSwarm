@@ -52,6 +52,9 @@ class AccountVoice(BaseModel):
     personality: str = Field(default="")
     # Banned semantics/phrases/structures for compose (see format_negative_semantics_for_prompt)
     negative_semantics: list[str] = Field(default_factory=default_negative_semantics)
+    voice_version_hash: str | None = None
+    voice_version_seq: int = 1
+    voice_version_label: str | None = "v1"
 
 
 class AccountPostingState(BaseModel):
@@ -98,6 +101,9 @@ class AccountDocument(BaseModel):
                 "system_prompt": value.get("system_prompt") or "",
                 "personality": value.get("personality") or "",
                 "negative_semantics": value.get("negative_semantics") or default_negative_semantics(),
+                "voice_version_hash": value.get("voice_version_hash"),
+                "voice_version_seq": int(value.get("voice_version_seq") or 1),
+                "voice_version_label": value.get("voice_version_label") or "v1",
             },
             "posting": {
                 "last_interval_slot": value.get("last_interval_slot") or value.get("last_post_slot"),
@@ -189,6 +195,30 @@ class AccountDocument(BaseModel):
     @negative_semantics.setter
     def negative_semantics(self, value: list[str]) -> None:
         self.voice.negative_semantics = value
+
+    @property
+    def voice_version_hash(self) -> str | None:
+        return self.voice.voice_version_hash
+
+    @voice_version_hash.setter
+    def voice_version_hash(self, value: str | None) -> None:
+        self.voice.voice_version_hash = value
+
+    @property
+    def voice_version_seq(self) -> int:
+        return self.voice.voice_version_seq
+
+    @voice_version_seq.setter
+    def voice_version_seq(self, value: int) -> None:
+        self.voice.voice_version_seq = value
+
+    @property
+    def voice_version_label(self) -> str | None:
+        return self.voice.voice_version_label
+
+    @voice_version_label.setter
+    def voice_version_label(self, value: str | None) -> None:
+        self.voice.voice_version_label = value
 
     @property
     def last_interval_slot(self) -> str | None:

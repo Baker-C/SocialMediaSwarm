@@ -20,6 +20,9 @@ class PulledTweetDocument(BaseModel):
     retweet_count: int | None = None
     quote_count: int | None = None
     impression_count: int | None = None
+    author_followers_count: int | None = None
+    text_features: dict = Field(default_factory=dict)
+    entity_tags: list[str] = Field(default_factory=list)
     source: str = ""
     trend_query: str | None = None
     duplicate_fetch_count: int = 0

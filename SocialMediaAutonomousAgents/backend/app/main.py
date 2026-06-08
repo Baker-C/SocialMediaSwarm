@@ -14,6 +14,7 @@ from app.api.routes import accounts, oauth, posts, patterns, metrics, dashboard,
 from app.core.config import settings
 from app.infrastructure.scheduler_lock import release_scheduler_lock, try_acquire_scheduler_lock
 from app.jobs.engagement_job import run_engagement_job
+from app.jobs.early_engagement_job import run_early_engagement_job
 from app.jobs.interval_job import run_interval_job
 from app.jobs.metrics_job import run_metrics_job
 from app.jobs.oauth2_refresh_job import run_oauth2_refresh_job
@@ -57,6 +58,15 @@ def _build_scheduler() -> AsyncIOScheduler:
         run_engagement_job,
         CronTrigger(minute="5", timezone=tz),
         id="engagement_poll",
+        replace_existing=True,
+        misfire_grace_time=misfire,
+        coalesce=True,
+        max_instances=1,
+    )
+    sched.add_job(
+        run_early_engagement_job,
+        IntervalTrigger(minutes=max(1, int(settings.early_engagement_poll_minutes)), timezone=tz),
+        id="early_engagement_poll",
         replace_existing=True,
         misfire_grace_time=misfire,
         coalesce=True,
@@ -108,9 +118,10 @@ async def lifespan(app: FastAPI):
         else:
             posting = "posting (disabled)"
         logger.info(
-            "APScheduler started (timezone=%s): %s, engagement :05, metrics :10",
+            "APScheduler started (timezone=%s): %s, engagement :05, early every %sm, metrics :10",
             settings.scheduler_timezone,
             posting,
+            max(1, int(settings.early_engagement_poll_minutes)),
         )
     elif not settings.run_scheduler:
         logger.info("APScheduler disabled (RUN_SCHEDULER=false)")

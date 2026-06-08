@@ -59,6 +59,7 @@ class PostData(BaseModel):
     retweet_count: int | None = None
     quote_count: int | None = None
     impression_count: int | None = None
+    profile_click_count: int | None = None
     lang: str | None = None
     raw: dict[str, Any] | None = None
     tweet_permalink: str | None = None

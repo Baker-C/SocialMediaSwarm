@@ -6,6 +6,7 @@ from collections import Counter
 from app.infrastructure.ravendb_http import RavenDBHttpError
 from app.models.account import AccountDocument
 from app.services.account_repository import AccountRepository
+from app.services.post_registry import TrackedPostRepository
 from app.services.twitter_oauth2_service import TwitterOAuth2Service
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ class RavenDBService:
     ) -> None:
         self._accounts = account_repo or AccountRepository()
         self._oauth = oauth or TwitterOAuth2Service(account_repo=self._accounts)
+        self._tracked = TrackedPostRepository()
 
     def get_accounts(self) -> list[dict]:
         try:
@@ -80,7 +82,18 @@ class RavenDBService:
         return []
 
     def get_metrics(self, account_id: str) -> dict:
-        return {"account_id": account_id, "avg_engagement_rate": 0.0, "health_score": 0}
+        try:
+            rows = self._tracked.list_for_account(account_id)
+        except RavenDBHttpError:
+            rows = []
+        engagement = [r.get("engagement_rate") for r in rows if isinstance(r.get("engagement_rate"), (int, float))]
+        follower_delta = [r.get("follower_delta") for r in rows if isinstance(r.get("follower_delta"), int)]
+        return {
+            "account_id": account_id,
+            "tracked_posts": len(rows),
+            "avg_engagement_rate": _avg(engagement) or 0.0,
+            "avg_follower_delta": _avg(follower_delta),
+        }
 
     def get_dashboard(self):
         try:
@@ -89,10 +102,22 @@ class RavenDBService:
             if not accs:
                 return {"active_accounts": 0, "top_niche": "n/a", "avg_engagement": 0.0}
             top_niche = Counter(a.niche for a in accs).most_common(1)[0][0]
+            all_engagement: list[float] = []
+            for a in accs:
+                rows = self._tracked.list_for_account(a.account_id)
+                all_engagement.extend(
+                    [float(r.get("engagement_rate")) for r in rows if isinstance(r.get("engagement_rate"), (int, float))]
+                )
             return {
                 "active_accounts": active,
                 "top_niche": top_niche,
-                "avg_engagement": 0.0,
+                "avg_engagement": _avg(all_engagement) or 0.0,
             }
         except RavenDBHttpError:
             return {"active_accounts": 0, "top_niche": "n/a", "avg_engagement": 0.0}
+
+
+def _avg(values: list[int | float]) -> float | None:
+    if not values:
+        return None
+    return float(sum(float(v) for v in values)) / float(len(values))

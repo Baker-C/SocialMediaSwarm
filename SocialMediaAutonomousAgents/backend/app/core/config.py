@@ -32,9 +32,9 @@ class Settings(BaseSettings):
         ),
     )
     # Wall-clock interval between scheduled posting ticks (APScheduler)
-    post_interval_minutes: int = 18
+    post_interval_minutes: int = 30
     # Min minutes between posts per account (scheduled + force); must be < post_interval_minutes
-    post_cooldown_minutes: int = 17
+    post_cooldown_minutes: int = 29
     # APScheduler posting tick: "force" matches create_forced_post.py; "scheduled" enforces slot idempotency
     scheduler_post_mode: str = "force"
     # When true, scheduled ticks bypass POST_COOLDOWN_MINUTES (same as --force-now)
@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     following_timeline_max_results: int = 100
     reference_tweet_cache_minutes: int = 45
     following_feed_filter_by_trend: bool = True
+    early_engagement_poll_minutes: int = 15
+    early_engagement_window_hours: int = 2
 
 
 settings = Settings()

@@ -38,6 +38,9 @@ def normalize_account_document(raw: dict) -> dict:
 
     voice.setdefault("system_prompt", d.get("system_prompt") or "")
     voice.setdefault("personality", d.get("personality") or "")
+    voice.setdefault("voice_version_hash", d.get("voice_version_hash"))
+    voice.setdefault("voice_version_seq", int(d.get("voice_version_seq") or 1))
+    voice.setdefault("voice_version_label", d.get("voice_version_label") or "v1")
     neg = voice.get("negative_semantics")
     if not neg:
         neg = d.get("negative_semantics")

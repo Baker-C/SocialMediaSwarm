@@ -9,6 +9,7 @@ from app.interval.tweet_topic_preanalysis import (
     rank_timeline_references,
     select_top_timeline_reference,
 )
+from app.metrics.derived import normalized_reference_score
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 
@@ -41,6 +42,12 @@ def rank_rows(
     exclude_ids: frozenset[str] | None = None,
 ) -> list[GatheredTweet]:
     ranked = rank_timeline_references(rows, exclude_ids=exclude_ids)
+    if ranked:
+        ranked = sorted(
+            ranked,
+            key=lambda t: normalized_reference_score(t.metrics, _to_int(t.metrics.get("author_followers_count"))),
+            reverse=True,
+        )
     if top_n > 0:
         ranked = ranked[:top_n]
     return ranked
@@ -52,3 +59,7 @@ def pick_winner(
     exclude_ids: frozenset[str] | None = None,
 ) -> GatheredTweet | None:
     return select_top_timeline_reference(rows, exclude_ids=exclude_ids)
+
+
+def _to_int(value: Any) -> int | None:
+    return int(value) if isinstance(value, int) else None

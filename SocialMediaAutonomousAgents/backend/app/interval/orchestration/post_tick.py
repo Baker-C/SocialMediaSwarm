@@ -15,6 +15,7 @@ from app.interval_crew.tools.take_snapshot_tool import take_snapshot
 from app.models.account import AccountDocument
 from app.models.tracked_post import PostCreationMetrics
 from app.services.copied_references import record_copied_reference
+from app.services.pipeline_outcome_repository import PipelineOutcomeRepository
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +29,20 @@ def finalize_post(
     earlier_reject: str | None,
     creation_metrics: PostCreationMetrics | None = None,
     source_reference_tweet_id: str | None = None,
+    followers_at_post: int | None = None,
 ) -> dict[str, Any]:
+    outcomes = PipelineOutcomeRepository()
     try:
         tw_result = ctx.twitter.post_tweet(account.account_id, selected_body)
     except Exception as exc:
         logger.warning("post failed for %s after selection: %s", account.account_id, exc)
+        outcomes.append(
+            account_id=account.account_id,
+            phase="finalize_post",
+            status="error",
+            reason="publish_failed",
+            details={"error": str(exc)},
+        )
         release_interval_slot_reservation(ctx, account.account_id)
         release_post_guard(ctx, account.account_id)
         return {"account_id": account.account_id, "error": str(exc)}
@@ -51,6 +61,7 @@ def finalize_post(
                 account.last_post_id,
                 ctx.now_iso,
                 creation_metrics=creation_metrics,
+                followers_at_post=followers_at_post,
             )
             m = ctx.twitter.get_tweet_metrics(account.account_id, account.last_post_id)
             imp = m.get("impression_count")
@@ -81,6 +92,7 @@ def finalize_post(
         out["note"] = f"earlier_rejections_including:{earlier_reject}"
     if creation_metrics is not None:
         out["creation_metrics"] = creation_metrics.model_dump(exclude_none=True)
+    outcomes.append(account_id=account.account_id, phase="finalize_post", status="ok")
     return out
 
 

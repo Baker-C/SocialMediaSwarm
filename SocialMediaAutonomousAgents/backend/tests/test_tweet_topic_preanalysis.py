@@ -7,7 +7,7 @@ from app.interval.tweet_topic_preanalysis import (
 )
 
 
-def test_popularity_score_weighted_ignores_quotes() -> None:
+def test_popularity_score_weighted_includes_quotes() -> None:
     row = {
         "like_count": 10,
         "reply_count": 2,
@@ -15,7 +15,7 @@ def test_popularity_score_weighted_ignores_quotes() -> None:
         "quote_count": 100,
         "impression_count": 0,
     }
-    assert popularity_score(row) == 11.2
+    assert popularity_score(row) == 91.2
 
 
 def test_popularity_score_includes_impressions() -> None:

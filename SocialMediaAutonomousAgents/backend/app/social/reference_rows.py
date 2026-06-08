@@ -20,6 +20,7 @@ def post_data_to_reference_row(post: PostData, *, source: str, extra: dict[str, 
         "retweet_count": post.retweet_count,
         "quote_count": post.quote_count,
         "impression_count": post.impression_count,
+        "profile_click_count": post.profile_click_count,
         "lang": post.lang,
         "source": source,
     }

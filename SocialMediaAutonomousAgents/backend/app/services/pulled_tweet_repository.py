@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from app.infrastructure.ravendb_http import RavenDBHttpClient, RavenDBHttpError, get_ravendb_client
+from app.metrics.derived import extract_entities, extract_text_features
 from app.models.pulled_tweet import PullRecordStats, PulledTweetDocument
 from app.social.tweet_enrichment import enrichment_from_row
 
@@ -22,6 +23,7 @@ _METRIC_KEYS = (
     "retweet_count",
     "quote_count",
     "impression_count",
+    "author_followers_count",
 )
 _ENRICHMENT_SCALAR_KEYS = (
     "tweet_permalink",
@@ -53,6 +55,8 @@ def _row_to_fields(row: dict[str, Any]) -> dict[str, Any]:
         val = row.get(key)
         if isinstance(val, int):
             out[key] = val
+    out["text_features"] = extract_text_features(str(row.get("text") or ""))
+    out["entity_tags"] = extract_entities(row)
     out.update(enrichment_from_row(row))
     return out
 
@@ -75,6 +79,8 @@ def _merge_engagement(base: PulledTweetDocument, row: dict[str, Any]) -> PulledT
         *_ENRICHMENT_SCALAR_KEYS,
         "media_types",
         "embed_urls",
+        "text_features",
+        "entity_tags",
     )
     for key in merge_keys:
         val = fields.get(key)

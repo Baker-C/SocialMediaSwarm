@@ -311,8 +311,14 @@ class XTwitterClient:
 
     def _tweet_object_to_post_data(self, t: Any) -> PostData:
         pm = getattr(t, "public_metrics", None)
+        npm = getattr(t, "non_public_metrics", None)
         td = getattr(t, "data", None)
         raw: dict[str, Any] | None = td if isinstance(td, dict) else None
+        profile_click_count = _metric(npm, "user_profile_clicks")
+        if profile_click_count is None and isinstance(raw, dict):
+            npm_raw = raw.get("non_public_metrics")
+            if isinstance(npm_raw, dict):
+                profile_click_count = _metric(npm_raw, "user_profile_clicks")
         return PostData(
             id=str(t.id),
             text=getattr(t, "text", None),
@@ -323,6 +329,7 @@ class XTwitterClient:
             retweet_count=_metric(pm, "retweet_count"),
             quote_count=_metric(pm, "quote_count"),
             impression_count=_metric(pm, "impression_count"),
+            profile_click_count=profile_click_count,
             lang=getattr(t, "lang", None),
             raw=raw,
         )
@@ -347,6 +354,7 @@ class XTwitterClient:
         if not resp or not resp.data:
             return []
         includes = self._response_includes(resp)
+        author_followers = self._author_followers_map(includes)
         rows: list[dict[str, Any]] = []
         for t in resp.data:
             if t is None:
@@ -355,29 +363,91 @@ class XTwitterClient:
             if not (post.text or "").strip():
                 continue
             self._enrich_post_data(post, t, includes)
-            rows.append(post_data_to_reference_row(post, source=source, extra=extra))
+            row = post_data_to_reference_row(post, source=source, extra=extra)
+            aid = _id_str(getattr(t, "author_id", None))
+            if aid and aid in author_followers:
+                row["author_followers_count"] = author_followers[aid]
+            rows.append(row)
         return rows
 
-    def _reference_tweet_kwargs(self) -> dict[str, Any]:
-        return {
-            "tweet_fields": _REFERENCE_TWEET_FIELDS,
-            "expansions": _REFERENCE_EXPANSIONS,
-            "media_fields": _MEDIA_FIELDS,
-        }
+    @staticmethod
+    def _author_followers_map(includes: Any) -> dict[str, int]:
+        users = []
+        if isinstance(includes, dict):
+            users = includes.get("users") or []
+        elif hasattr(includes, "users"):
+            users = getattr(includes, "users", []) or []
+        out: dict[str, int] = {}
+        for u in users:
+            uid = _id_str(getattr(u, "id", None))
+            pm = getattr(u, "public_metrics", None)
+            followers = _metric(pm, "followers_count")
+            if uid and isinstance(followers, int):
+                out[uid] = followers
+        return out
+
+    def _reference_tweet_kwargs_tiers(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "tweet_fields": _REFERENCE_TWEET_FIELDS,
+                "expansions": [*_REFERENCE_EXPANSIONS, "author_id"],
+                "media_fields": _MEDIA_FIELDS,
+                "user_fields": ["public_metrics"],
+            },
+            {
+                "tweet_fields": _REFERENCE_TWEET_FIELDS,
+                "expansions": _REFERENCE_EXPANSIONS,
+                "media_fields": _MEDIA_FIELDS,
+            },
+            {
+                "tweet_fields": _REFERENCE_TWEET_FIELDS[:6],
+            },
+        ]
 
     def _fetch_reference_tweets(self, fetcher: Any, *, user_auth: bool) -> list[dict[str, Any]]:
-        """Call Tweepy with media expansions; fall back to minimal fields if tier rejects them."""
-        kwargs = {**self._reference_tweet_kwargs(), "user_auth": user_auth}
+        """Call Tweepy with full→no-author→minimal tiered fallback."""
+        tiers = self._reference_tweet_kwargs_tiers()
+        last_exc: Exception | None = None
+        for idx, tier in enumerate(tiers):
+            kwargs = {**tier, "user_auth": user_auth}
+            try:
+                return fetcher(**kwargs)
+            except Exception as exc:
+                last_exc = exc
+                msg = str(exc).lower()
+                retryable = "403" in msg or "400" in msg or "forbidden" in msg
+                if not retryable:
+                    raise self._wrap(exc) from exc
+                if idx < len(tiers) - 1:
+                    logger.warning("reference tier %d failed; retrying next tier: %s", idx + 1, exc)
+                    continue
+        if last_exc is not None:
+            raise self._wrap(last_exc) from last_exc
+        raise SocialPlatformError("reference tweet fetch failed without exception", vendor="x")
+
+    def _fetch_own_tweet(self, post_id: str, *, user_auth: bool) -> Any:
+        extended_fields = [*_REFERENCE_TWEET_FIELDS, "non_public_metrics"]
         try:
-            resp = fetcher(**kwargs)
-            return resp
+            return self._v2.get_tweet(
+                id=post_id,
+                tweet_fields=extended_fields,
+                expansions=_REFERENCE_EXPANSIONS,
+                media_fields=_MEDIA_FIELDS,
+                user_auth=user_auth,
+            )
         except Exception as exc:
             msg = str(exc).lower()
             if "403" not in msg and "400" not in msg and "forbidden" not in msg:
                 raise self._wrap(exc) from exc
-            logger.warning("reference tweet fetch with media expansions failed, retrying minimal: %s", exc)
+            logger.warning("own tweet extended metrics unavailable; retrying public-only: %s", exc)
             try:
-                return fetcher(tweet_fields=_REFERENCE_TWEET_FIELDS[:6], user_auth=user_auth)
+                return self._v2.get_tweet(
+                    id=post_id,
+                    tweet_fields=_REFERENCE_TWEET_FIELDS,
+                    expansions=_REFERENCE_EXPANSIONS,
+                    media_fields=_MEDIA_FIELDS,
+                    user_auth=user_auth,
+                )
             except Exception as retry_exc:
                 raise self._wrap(retry_exc) from retry_exc
 
@@ -428,12 +498,7 @@ class XTwitterClient:
 
     def get_post_data(self, post_id: str) -> PostData:
         ua = self._user_auth
-        resp = self._execute_with_backoff(
-            lambda: self._fetch_reference_tweets(
-                lambda **kw: self._v2.get_tweet(id=post_id, **kw),
-                user_auth=ua,
-            )
-        )
+        resp = self._execute_with_backoff(lambda: self._fetch_own_tweet(post_id, user_auth=ua))
         if not resp or not resp.data:
             raise SocialPlatformError(f"Tweet not found: {post_id}", vendor="x")
         post = self._tweet_object_to_post_data(resp.data)

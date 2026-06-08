@@ -8,6 +8,7 @@ from collections.abc import Callable, Sequence
 from app.pipeline.services.deps import PostRunDeps
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
+from app.services.pipeline_outcome_repository import PipelineOutcomeRepository
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +38,19 @@ def run_steps(
     stop_on_fail: bool = True,
 ) -> RunbookResult:
     log: list[dict] = []
+    outcomes = PipelineOutcomeRepository()
     for step_id, fn in steps:
         try:
             result = fn(ctx, deps)
         except Exception as exc:
             logger.exception("runbook step %s failed", step_id)
+            outcomes.append(
+                account_id=ctx.account_id,
+                phase=f"runbook:{step_id}",
+                status="error",
+                reason="step_exception",
+                details={"error": str(exc)},
+            )
             entry = {"id": step_id, "ok": False, "error": str(exc)}
             log.append(entry)
             if stop_on_fail:
@@ -59,6 +68,21 @@ def run_steps(
             "errors": result.errors,
         }
         log.append(entry)
+        if result.skipped:
+            outcomes.append(
+                account_id=ctx.account_id,
+                phase=f"runbook:{step_id}",
+                status="skipped",
+                reason=result.skip_reason,
+            )
+        elif not result.ok:
+            outcomes.append(
+                account_id=ctx.account_id,
+                phase=f"runbook:{step_id}",
+                status="error",
+                reason=result.skip_reason or "step_failed",
+                details={"errors": list(result.errors or [])},
+            )
 
         if stop_on_fail and not result.ok and not result.skipped:
             break

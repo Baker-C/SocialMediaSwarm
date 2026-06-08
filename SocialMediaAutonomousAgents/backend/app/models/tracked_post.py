@@ -19,6 +19,10 @@ class PostCreationMetrics(BaseModel):
     chosen_topic_id: str | None = None
     source_reference_tweet_id: str | None = None
     chosen_embed_url: str | None = None
+    voice_version_hash: str | None = None
+    voice_version_seq: int | None = None
+    voice_version_label: str | None = None
+    source_reference_metrics_at_pick: dict | None = None
 
 
 class TrackedPostDocument(BaseModel):
@@ -33,6 +37,13 @@ class TrackedPostDocument(BaseModel):
     retweet_count: int | None = None
     quote_count: int | None = None
     impression_count: int | None = None
+    engagement_rate: float | None = None
+    reply_rate: float | None = None
+    like_rate: float | None = None
+    followers_at_post: int | None = None
+    follower_delta: int | None = None
+    profile_click_count: int | None = None
+    engagement_velocity: float | None = None
     raw_metrics: dict = Field(default_factory=dict)
     creation_metrics: PostCreationMetrics | None = None
     tweet_permalink: str | None = None

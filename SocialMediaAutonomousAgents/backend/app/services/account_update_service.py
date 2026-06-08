@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.models.account import AccountDocument, default_negative_semantics, default_system_prompt
 from app.services.account_repository import AccountRepository
 from app.services.twitter_oauth2_service import TwitterOAuth2Service
+from app.services.voice_version_service import bump_voice_version_if_needed
 
 
 class AccountUpdateBody(BaseModel):
@@ -22,6 +23,7 @@ class AccountUpdateBody(BaseModel):
     negative_semantics: list[str] | None = None
     followers: int | None = Field(default=None, ge=0)
     posts_total: int | None = Field(default=None, ge=0)
+    voice_version_label: str | None = Field(default=None, max_length=120)
 
 
 def account_edit_view(acc: AccountDocument, oauth: TwitterOAuth2Service | None = None) -> dict:
@@ -91,6 +93,12 @@ def apply_account_update(account_id: str, body: AccountUpdateBody, repo: Account
     if body.posts_total is not None:
         profile["posts_total"] = body.posts_total
 
+    previous_hash = existing.voice_version_hash
     acc = AccountDocument.model_validate(data)
+    acc = bump_voice_version_if_needed(
+        acc,
+        previous_hash=previous_hash,
+        manual_label=body.voice_version_label,
+    )
     r.save(acc)
     return acc

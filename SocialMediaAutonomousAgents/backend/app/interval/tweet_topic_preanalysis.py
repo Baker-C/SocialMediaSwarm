@@ -11,10 +11,11 @@ from app.social.tweet_enrichment import select_chosen_post_media_url
 
 logger = logging.getLogger(__name__)
 
-# Weighted popularity for timeline reference ranking (quote_count excluded).
+# Weighted popularity for timeline reference ranking.
 _WEIGHT_LIKE = 0.7
 _WEIGHT_REPLY = 0.6
 _WEIGHT_RETWEET = 1.0
+_WEIGHT_QUOTE = 0.8
 _WEIGHT_IMPRESSION = 0.1
 
 
@@ -45,13 +46,13 @@ def popularity_score(metrics: dict[str, Any]) -> float:
     """
     Weighted engagement score for ranking timeline references.
 
-    likes × 0.7, replies × 0.6, retweets × 1.0, impressions × 0.1.
-    Quote tweets are not included.
+    likes × 0.7, replies × 0.6, retweets × 1.0, quotes × 0.8, impressions × 0.1.
     """
     return (
         _WEIGHT_LIKE * _metric_count(metrics, "like_count")
         + _WEIGHT_REPLY * _metric_count(metrics, "reply_count")
         + _WEIGHT_RETWEET * _metric_count(metrics, "retweet_count")
+        + _WEIGHT_QUOTE * _metric_count(metrics, "quote_count")
         + _WEIGHT_IMPRESSION * _metric_count(metrics, "impression_count")
     )
 

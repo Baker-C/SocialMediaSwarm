@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timezone
 
 from app.infrastructure.ravendb_http import RavenDBHttpClient, RavenDBHttpError, get_ravendb_client
+from app.metrics.derived import compute_rates
 from app.models.tracked_post import PostCreationMetrics, TrackedPostDocument
 from app.models.tweet_media import TweetMediaEnrichment
 from app.social.tweet_enrichment import enrichment_from_row
@@ -90,6 +91,7 @@ class TrackedPostRepository:
         posted_at_iso: str | None = None,
         *,
         creation_metrics: PostCreationMetrics | None = None,
+        followers_at_post: int | None = None,
     ) -> None:
         when = posted_at_iso or datetime.now(timezone.utc).isoformat()
         doc = TrackedPostDocument(
@@ -97,6 +99,7 @@ class TrackedPostRepository:
             tweet_id=tweet_id,
             posted_at=when,
             creation_metrics=creation_metrics,
+            followers_at_post=followers_at_post,
         )
         doc_id = TrackedPostDocument.document_id(account_id, tweet_id)
         payload = doc.model_dump(exclude_none=True)
@@ -122,7 +125,33 @@ class TrackedPostRepository:
         data["retweet_count"] = metrics.get("retweet_count")
         data["quote_count"] = metrics.get("quote_count")
         data["impression_count"] = metrics.get("impression_count")
-        data["raw_metrics"] = {k: v for k, v in metrics.items() if k in ("id", "text", "like_count", "impression_count", "reply_count", "retweet_count")}
+        rates = compute_rates(metrics)
+        data["engagement_rate"] = rates.get("engagement_rate")
+        data["reply_rate"] = rates.get("reply_rate")
+        data["like_rate"] = rates.get("like_rate")
+        if metrics.get("profile_click_count") is not None:
+            data["profile_click_count"] = metrics.get("profile_click_count")
+        if metrics.get("follower_delta") is not None:
+            data["follower_delta"] = metrics.get("follower_delta")
+        if metrics.get("engagement_velocity") is not None:
+            data["engagement_velocity"] = metrics.get("engagement_velocity")
+        if base.followers_at_post is not None:
+            data["followers_at_post"] = base.followers_at_post
+        data["raw_metrics"] = {
+            k: v
+            for k, v in metrics.items()
+            if k
+            in (
+                "id",
+                "text",
+                "like_count",
+                "impression_count",
+                "reply_count",
+                "retweet_count",
+                "quote_count",
+                "profile_click_count",
+            )
+        }
         self.client.put_document(doc_id, data, collection=TRACKED_COLLECTION)
         if metrics.get("tweet_permalink") or metrics.get("media_types") or metrics.get("embed_urls"):
             self.update_enrichment(account_id, tweet_id, metrics)

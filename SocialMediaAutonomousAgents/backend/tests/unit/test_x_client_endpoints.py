@@ -38,6 +38,7 @@ def _tweet(
     t.created_at = datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
     t.lang = "en"
     t.data = None
+    t.non_public_metrics = None
     t.attachments = None
     t.entities = None
     return t
@@ -208,8 +209,37 @@ def test_get_post_data_maps_tweet() -> None:
     assert post.id == "555"
     assert post.text == "metrics tweet"
     assert post.like_count == 5
+    assert post.profile_click_count is None
     client._v2.get_tweet.assert_called_once()
     assert client._v2.get_tweet.call_args.kwargs["id"] == "555"
+
+
+def test_get_post_data_prefers_non_public_metrics_when_present() -> None:
+    client = _oauth1_client()
+    tweet = _tweet(tweet_id="556", text="profile clicks")
+    tweet.non_public_metrics = {"user_profile_clicks": 7}
+    client._v2.get_tweet.return_value = _single_tweet_response(tweet)
+    post = client.get_post_data("556")
+    assert post.profile_click_count == 7
+
+
+def test_get_post_data_falls_back_public_only_on_403() -> None:
+    client = _oauth1_client()
+    tweet = _tweet(tweet_id="557", text="fallback")
+    calls = []
+
+    def fake_get_tweet(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise _tweepy_error(tweepy.Forbidden, "403 Forbidden", status_code=403)
+        return _single_tweet_response(tweet)
+
+    client._v2.get_tweet.side_effect = fake_get_tweet
+    post = client.get_post_data("557")
+    assert post.id == "557"
+    assert len(calls) == 2
+    assert "non_public_metrics" in calls[0]["tweet_fields"]
+    assert "non_public_metrics" not in calls[1]["tweet_fields"]
 
 
 def test_get_post_data_not_found_raises() -> None:
@@ -327,8 +357,27 @@ def test_fetch_reference_tweets_retries_minimal_on_403() -> None:
     resp = client._fetch_reference_tweets(fetcher, user_auth=True)
     assert resp is ok_resp
     assert len(calls) == 2
-    assert "expansions" in calls[0]
-    assert "expansions" not in calls[1]
+    assert "author_id" in calls[0]["expansions"]
+    assert calls[1]["expansions"] == ["attachments.media_keys"]
+
+
+def test_fetch_reference_tweets_uses_minimal_after_second_tier_failure() -> None:
+    client = _oauth1_client()
+    ok_resp = _tweet_response(_tweet(text="third-tier ok https://t.co/a"))
+    calls: list[dict] = []
+
+    def fetcher(**kw):
+        calls.append(dict(kw))
+        if len(calls) < 3:
+            raise _tweepy_error(tweepy.Forbidden, "403 Forbidden", status_code=403)
+        return ok_resp
+
+    resp = client._fetch_reference_tweets(fetcher, user_auth=False)
+    assert resp is ok_resp
+    assert len(calls) == 3
+    assert "author_id" in calls[0]["expansions"]
+    assert calls[1]["expansions"] == ["attachments.media_keys"]
+    assert "expansions" not in calls[2]
 
 
 def test_fetch_reference_tweets_non_403_reraises_wrapped() -> None:

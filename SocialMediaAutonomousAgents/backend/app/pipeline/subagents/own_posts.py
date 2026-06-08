@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.metrics.derived import extract_entities, extract_text_features
 from app.pipeline.accessors import tool_catalog
 from app.pipeline.services.deps import PostRunDeps
 from app.pipeline.types.context import TickRunContext
@@ -47,13 +48,19 @@ def run(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
         store_key="own_posts_ranked",
     )
     ranked = rank.payload.get("ranked") or []
+    ranked = [_enrich_row_features(r) for r in ranked if isinstance(r, dict)]
 
     summary = tool_catalog().llm.reference_pattern_summary.run(
         ctx,
         source="own_posts",
         niche=ctx.niche,
         top_posts=ranked,
-        features={"history_size": len(rows), "top_n": len(ranked)},
+        features={
+            "history_size": len(rows),
+            "top_n": len(ranked),
+            "entity_tags": _top_entities(ranked),
+            "avg_char_count": _avg_char_count(ranked),
+        },
         store_key="own_posts_analysis",
     )
 
@@ -77,6 +84,7 @@ def _rows_from_tracked(posts: list[Any]) -> list[dict[str, Any]]:
             "like_count": doc.get("like_count") if doc.get("like_count") is not None else raw.get("like_count"),
             "reply_count": doc.get("reply_count") if doc.get("reply_count") is not None else raw.get("reply_count"),
             "retweet_count": doc.get("retweet_count") if doc.get("retweet_count") is not None else raw.get("retweet_count"),
+            "quote_count": doc.get("quote_count") if doc.get("quote_count") is not None else raw.get("quote_count"),
             "impression_count": doc.get("impression_count")
             if doc.get("impression_count") is not None
             else raw.get("impression_count"),
@@ -86,3 +94,36 @@ def _rows_from_tracked(posts: list[Any]) -> list[dict[str, Any]]:
         if row.get("tweet_id"):
             rows.append(row)
     return rows
+
+
+def _enrich_row_features(row: dict[str, Any]) -> dict[str, Any]:
+    out = dict(row)
+    out["text_features"] = extract_text_features(str(out.get("text") or ""))
+    out["entity_tags"] = extract_entities(out)
+    return out
+
+
+def _top_entities(rows: list[dict[str, Any]]) -> list[str]:
+    tags: list[str] = []
+    for r in rows:
+        for t in r.get("entity_tags") or []:
+            if isinstance(t, str) and t.strip():
+                tags.append(t.strip())
+    seen: list[str] = []
+    for tag in tags:
+        if tag not in seen:
+            seen.append(tag)
+    return seen[:12]
+
+
+def _avg_char_count(rows: list[dict[str, Any]]) -> float | None:
+    counts = []
+    for r in rows:
+        tf = r.get("text_features")
+        if isinstance(tf, dict):
+            cc = tf.get("char_count")
+            if isinstance(cc, int):
+                counts.append(cc)
+    if not counts:
+        return None
+    return float(sum(counts)) / float(len(counts))
