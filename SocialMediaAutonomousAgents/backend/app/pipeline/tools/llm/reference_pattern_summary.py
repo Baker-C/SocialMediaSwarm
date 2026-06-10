@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from app.infrastructure.claude_client import get_claude_client
 from app.interval_crew import prompt_loader
+from app.pipeline.types.artifacts import ReferencePatternBrief, artifact_key_for_ctx_key
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 
@@ -14,6 +15,7 @@ TOOL_ID = "llm.reference_pattern_summary"
 TOOL_KIND = "llm"
 TOOL_PURPOSE = "Summarize language, topic, and success patterns across top reference posts"
 PROMPT_STEM = "reference_pattern_summary"
+OUTPUT_MODEL = ReferencePatternBrief
 
 SourceLabel = Literal["timeline", "own_posts"]
 
@@ -29,7 +31,10 @@ def run(
 ) -> StepResult:
     summary = summarize(source=source, niche=niche, top_posts=top_posts, features=features or {})
     key = store_key or f"{source}_pattern_summary"
-    ctx.set(key, summary)
+    artifact_key = artifact_key_for_ctx_key(key)
+    if artifact_key is None:
+        raise ValueError(f"Unknown analysis artifact store_key: {key}")
+    ctx.set_artifact(artifact_key, summary)
     return StepResult(ok=True, payload=summary)
 
 

@@ -16,9 +16,11 @@ subagents.timeline.run(ctx, deps)
 ## Layout
 
 - `tools/{data,deterministic,llm}/` — single-purpose capabilities
-- `subagents/` — `run(ctx, deps)` bundles (timeline + own-post analysts)
-- `services/` — `PostRunDeps.build()`, step wrappers (hidden wiring)
-- `runbooks/post_tick.py` — ordered step list (readable)
+- `types/artifacts.py` — `ArtifactKey` + Pydantic models; `set_artifact` validates every write
+- `types/flow.py` — `Step`, `parallel()`, `chain()` composites
+- `subagents/` — thin wrappers delegating to rank/brief steps
+- `services/` — `PostRunDeps.build()`, artifact-centric step functions
+- `runbooks/post_tick.py` — typed runbook with parallel fetch + analyze chains
 - `runbook.py` — public `reference_analysis()` entry
 
 Do not import `_runbook_engine` or `_bootstrap` from outside this package.

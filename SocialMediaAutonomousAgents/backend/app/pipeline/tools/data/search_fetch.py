@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.pipeline.types.artifacts import ArtifactKey, SearchReferencesPayload
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 from app.services.tick_data_service import TickDataService
@@ -12,6 +13,8 @@ TOOL_ID = "data.search_fetch"
 TOOL_KIND = "data"
 TOOL_SOURCE = "x_search"
 TOOL_PURPOSE = "Acquire reference tweets from X recent-search queries"
+TOOL_WRITES = (ArtifactKey.SEARCH_REFERENCES,)
+OUTPUT_MODEL = SearchReferencesPayload
 
 
 def run(
@@ -31,7 +34,7 @@ def run(
         slot=slot_key,
         authenticated_user_id=authenticated_user_id,
     )
-    ctx.set("search_references", payload)
+    ctx.set_artifact(ArtifactKey.SEARCH_REFERENCES, payload)
     return StepResult(ok=True, payload={"search_references": payload})
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.pipeline.types.artifacts import ArtifactKey, TimelineReferencesPayload
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 from app.services.tick_data_service import TickDataService
@@ -12,6 +13,8 @@ TOOL_ID = "data.timeline_fetch"
 TOOL_KIND = "data"
 TOOL_SOURCE = "x_timeline"
 TOOL_PURPOSE = "Acquire external timeline reference tweet pool"
+TOOL_WRITES = (ArtifactKey.TIMELINE_REFERENCES,)
+OUTPUT_MODEL = TimelineReferencesPayload
 
 
 def run(
@@ -29,7 +32,7 @@ def run(
         authenticated_user_id=authenticated_user_id,
         slot=slot_key,
     )
-    ctx.set("timeline_references", payload)
+    ctx.set_artifact(ArtifactKey.TIMELINE_REFERENCES, payload)
     return StepResult(ok=True, payload={"timeline_references": payload})
 
 

@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 
 from app.pipeline.services.deps import PostRunDeps
 from app.pipeline.types.context import TickRunContext
+from app.pipeline.types.flow import FlatStep, Step, flatten_steps
 from app.pipeline.types.tool import StepResult
 from app.services.pipeline_outcome_repository import PipelineOutcomeRepository
 
 logger = logging.getLogger(__name__)
-
-StepFn = Callable[[TickRunContext, PostRunDeps], StepResult]
 
 
 class RunbookResult:
@@ -31,7 +30,7 @@ class RunbookResult:
 
 
 def run_steps(
-    steps: Sequence[tuple[str, StepFn]],
+    steps: Sequence[Step],
     ctx: TickRunContext,
     deps: PostRunDeps,
     *,
@@ -39,9 +38,13 @@ def run_steps(
 ) -> RunbookResult:
     log: list[dict] = []
     outcomes = PipelineOutcomeRepository()
-    for step_id, fn in steps:
+    flat_steps: list[FlatStep] = flatten_steps(steps)
+
+    for flat in flat_steps:
+        step_id = flat.id
+        step = flat.step
         try:
-            result = fn(ctx, deps)
+            result = step.run(ctx, deps)
         except Exception as exc:
             logger.exception("runbook step %s failed", step_id)
             outcomes.append(
@@ -51,7 +54,14 @@ def run_steps(
                 reason="step_exception",
                 details={"error": str(exc)},
             )
-            entry = {"id": step_id, "ok": False, "error": str(exc)}
+            entry = {
+                "id": step_id,
+                "ok": False,
+                "error": str(exc),
+                "reads": [r.value for r in step.reads],
+                "writes": [w.value for w in step.writes],
+                "parent_id": flat.parent_id,
+            }
             log.append(entry)
             if stop_on_fail:
                 break
@@ -66,6 +76,10 @@ def run_steps(
             "skipped": result.skipped,
             "skip_reason": result.skip_reason,
             "errors": result.errors,
+            "reads": [r.value for r in step.reads],
+            "writes": [w.value for w in step.writes],
+            "parent_id": flat.parent_id,
+            "purpose": step.purpose,
         }
         log.append(entry)
         if result.skipped:

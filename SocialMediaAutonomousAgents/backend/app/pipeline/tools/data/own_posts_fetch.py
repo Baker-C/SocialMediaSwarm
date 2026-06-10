@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.pipeline.types.artifacts import ArtifactKey, OwnPostsPayload
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 from app.services.post_registry import TrackedPostRepository
@@ -12,6 +13,8 @@ TOOL_ID = "data.own_posts_fetch"
 TOOL_KIND = "data"
 TOOL_SOURCE = "ravendb"
 TOOL_PURPOSE = "Acquire own-post history with engagement metrics for performance analysis"
+TOOL_WRITES = (ArtifactKey.OWN_POSTS,)
+OUTPUT_MODEL = OwnPostsPayload
 
 
 def run(
@@ -24,7 +27,7 @@ def run(
     rows = post_registry.list_for_account(aid)
     tweet_ids = post_registry.list_tweet_ids(aid)
     payload = {"account_id": aid, "tweet_ids": tweet_ids, "posts": rows}
-    ctx.set("own_posts", payload)
+    ctx.set_artifact(ArtifactKey.OWN_POSTS, payload)
     return StepResult(ok=True, payload=payload)
 
 

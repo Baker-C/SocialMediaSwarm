@@ -10,12 +10,14 @@ from app.interval.tweet_topic_preanalysis import (
     select_top_timeline_reference,
 )
 from app.metrics.derived import normalized_reference_score
+from app.pipeline.types.artifacts import ArtifactKey, RankedReferencesPayload, artifact_key_for_ctx_key
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 
 TOOL_ID = "deterministic.reference_rank"
 TOOL_KIND = "deterministic"
 TOOL_PURPOSE = "Rank reference tweet rows by interaction score and select top N"
+OUTPUT_MODEL = RankedReferencesPayload
 
 
 def run(
@@ -31,7 +33,10 @@ def run(
         "ranked": [t.model_dump() for t in ranked],
         "winner": ranked[0].model_dump() if ranked else None,
     }
-    ctx.set(store_key, payload)
+    artifact_key = artifact_key_for_ctx_key(store_key)
+    if artifact_key is None:
+        raise ValueError(f"Unknown ranked artifact store_key: {store_key}")
+    ctx.set_artifact(artifact_key, payload)
     return StepResult(ok=True, payload=payload)
 
 
