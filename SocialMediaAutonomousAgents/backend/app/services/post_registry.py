@@ -44,9 +44,29 @@ class TrackedPostRepository:
                 return []
         return sorted(rows, key=lambda r: str(r.get("posted_at") or ""), reverse=True)
 
-    def list_for_account(self, account_id: str) -> list[dict]:
+    def list_for_account(
+        self,
+        account_id: str,
+        *,
+        limit: int = 500,
+        since: str | None = None,
+    ) -> list[dict]:
         """TrackedPost rows for an account, newest first."""
-        return self._query_account_rows(account_id)
+        rows = self._query_account_rows(account_id)
+        if since:
+            rows = [r for r in rows if str(r.get("posted_at") or "") >= since]
+        cap = max(1, min(int(limit), 500))
+        return rows[:cap]
+
+    def get_for_tweet(self, account_id: str, tweet_id: str) -> dict | None:
+        doc_id = TrackedPostDocument.document_id(account_id, tweet_id)
+        try:
+            raw = self.client.get_document(doc_id)
+        except RavenDBHttpError:
+            return None
+        if raw is None:
+            return None
+        return {k: v for k, v in raw.items() if not str(k).startswith("@")}
 
     def list_tweet_ids(self, account_id: str) -> list[str]:
         ids: list[str] = []

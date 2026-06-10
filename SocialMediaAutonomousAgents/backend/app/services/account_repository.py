@@ -15,6 +15,7 @@ from app.models.account import (
     default_negative_semantics,
     default_system_prompt,
 )
+from app.services.voice_version_service import bump_voice_version_if_needed
 
 
 def _strip_metadata(doc: dict) -> dict:
@@ -105,6 +106,10 @@ class AccountRepository:
         return document_to_account(raw)
 
     def save(self, account: AccountDocument) -> None:
+        account = bump_voice_version_if_needed(
+            account,
+            previous_hash=account.voice_version_hash,
+        )
         doc_id = AccountDocument.document_id(account.account_id)
         self.client.put_document(doc_id, account_to_document(account), collection="Accounts")
 

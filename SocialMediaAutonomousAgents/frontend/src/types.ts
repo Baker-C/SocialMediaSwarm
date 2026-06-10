@@ -1,66 +1,30 @@
-export type RecentPost = {
-  snippet?: string;
-  posted_at?: string | null;
-  post_id?: string | null;
-  views?: number | null;
-};
+export type {
+  RecentPost,
+  AccountSummary,
+  AccountEditPayload,
+  OAuthStatus,
+  OAuthAuthorizeResponse,
+  AccountSnapshot,
+  AccountMetrics,
+  DashboardPayload,
+} from './types/domain/account';
 
-export type AccountSummary = {
-  account_id: string;
-  niche: string;
-  twitter_handle: string;
-  status: string;
-  followers: number;
-  posts_total: number;
-  has_credentials?: boolean;
-  registered_at?: string | null;
-  follower_growth_vs_registered?: number | null;
-  last_interval_slot?: string | null;
-  recent_post?: RecentPost | null;
-};
+export type {
+  PostCreationMetrics,
+  TrackedPost,
+  PostMetricSnapshot,
+  DataQualityLevel,
+  EnrichedTrackedPost,
+  FOLLOWER_DELTA_SCOPE,
+} from './types/domain/trackedPost';
 
-export type AccountEditPayload = {
-  account_id: string;
-  niche: string;
-  twitter_handle: string;
-  status: string;
-  system_prompt: string;
-  followers: number;
-  posts_total: number;
-  registered_at?: string | null;
-  last_interval_slot?: string | null;
-  last_post_id?: string | null;
-  credential_mode: string;
-  oauth_connected?: boolean;
-  oauth_expires_at?: string | null;
-};
+export type {
+  PostFilterParams,
+  ReferenceFilterParams,
+  PipelineFilterParams,
+  SavedFilterPreset,
+} from './types/domain/filters';
 
-export type OAuthStatus = {
-  account_id: string;
-  connected: boolean;
-  expires_at?: string | null;
-  scopes?: string | null;
-  x_user_id?: string | null;
-  updated_at?: string | null;
-};
+export type { PipelineOutcome, VoiceRevision } from './types/domain/pipeline';
 
-export type OAuthAuthorizeResponse = {
-  account_id: string;
-  authorization_url: string;
-  state: string;
-  redirect_uri?: string;
-};
-
-export type ApiState = {
-  health?: unknown;
-  accounts?: unknown;
-  posts?: unknown;
-  patterns?: unknown;
-  dashboard?: unknown;
-};
-
-export type DashboardPayload = {
-  active_accounts?: number;
-  top_niche?: string;
-  avg_engagement?: number;
-};
+export type { PulledTweet, EnrichedPulledTweet } from './types/domain/reference';

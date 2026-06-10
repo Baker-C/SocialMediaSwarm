@@ -47,3 +47,32 @@ class PostMetricSnapshotRepository:
             return PostMetricSnapshotDocument.model_validate(raw)
         except Exception:
             return None
+
+    def list_for_tweet(
+        self,
+        account_id: str,
+        tweet_id: str,
+        *,
+        limit: int = 500,
+    ) -> list[PostMetricSnapshotDocument]:
+        aid = _safe_rql_string(account_id)
+        tid = _safe_rql_string(tweet_id)
+        if not aid or not tid:
+            return []
+        cap = max(1, min(int(limit), 500))
+        rql = (
+            f'from PostMetricSnapshots where account_id == "{aid}" and tweet_id == "{tid}" '
+            f"order by captured_at asc limit {cap}"
+        )
+        try:
+            rows = self.client.query(rql)
+        except RavenDBHttpError:
+            rows = []
+        out: list[PostMetricSnapshotDocument] = []
+        for raw in rows:
+            try:
+                stripped = {k: v for k, v in raw.items() if not str(k).startswith("@")}
+                out.append(PostMetricSnapshotDocument.model_validate(stripped))
+            except Exception:
+                continue
+        return out

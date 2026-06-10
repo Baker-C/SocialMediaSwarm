@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from app.api.routes import accounts, oauth, posts, patterns, metrics, dashboard, health, force_post
+from app.api.routes import accounts, analytics, oauth, posts, patterns, metrics, dashboard, health, force_post
 from app.core.config import settings
 from app.infrastructure.scheduler_lock import release_scheduler_lock, try_acquire_scheduler_lock
 from app.jobs.engagement_job import run_engagement_job
@@ -151,6 +151,7 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(oauth.router, prefix="/api", tags=["oauth"])
 app.include_router(accounts.router, prefix="/api", tags=["accounts"])
+app.include_router(analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(force_post.router, prefix="/api", tags=["force-post"])
 app.include_router(posts.router, prefix="/api", tags=["posts"])
 app.include_router(patterns.router, prefix="/api", tags=["patterns"])
