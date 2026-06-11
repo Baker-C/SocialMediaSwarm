@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { LeaderboardRow, OpsAlert } from '../../analytics/selectors/fleetKpis';
 import { DataTable, type DataTableColumn } from '../../components/data/DataTable';
+import { TablePanelHeader } from '../../components/data/TablePanelHeader';
 import { formatAge, formatPercent } from '../../lib/format';
 
 const leaderboardColumns: DataTableColumn<LeaderboardRow>[] = [
@@ -50,7 +51,11 @@ type AccountLeaderboardProps = {
 export function AccountLeaderboard({ rows }: AccountLeaderboardProps) {
   return (
     <section className="fleet-section" aria-label="Account leaderboard">
-      <h3 className="fleet-section__title">Leaderboard</h3>
+      <TablePanelHeader
+        title="Leaderboard"
+        tableId="fleet-leaderboard"
+        titleClassName="fleet-section__title"
+      />
       <DataTable
         columns={leaderboardColumns}
         rows={rows}

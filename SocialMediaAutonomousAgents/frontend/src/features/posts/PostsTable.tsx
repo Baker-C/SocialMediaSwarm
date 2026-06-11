@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import type { EnrichedTrackedPost } from '../../types/domain/trackedPost';
 import { FOLLOWER_DELTA_SCOPE } from '../../types/domain/trackedPost';
 import { DataTable, type DataTableColumn } from '../../components/data/DataTable';
+import { TablePanelHeader } from '../../components/data/TablePanelHeader';
 import { DataQualityBadge } from '../../components/data/DataQualityBadge';
 import { formatPercent, formatShortDate } from '../../lib/format';
 
@@ -92,6 +93,7 @@ export function PostsTable({ accountId, rows }: PostsTableProps) {
 
   return (
     <div className="posts-table-wrap">
+      <TablePanelHeader title="Tracked posts" tableId="tracked-posts" />
       <p className="field-hint" title={FOLLOWER_DELTA_SCOPE}>
         Follower Δ is account-level since registration, not per-post attribution.
       </p>
