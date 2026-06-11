@@ -1,23 +1,28 @@
+/* Tactical ops theme — data tables */
+
 .data-table-wrap {
   overflow-x: auto;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #fff;
+  border: 1px solid #404040;
+  border-radius: 6px;
+  background: #171717;
 }
 
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
 }
 
 .data-table__th {
   padding: 10px 12px;
   text-align: left;
-  font-weight: 650;
-  color: #374151;
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
+  font-weight: 600;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #a3a3a3;
+  background: #171717;
+  border-bottom: 1px solid #404040;
   white-space: nowrap;
 }
 
@@ -28,8 +33,9 @@
 
 .data-table td {
   padding: 10px 12px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #262626;
   vertical-align: top;
+  color: #d4d4d4;
 }
 
 .data-table tbody tr:last-child td {
@@ -38,14 +44,15 @@
 
 .data-table__row--clickable {
   cursor: pointer;
+  transition: background-color 0.15s;
 }
 
 .data-table__row--clickable:hover {
-  background: #f8fafc;
+  background: #262626;
 }
 
 .data-table__row--clickable:focus-visible {
-  outline: 2px solid #93c5fd;
+  outline: 2px solid #f97316;
   outline-offset: -2px;
 }
 
@@ -53,18 +60,48 @@
   border: none;
   background: transparent;
   font: inherit;
-  font-weight: 650;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
   color: inherit;
   cursor: pointer;
   padding: 0;
+  transition: color 0.15s;
+}
+
+.data-table__sort:hover {
+  color: #fff;
 }
 
 .data-table__sort--active {
-  color: #2563eb;
+  color: #f97316;
 }
 
 .data-table__empty {
   margin: 16px;
-  color: #6b7280;
-  font-size: 0.85rem;
+  color: #737373;
+  font-size: 0.8rem;
+}
+
+.data-table__th--caret,
+.data-table__td--caret {
+  width: 36px;
+  text-align: center;
+}
+
+.data-table__caret {
+  display: inline-block;
+  font-size: 0.55rem;
+  color: #f97316;
+  transition: transform 0.15s ease;
+}
+
+.data-table__caret--open {
+  transform: rotate(90deg);
+}
+
+.data-table__expanded-row td {
+  padding: 0;
+  background: #0d0d0d;
+  border-bottom: 1px solid #404040;
 }
