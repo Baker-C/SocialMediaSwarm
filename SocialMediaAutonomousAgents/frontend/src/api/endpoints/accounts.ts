@@ -1,4 +1,9 @@
-import type { AccountEditPayload, AccountSummary, DashboardPayload } from '../../types';
+import type {
+  AccountEditPayload,
+  AccountSummary,
+  AccountVoiceDetail,
+  DashboardPayload,
+} from '../../types';
 import { apiFetch } from '../client';
 
 export function parseAccounts(raw: unknown): AccountSummary[] {
@@ -32,6 +37,10 @@ export async function fetchAccounts(): Promise<AccountSummary[]> {
 
 export async function fetchAccountEditPayload(accountId: string): Promise<AccountEditPayload> {
   return apiFetch<AccountEditPayload>(`/accounts/${encodeURIComponent(accountId)}`);
+}
+
+export async function fetchAccountVoice(accountId: string): Promise<AccountVoiceDetail> {
+  return apiFetch<AccountVoiceDetail>(`/accounts/${encodeURIComponent(accountId)}/edit`);
 }
 
 export async function updateAccount(

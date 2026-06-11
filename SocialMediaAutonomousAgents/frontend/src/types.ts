@@ -2,6 +2,7 @@ export type {
   RecentPost,
   AccountSummary,
   AccountEditPayload,
+  AccountVoiceDetail,
   OAuthStatus,
   OAuthAuthorizeResponse,
   AccountSnapshot,

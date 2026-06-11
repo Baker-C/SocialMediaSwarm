@@ -40,6 +40,13 @@ export type AccountEditPayload = {
   oauth_expires_at?: string | null;
 };
 
+export type AccountVoiceDetail = {
+  account_id: string;
+  system_prompt: string;
+  personality?: string;
+  negative_semantics?: string[];
+};
+
 export type OAuthStatus = {
   account_id: string;
   connected: boolean;

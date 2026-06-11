@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchVoiceRevisions } from '../../api/endpoints/voice';
+import { fetchVoiceRevisions, type VoiceRevisionsResponse } from '../../api/endpoints/voice';
 
 export function useVoiceRevisions(accountId: string | undefined) {
-  return useQuery({
+  return useQuery<VoiceRevisionsResponse, Error>({
     queryKey: ['voiceRevisions', accountId],
     queryFn: () => fetchVoiceRevisions(accountId!),
     enabled: Boolean(accountId),

@@ -5,18 +5,21 @@ import { normalizeTrackedPosts } from '../../analytics/normalize/trackedPost';
 import { buildCorrelationPoints } from '../../analytics/selectors/engagementCurves';
 import { CorrelationScatter } from '../../components/charts/CorrelationScatter';
 import { DataTable, type DataTableColumn } from '../../components/data/DataTable';
-import { PageHeader } from '../../components/layout/PageHeader';
+import { TablePanelHeader } from '../../components/data/TablePanelHeader';
 import { useAccount } from '../../hooks/queries/useAccounts';
+import { useAccountVoice } from '../../hooks/queries/useAccountVoice';
 import { useTrackedPosts } from '../../hooks/queries/useTrackedPosts';
 import { useVoiceRevisions } from '../../hooks/queries/useVoiceRevisions';
 import { formatPercent, formatShortDate } from '../../lib/format';
 import type { VoiceVersionStats } from '../../analytics/selectors/voiceComparison';
+import type { VoiceRevision } from '../../types';
 
 export function VoiceExperimentsPage() {
   const { accountId } = useParams();
   const accountQuery = useAccount(accountId);
   const revisionsQuery = useVoiceRevisions(accountId);
   const postsQuery = useTrackedPosts(accountId);
+  const voiceQuery = useAccountVoice(accountId);
 
   const posts = useMemo(
     () => normalizeTrackedPosts(postsQuery.data?.posts ?? []),
@@ -65,18 +68,78 @@ export function VoiceExperimentsPage() {
   ];
 
   const currentVoice = accountQuery.data?.voice_version_label ?? 'default';
+  const currentSeq = accountQuery.data?.voice_version_seq ?? null;
+  const revisions: VoiceRevision[] = revisionsQuery.data?.revisions ?? [];
+
+  const renderVoiceExpanded = (row: VoiceVersionStats) => {
+    const revision = revisions.find((r) => r.seq === row.seq);
+    const isCurrent = row.seq != null && row.seq === currentSeq;
+    const voice = voiceQuery.data;
+
+    return (
+      <div className="voice-expand">
+        <div className="voice-expand__meta">
+          <span className="voice-expand__tag">
+            Voice {row.label}
+            {row.seq != null ? ` (#${row.seq})` : ''}
+          </span>
+          {revision ? (
+            <span className="voice-expand__tag">Changed {formatShortDate(revision.changed_at)}</span>
+          ) : null}
+          {revision ? (
+            <span className="voice-expand__hash" title={revision.version_hash}>
+              Hash {revision.version_hash.slice(0, 16)}…
+            </span>
+          ) : null}
+          {isCurrent ? <span className="voice-expand__current">Active</span> : null}
+        </div>
+
+        {isCurrent ? (
+          voiceQuery.isLoading ? (
+            <p className="App-loading">Loading voice…</p>
+          ) : voice ? (
+            <>
+              <div className="voice-expand__block">
+                <span className="voice-expand__label">System prompt</span>
+                <p className="voice-expand__text">{voice.system_prompt || '—'}</p>
+              </div>
+              {voice.personality ? (
+                <div className="voice-expand__block">
+                  <span className="voice-expand__label">Personality</span>
+                  <p className="voice-expand__text">{voice.personality}</p>
+                </div>
+              ) : null}
+              {voice.negative_semantics && voice.negative_semantics.length > 0 ? (
+                <div className="voice-expand__block">
+                  <span className="voice-expand__label">Negative semantics</span>
+                  <ul className="voice-expand__list">
+                    {voice.negative_semantics.map((item: string) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <p className="page-hint">Could not load the active voice details.</p>
+          )
+        ) : (
+          <p className="page-hint">
+            Prompt text is only stored for the active voice. Previous revisions are identified by
+            version hash only.
+          </p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="page-content">
-      <PageHeader
-        title="Voice & Experiments"
-        subtitle="Revision history and performance by voice version"
-        actions={
-          <Link to={`/accounts/${accountId}/settings`} className="voice-badge">
-            Current: {currentVoice}
-          </Link>
-        }
-      />
+      <div className="page-header__actions page-content__toolbar">
+        <Link to={`/accounts/${accountId}/settings`} className="voice-badge">
+          Current: {currentVoice}
+        </Link>
+      </div>
 
       <section className="hq-panel" aria-label="Revision timeline">
         <h3 className="hq-panel__title">Revision timeline</h3>
@@ -98,13 +161,14 @@ export function VoiceExperimentsPage() {
       </section>
 
       <section className="hq-panel" aria-label="Voice comparison">
-        <h3 className="hq-panel__title">Performance by voice version</h3>
+        <TablePanelHeader title="Performance by voice version" tableId="voice-comparison" />
         <DataTable
           columns={comparisonColumns}
           rows={comparison}
           rowKey={(r) => String(r.seq ?? r.label)}
           emptyMessage="No voice comparison data."
           ariaLabel="Voice version comparison"
+          renderExpanded={renderVoiceExpanded}
         />
       </section>
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 
 export type DataTableColumn<T> = {
   id: string;
@@ -15,6 +15,8 @@ type DataTableProps<T> = {
   emptyMessage?: string;
   ariaLabel: string;
   onRowClick?: (row: T) => void;
+  /** When provided, rows toggle open on click and render this content below. */
+  renderExpanded?: (row: T) => React.ReactNode;
 };
 
 type SortState = {
@@ -45,8 +47,24 @@ export function DataTable<T>({
   emptyMessage = 'No data.',
   ariaLabel,
   onRowClick,
+  renderExpanded,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<SortState | null>(null);
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+
+  const expandable = Boolean(renderExpanded);
+
+  const toggleExpanded = (key: string) => {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
 
   const sortedRows = useMemo(() => {
     if (!sort) {
@@ -84,6 +102,7 @@ export function DataTable<T>({
       <table className="data-table" aria-label={ariaLabel}>
         <thead>
           <tr>
+            {expandable ? <th className="data-table__th data-table__th--caret" scope="col" /> : null}
             {columns.map((col) => {
               const sortable = Boolean(col.sortValue);
               const active = sort?.columnId === col.id;
@@ -111,33 +130,58 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((row) => (
-            <tr
-              key={rowKey(row)}
-              className={onRowClick ? 'data-table__row--clickable' : undefined}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-              onKeyDown={
-                onRowClick
-                  ? (e) => {
-                      if (e.key === 'Enter') {
-                        onRowClick(row);
-                      }
-                    }
-                  : undefined
-              }
-              tabIndex={onRowClick ? 0 : undefined}
-              role={onRowClick ? 'button' : undefined}
-            >
-              {columns.map((col) => (
-                <td
-                  key={col.id}
-                  className={col.align === 'right' ? 'data-table__td--right' : undefined}
+          {sortedRows.map((row) => {
+            const key = rowKey(row);
+            const isOpen = expandable && expandedKeys.has(key);
+            const activate = expandable
+              ? () => toggleExpanded(key)
+              : onRowClick
+                ? () => onRowClick(row)
+                : undefined;
+            return (
+              <Fragment key={key}>
+                <tr
+                  className={activate ? 'data-table__row--clickable' : undefined}
+                  onClick={activate}
+                  onKeyDown={
+                    activate
+                      ? (e) => {
+                          if (e.key === 'Enter') {
+                            activate();
+                          }
+                        }
+                      : undefined
+                  }
+                  tabIndex={activate ? 0 : undefined}
+                  role={activate ? 'button' : undefined}
+                  aria-expanded={expandable ? isOpen : undefined}
                 >
-                  {col.accessor(row) ?? '—'}
-                </td>
-              ))}
-            </tr>
-          ))}
+                  {expandable ? (
+                    <td className="data-table__td--caret" aria-hidden="true">
+                      <span
+                        className={`data-table__caret${isOpen ? ' data-table__caret--open' : ''}`}
+                      >
+                        ▶
+                      </span>
+                    </td>
+                  ) : null}
+                  {columns.map((col) => (
+                    <td
+                      key={col.id}
+                      className={col.align === 'right' ? 'data-table__td--right' : undefined}
+                    >
+                      {col.accessor(row) ?? '—'}
+                    </td>
+                  ))}
+                </tr>
+                {isOpen ? (
+                  <tr className="data-table__expanded-row">
+                    <td colSpan={columns.length + 1}>{renderExpanded!(row)}</td>
+                  </tr>
+                ) : null}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
