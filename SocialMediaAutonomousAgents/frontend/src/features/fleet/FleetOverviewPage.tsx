@@ -79,11 +79,6 @@ export function FleetOverviewPage() {
           value={kpis.dataCompletenessPct != null ? `${kpis.dataCompletenessPct}%` : '—'}
           caption="Accounts with OAuth connected"
         />
-        <StatTile
-          kicker="Gaps"
-          title="Accounts without posts"
-          value={kpis.accountsWithoutPosts ?? '—'}
-        />
       </section>
 
       <OpsAlertStrip alerts={alerts} />
