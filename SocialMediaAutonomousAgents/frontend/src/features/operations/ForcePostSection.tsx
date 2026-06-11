@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ForcePostHistory } from '../../components/ForcePostHistory';
-import { streamForcePost } from '../../lib/api';
+import { streamForcePost } from '../../api/endpoints/forcePost';
 import type { ForcePostRun } from '../../lib/forcePostSteps';
 import {
   applyProgressToRun,

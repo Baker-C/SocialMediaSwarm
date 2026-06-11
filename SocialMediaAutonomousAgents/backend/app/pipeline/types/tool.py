@@ -1,4 +1,4 @@
-"""Contracts for pipeline tools, subagents, and step results."""
+"""Contracts for pipeline tools and step results."""
 
 from __future__ import annotations
 

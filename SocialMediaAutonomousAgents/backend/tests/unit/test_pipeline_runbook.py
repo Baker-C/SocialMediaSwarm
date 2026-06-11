@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.pipeline import runbook, subagents
+from app.pipeline import runbook
 from app.pipeline.runbooks.post_tick import POST_TICK_REFERENCE_STEPS
 from app.pipeline.services.deps import PostRunDeps
 from app.pipeline.service import reset_pipeline
@@ -79,8 +79,3 @@ def test_runbook_reference_analysis_with_mocked_deps() -> None:
     assert result.ok
     assert result.ctx.get("timeline_analysis") is not None
     assert result.reference_context()["own_posts"]["skipped"] is True
-
-
-def test_subagents_exposed_on_package() -> None:
-    assert callable(subagents.timeline.run)
-    assert callable(subagents.own_posts.run)

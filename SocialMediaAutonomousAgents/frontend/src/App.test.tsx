@@ -37,7 +37,7 @@ function mockFetch(handler?: (url: string) => unknown) {
         return jsonResponse(custom);
       }
     }
-    if (url.includes('/api/accounts/demo/account-metrics') || url.includes('/api/metrics/demo')) {
+    if (url.includes('/api/accounts/demo/account-metrics')) {
       return jsonResponse({ avg_engagement_rate: 0.02 });
     }
     if (url.includes('/api/accounts/demo/snapshots')) {

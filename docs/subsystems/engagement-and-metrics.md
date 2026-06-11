@@ -36,9 +36,10 @@ Stores public metrics (likes, replies, retweets, impressions), optional enrichme
 
 ## API exposure
 
-- Dashboard account cards show `recent_post.views` from account `last_post_views`
-- `GET /api/metrics/{account_id}` returns stub zeros
-- `GET /api/dashboard` returns `avg_engagement: 0.0`
+- **Analytics routes** (primary for dashboard): `GET /api/accounts/{id}/tracked-posts`, `/posts/{tweet_id}`, `/posts/{tweet_id}/snapshots`, `/account-metrics` — see [api-and-dashboard](api-and-dashboard.md)
+- Fleet overview still uses `GET /api/dashboard` (`avg_engagement: 0.0` placeholder) and account summaries with `recent_post.views` from `last_post_views`
+
+Dashboard pages: Posts explorer, post detail engagement curves ([frontend-dashboard](frontend-dashboard.md)).
 
 ## Related docs
 

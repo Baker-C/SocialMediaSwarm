@@ -51,11 +51,7 @@ def test_get_dashboard_includes_fleet_kpis() -> None:
     assert "computed_at" in dash
 
 
-def test_get_metrics_merges_account_metrics_doc() -> None:
-    tracked = MagicMock()
-    tracked.list_for_account.return_value = [
-        {"engagement_rate": 0.1, "reply_rate": 0.02, "like_rate": 0.05, "follower_delta": 3}
-    ]
+def test_get_account_metrics_returns_doc() -> None:
     metrics_doc = AccountMetricsDocument(
         account_id="a1",
         computed_at="2026-06-08T00:00:00+00:00",
@@ -63,13 +59,12 @@ def test_get_metrics_merges_account_metrics_doc() -> None:
         follower_delta_engagement_gap=0.03,
     )
     svc = RavenDBService()
-    svc._tracked = tracked
     with patch.object(svc, "_load_account_metrics", return_value=metrics_doc):
-        result = svc.get_metrics("a1")
+        result = svc.get_account_metrics("a1")
 
+    assert result is not None
     assert result["account_id"] == "a1"
-    assert result["tracked_posts"] == 1
-    assert result["avg_reply_rate"] == 0.02
+    assert result["avg_engagement_rate"] == 0.12
     assert result["follower_delta_engagement_gap"] == 0.03
 
 

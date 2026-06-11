@@ -238,11 +238,3 @@ def brief_own_posts(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
     )
     brief_raw = ctx.get(ArtifactKey.OWN_POSTS_ANALYSIS.value) or summary.payload
     return StepResult(ok=True, payload={"own_posts_analysis": brief_raw})
-
-
-# Backward-compatible aliases for tests and callers migrating gradually
-profile = load_account_bundle
-timeline_pool = fetch_timeline_references
-search_pool = fetch_search_references
-merge_reference_pools = merge_external_references
-own_posts_pool = fetch_own_post_history

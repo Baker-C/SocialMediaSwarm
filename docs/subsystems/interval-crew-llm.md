@@ -32,7 +32,7 @@ When Claude is disabled, `llm_pipeline` uses deterministic fallback candidate te
 | `tasks/compose_timeline_post.system.md` | **Live path** — [compose-and-safety](compose-and-safety.md) |
 | `tasks/compose_timeline_post.user.md` | **Live path** |
 | `tasks/reference_pattern_summary.system.md` | **Pipeline** — `tools.llm.reference_pattern_summary` |
-| `tasks/reference_pattern_summary.user.md` | **Pipeline** — timeline + own-post subagents |
+| `tasks/reference_pattern_summary.user.md` | **Pipeline** — `brief_external_references` + `brief_own_posts` runbook steps |
 | `tasks/niche_fit_check.system.md` | `SafetyGuardian` niche check |
 | `tasks/niche_fit_check.user.md` | `SafetyGuardian` niche check |
 | `tasks/generate_candidates.system.md` | Alternate generate/rank path |

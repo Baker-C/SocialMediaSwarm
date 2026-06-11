@@ -1,70 +1,114 @@
 # Frontend dashboard
 
-Scope: React operator UI and its coupling to the FastAPI backend. Parent: [../PROJECT.md](../PROJECT.md).
+Scope: React operator UI (analytics dashboard) and its coupling to the FastAPI backend. Parent: [../PROJECT.md](../PROJECT.md).
 
 ## Key paths
 
 | Path | Role |
 |------|------|
-| `SocialMediaAutonomousAgents/frontend/src/App.tsx` | Main dashboard, account cards, update modal |
-| `SocialMediaAutonomousAgents/frontend/src/App.css` | Layout / bento styling |
-| `SocialMediaAutonomousAgents/frontend/src/index.tsx` | CRA entry |
-| `SocialMediaAutonomousAgents/frontend/package.json` | Dependencies, scripts |
-| `SocialMediaAutonomousAgents/frontend/Dockerfile` | Production container |
-| `SocialMediaAutonomousAgents/docker-compose.yml` | `REACT_APP_API_URL`, port 3000 |
+| `SocialMediaAutonomousAgents/frontend/src/App.tsx` | Shell: providers, update modal, toast, `RouterProvider` |
+| `SocialMediaAutonomousAgents/frontend/src/app/routes.tsx` | React Router route table |
+| `SocialMediaAutonomousAgents/frontend/src/app/AppLayout.tsx` | Sidebar + main content outlet |
+| `SocialMediaAutonomousAgents/frontend/src/app/AppContextProvider.tsx` | Shared UI state (`apiBase`, update modal, toast) |
+| `SocialMediaAutonomousAgents/frontend/src/app/AppProviders.tsx` | React Query client |
+| `SocialMediaAutonomousAgents/frontend/src/analytics/` | Selectors, normalizers, derived metrics (no network I/O) |
+| `SocialMediaAutonomousAgents/frontend/src/api/` | `client.ts` + per-domain endpoint modules |
+| `SocialMediaAutonomousAgents/frontend/src/hooks/queries/` | TanStack Query hooks per resource |
+| `SocialMediaAutonomousAgents/frontend/src/features/` | Route-level page components |
+| `SocialMediaAutonomousAgents/frontend/src/navigation/navItems.ts` | Fleet sidebar + per-account sub-nav segments |
+| `SocialMediaAutonomousAgents/frontend/package.json` | Dependencies (`react-router-dom`, `@tanstack/react-query`, `recharts`) |
 
 ## Structure
 
-Single-page app (Create React App). No client-side router — one view at `/`.
+Create React App with **client-side routing** (`react-router-dom` v7). Data loads on demand via **TanStack Query** hooks — not a single mount-time bulk fetch.
 
-Sidebar tabs (see `navigation/tabs.ts`):
+```mermaid
+flowchart TB
+  App[App.tsx] --> Providers[AppProviders + AppContextProvider]
+  Providers --> Router[RouterProvider]
+  Router --> Layout[AppLayout]
+  Layout --> Sidebar[Sidebar + navItems]
+  Layout --> Pages[feature pages]
+  Pages --> Hooks[hooks/queries/*]
+  Hooks --> Endpoints[api/endpoints/*]
+  Endpoints --> API[FastAPI /api/*]
+  Pages --> Selectors[analytics/selectors/*]
+```
 
-| Tab | Panel |
-|-----|--------|
-| Overview | Fleet stats, account list with Open → account tab |
-| One per account | Full account detail (`AccountCard`) |
+### Routes
 
-| Path | Purpose |
-|------|---------|
-| `App.tsx` | API load, tab state, shell layout |
-| `navigation/tabs.ts` | `TabId`, `buildNavItems` — add new tabs here |
-| `navigation/Sidebar.tsx` | Sidebar tab list |
-| `panels/renderPanel.tsx` | Maps `TabId` → panel component |
-| `panels/OverviewPanel.tsx` | Overview content, force-post section |
-| `components/ForcePostSection.tsx` | Account picker + force post + step tracker |
-| `components/ForcePostTracker.tsx` | Pipeline progress UI (spinner / checkmark / error) |
-| `lib/forcePostSteps.ts` | Step order + error label formatting |
-| `panels/AccountPanel.tsx` | Single-account view |
-| `components/AccountCard.tsx` | Account stats and update button |
-| `components/UpdateAccountModal.tsx` | PATCH account + credentials |
+Defined in `app/routes.tsx`:
 
-## API coupling
+| Path | Page | Purpose |
+|------|------|---------|
+| `/` | `FleetOverviewPage` | Fleet KPIs, leaderboard, ops alerts, force post |
+| `/accounts/:accountId` | `AccountHqPage` | Account HQ summary |
+| `/accounts/:accountId/posts` | `PostsExplorerPage` | Tracked posts table + filters |
+| `/accounts/:accountId/posts/:tweetId` | `PostDetailPage` | Post detail + engagement curve |
+| `/accounts/:accountId/references` | `ReferencesLabPage` | Pulled reference tweets |
+| `/accounts/:accountId/pipeline` | `PipelineOpsPage` | Pipeline outcomes for account |
+| `/accounts/:accountId/voice` | `VoiceExperimentsPage` | Voice revisions |
+| `/accounts/:accountId/settings` | `AccountSettingsPage` | OAuth status, account settings |
 
-On mount, parallel fetches to `{apiBase}/api/{endpoint}` for:
+Per-account sub-navigation segments: `navigation/navItems.ts` (`ACCOUNT_SUB_NAV`).
 
-`health`, `accounts`, `posts`, `patterns`, `dashboard`
+### Feature layout
+
+| Directory | Contents |
+|-----------|----------|
+| `features/fleet/` | Fleet overview, KPI tiles, leaderboard |
+| `features/account/` | Account layout shell, HQ, settings |
+| `features/posts/` | Posts explorer, detail, engagement charts |
+| `features/pipeline/` | Pipeline ops, skip-reason charts |
+| `features/references/` | Reference tweet lab |
+| `features/voice/` | Voice experiment history |
+| `features/operations/` | Force post, OAuth status card |
+
+Shared UI: `components/layout/`, `components/charts/`, `components/data/`, `components/filters/`.
+
+### API layer
+
+| Path | Role |
+|------|------|
+| `api/client.ts` | `apiFetch`, `apiBaseUrl`, `apiPrefix`, error parsing |
+| `api/endpoints/*.ts` | Typed fetchers per backend resource |
+| `types/domain/*.ts` | Domain TypeScript types |
+| `types.ts` | Re-exports domain types for convenient imports |
+
+## Data fetching
+
+Hooks in `hooks/queries/` wrap React Query with stable keys, e.g.:
+
+- `useAccounts`, `useDashboard` — fleet home
+- `useTrackedPosts`, `useTrackedPost`, `usePostSnapshots` — posts analytics
+- `usePipelineOutcomes` — runbook / tick outcomes (`phase` filter supports `runbook:*` ids)
+- `useAccountMetrics`, `useAccountSnapshots`, `useVoiceRevisions`, `usePulledTweets`, `useOAuthStatus`
+
+Refresh: **Refresh** buttons call `queryClient.invalidateQueries()` (fleet overview and account pages). There is no global polling interval wired to `REACT_APP_POLLING_INTERVAL` yet.
+
+## Force post
+
+`features/operations/ForcePostSection.tsx`:
+
+- Account dropdown (active accounts only)
+- `POST /api/accounts/{id}/force-post` with `Accept: text/event-stream`
+- Progress mapped via `lib/forcePostSteps.ts`
+
+**Note:** SSE step IDs (`fetch_profile`, `fetch_timeline`, `rank_references`, …) follow `force_post_progress.py` — not yet aligned with dotted [pipeline runbook](pipeline-runbook.md) step ids (`load_account_bundle`, `fetch_external_references.fetch_timeline_references`, etc.).
+
+## Account updates
+
+`UpdateAccountModal` (from fleet/account flows):
+
+- GET `/api/accounts/{id}/edit`
+- PATCH `/api/accounts/{id}` (niche, prompts, `search_queries`, credentials, etc.)
+
+## Environment
 
 | Env var | Effect |
 |---------|--------|
 | `REACT_APP_API_URL` | Backend origin (compose: `http://localhost:8000`) |
 | Dev proxy | Empty base → CRA proxies `/api` to `127.0.0.1:8000` |
-
-Update flow:
-
-- GET `/api/accounts/{id}/edit` — populate modal
-- PATCH `/api/accounts/{id}` — save changes
-
-Polling interval env `REACT_APP_POLLING_INTERVAL` is defined in compose but **not** used in `App.tsx` today (load-on-mount only).
-
-## UI sections
-
-1. **Sidebar** — Overview + one tab per account (sorted by `account_id`)
-2. **Overview panel** — bento stats, **Force post** (account dropdown, step tracker, error banner), account list; debug JSON in `<details>`
-
-Force post calls `POST /api/accounts/{id}/force-post` with `Accept: text/event-stream` and maps SSE `progress` events to [pipeline-runbook](pipeline-runbook.md) step IDs where aligned.
-3. **Account panel** — full-width account card for the selected tab
-
-Stub endpoints (`/posts`, `/patterns`) are fetched but not displayed in the main UI.
 
 ## Development
 
@@ -78,5 +122,6 @@ Backend must be on port 8000. See [frontend/README](../../SocialMediaAutonomousA
 
 ## Related docs
 
-- API routes: [api-and-dashboard](api-and-dashboard.md)
+- API routes (including analytics): [api-and-dashboard](api-and-dashboard.md)
+- Pipeline step names (runbook): [pipeline-runbook](pipeline-runbook.md)
 - Runtime / Docker: [entry-and-runtime](entry-and-runtime.md)

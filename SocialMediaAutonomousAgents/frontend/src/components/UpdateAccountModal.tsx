@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   apiPrefix,
+  parseHttpError,
+} from '../api/client';
+import {
   disconnectOAuth,
   fetchOAuthAuthorizeUrl,
   fetchOAuthStatus,
-  parseHttpError,
-} from '../lib/api';
+} from '../api/endpoints/oauth';
 import { formatShortDate } from '../lib/format';
 import type { AccountEditPayload } from '../types';
 

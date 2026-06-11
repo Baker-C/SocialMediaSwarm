@@ -4,7 +4,7 @@ Canonical documentation entry point for **what the codebase does today**. Subsys
 
 ## What this project is
 
-A FastAPI backend with an in-process APScheduler autonomously posts plain-text tweets to **X (Twitter)** for multiple niche accounts stored in **RavenDB**. Each posting tick loads active accounts, pulls tweets from the account's **following home timeline** as reference material, ranks them, composes an opinion + quip + source link via **Claude** (or deterministic fallback), runs safety and niche-fit checks, posts to X, and records the tweet for engagement polling. There is **no human review queue**. A React dashboard reads account status from the API; account **creation** remains CLI-only ([ACCOUNT_SETUP](../SocialMediaAutonomousAgents/backend/docs/ACCOUNT_SETUP.md)).
+A FastAPI backend with an in-process APScheduler autonomously posts plain-text tweets to **X (Twitter)** for multiple niche accounts stored in **RavenDB**. Each posting tick loads active accounts, pulls tweets from the account's **following home timeline** (and optional X search queries) as reference material, ranks them, composes an opinion + quip + source link via **Claude** (or deterministic fallback), runs safety and niche-fit checks, posts to X, and records the tweet for engagement polling. There is **no human review queue**. A React **analytics dashboard** (React Router + TanStack Query) reads fleet, post, pipeline, and voice data from the API; account **creation** remains CLI-only ([ACCOUNT_SETUP](../SocialMediaAutonomousAgents/backend/docs/ACCOUNT_SETUP.md)).
 
 ## Repo layout
 
@@ -22,7 +22,7 @@ A FastAPI backend with an in-process APScheduler autonomously posts plain-text t
 |-----|--------|-----------------|
 | [entry-and-runtime](subsystems/entry-and-runtime.md) | Process startup, APScheduler, Docker | `backend/app/main.py`, `backend/app/jobs/*.py` |
 | [interval-orchestration](subsystems/interval-orchestration.md) | Tick gateway, guards, slot idempotency | `backend/app/interval/runner.py`, `backend/app/agents/orchestrator.py` |
-| [pipeline-runbook](subsystems/pipeline-runbook.md) | Tools catalog, subagents, reference-analysis runbook | `backend/app/pipeline/` |
+| [pipeline-runbook](subsystems/pipeline-runbook.md) | Tools catalog, typed reference-analysis runbook | `backend/app/pipeline/` |
 | [reference-ingestion](subsystems/reference-ingestion.md) | Timeline fetch, rank, cache, dedup | `backend/app/services/tick_data_service.py` |
 | [compose-and-safety](subsystems/compose-and-safety.md) | LLM compose, length budget, safety | `backend/app/interval/compose_timeline_post.py` |
 | [interval-crew-llm](subsystems/interval-crew-llm.md) | Prompts, Claude client, alternate generate/rank | `backend/app/interval_crew/`, `backend/app/infrastructure/claude_client.py` |
@@ -30,7 +30,7 @@ A FastAPI backend with an in-process APScheduler autonomously posts plain-text t
 | [persistence-ravendb](subsystems/persistence-ravendb.md) | Documents, repos, encryption | `backend/app/infrastructure/ravendb_http.py` |
 | [engagement-and-metrics](subsystems/engagement-and-metrics.md) | `:05` poll job, metrics placeholder | `backend/app/jobs/engagement_job.py` |
 | [api-and-dashboard](subsystems/api-and-dashboard.md) | FastAPI routes | `backend/app/api/routes/` |
-| [frontend-dashboard](subsystems/frontend-dashboard.md) | React UI | `frontend/src/App.tsx` |
+| [frontend-dashboard](subsystems/frontend-dashboard.md) | React analytics UI (fleet, posts, pipeline, voice) | `frontend/src/app/routes.tsx`, `frontend/src/features/` |
 | [operations](subsystems/operations.md) | Docker, env, CLI scripts | `docker-compose.yml`, `backend/scripts/` |
 
 Paths above are relative to `SocialMediaAutonomousAgents/`.
@@ -85,9 +85,9 @@ flowchart TB
 
 1. **entry-and-runtime** — APScheduler fires `interval_job` (respects quiet hours)
 2. **interval-orchestration** — loads accounts, applies guards, reserves slot
-3. **reference-ingestion** — fetches timeline via **social-x-integration**, ranks, excludes copied refs
-4. **pipeline-runbook** (reference phase) — optional modular path: data tools → timeline + own-post subagents → pattern summaries (see [pipeline-runbook](subsystems/pipeline-runbook.md)); integrating into the full tick is in progress
-5. **compose-and-safety** — Claude compose (prompts from **interval-crew-llm**), safety/niche checks
+3. **reference-ingestion** — fetches timeline (and optional search) via **social-x-integration**, caches, records PulledTweets
+4. **pipeline-runbook** (reference phase) — typed runbook in `reference_phase.py`: parallel fetch → merge → own-post history → parallel rank/brief chains → pattern summaries in context artifacts (see [pipeline-runbook](subsystems/pipeline-runbook.md))
+5. **compose-and-safety** — Claude compose with `reference_context_block` from analysis briefs; safety/niche checks
 6. **interval-orchestration** — posts via **social-x-integration**, persists to **persistence-ravendb**
 7. **engagement-and-metrics** — later polls views/likes on tracked posts
 
@@ -110,12 +110,15 @@ Verified from current code:
 |------|--------|
 | Human review queue before posting | Not implemented |
 | `POST /api/accounts` for creation | Implemented (`PATCH` for updates) |
-| `GET /api/posts`, `/patterns`, `/metrics/{id}` | Stub endpoints (empty or zeros) |
-| Metrics job (`:10`) | Placeholder — does not populate dashboard `avg_engagement` |
+| Analytics API (`/api/accounts/{id}/tracked-posts`, pipeline outcomes, etc.) | Implemented — see [api-and-dashboard](subsystems/api-and-dashboard.md) |
+| `GET /api/posts` | Fleet tracked-post rollup across active accounts |
+| Dashboard `/api/dashboard` `avg_engagement` | Still `0.0` placeholder; per-post metrics on tracked posts and account-metrics doc |
+| Metrics job (`:10`) | Placeholder — does not populate dashboard aggregate |
 | Alternate generate→rank pipeline (`interval_crew/runner.py`) | Implemented but **not** wired into live tick |
-| Trend tweet search as reference source | Disabled (`TREND_TWEET_SEARCH_ENABLED=false`) |
+| X recent search as reference source | Implemented when `TREND_TWEET_SEARCH_ENABLED=true` + per-account `search_queries` |
+| Force-post SSE step ids vs runbook step ids | Not aligned — coarse progress in `force_post_progress.py` |
 | Buffer posting integration | Config + sync scripts exist; live tick posts directly to X |
-| Frontend live polling | `REACT_APP_POLLING_INTERVAL` unused — load-on-mount only |
+| Frontend live polling | `REACT_APP_POLLING_INTERVAL` unused — manual refresh / query invalidation |
 | In-process RavenDB backups | Not implemented |
 
 ## Documentation index
@@ -129,7 +132,7 @@ All project documentation lives under this tree or is linked below. Paths under 
 | [PROJECT.md](PROJECT.md) | This entry point |
 | [subsystems/entry-and-runtime.md](subsystems/entry-and-runtime.md) | Startup, APScheduler, Docker |
 | [subsystems/interval-orchestration.md](subsystems/interval-orchestration.md) | Tick gateway, guards, slots |
-| [subsystems/pipeline-runbook.md](subsystems/pipeline-runbook.md) | Tools, subagents, runbook |
+| [subsystems/pipeline-runbook.md](subsystems/pipeline-runbook.md) | Tools, typed runbook |
 | [subsystems/reference-ingestion.md](subsystems/reference-ingestion.md) | Timeline fetch, rank, cache |
 | [subsystems/compose-and-safety.md](subsystems/compose-and-safety.md) | LLM compose, safety checks |
 | [subsystems/interval-crew-llm.md](subsystems/interval-crew-llm.md) | Claude client, prompt inventory |

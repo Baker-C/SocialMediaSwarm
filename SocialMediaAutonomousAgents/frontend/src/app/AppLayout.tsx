@@ -1,7 +1,7 @@
 import { Outlet, useLocation, useParams } from 'react-router-dom';
 import { ErrorBanner } from '../components/layout/ErrorBanner';
 import { useAccounts } from '../hooks/queries/useAccounts';
-import { apiBaseUrl } from '../lib/api';
+import { apiBaseUrl } from '../api/client';
 import { Sidebar } from '../navigation/Sidebar';
 import { OAuthRedirectHandler } from './OAuthRedirectHandler';
 

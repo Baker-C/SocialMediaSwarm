@@ -5,12 +5,11 @@ Canonical detail: [`docs/subsystems/pipeline-runbook.md`](../../../../docs/subsy
 ## Import surface
 
 ```python
-from app.pipeline import tools, runbook, subagents
+from app.pipeline import tools, runbook
 
 runbook.reference_analysis("account_id", niche="...")
 tools.data.timeline_fetch
 tools.llm.reference_pattern_summary
-subagents.timeline.run(ctx, deps)
 ```
 
 ## Layout
@@ -18,8 +17,7 @@ subagents.timeline.run(ctx, deps)
 - `tools/{data,deterministic,llm}/` — single-purpose capabilities
 - `types/artifacts.py` — `ArtifactKey` + Pydantic models; `set_artifact` validates every write
 - `types/flow.py` — `Step`, `parallel()`, `chain()` composites
-- `subagents/` — thin wrappers delegating to rank/brief steps
-- `services/` — `PostRunDeps.build()`, artifact-centric step functions
+- `services/` — `PostRunDeps.build()`, artifact-centric step functions in `steps.py`
 - `runbooks/post_tick.py` — typed runbook with parallel fetch + analyze chains
 - `runbook.py` — public `reference_analysis()` entry
 

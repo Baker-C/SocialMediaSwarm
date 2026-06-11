@@ -1,4 +1,4 @@
-"""merge_reference_pool_rows and merge_reference_pools step tests."""
+"""merge_reference_pool_rows and merge_external_references step tests."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ def test_merge_reference_pool_rows_dedupes_by_id() -> None:
     assert merged[1]["text"] == "timeline2"
 
 
-def test_merge_reference_pools_step_updates_timeline_payload() -> None:
+def test_merge_external_references_step_updates_timeline_payload() -> None:
     ctx = TickRunContext(account_id="a1", slot="s1")
     ctx.set(
         "timeline_references",
@@ -33,7 +33,7 @@ def test_merge_reference_pools_step_updates_timeline_payload() -> None:
         },
     )
 
-    result = steps.merge_reference_pools(ctx, None)  # type: ignore[arg-type]
+    result = steps.merge_external_references(ctx, None)  # type: ignore[arg-type]
 
     assert result.ok
     payload = ctx.get("timeline_references")

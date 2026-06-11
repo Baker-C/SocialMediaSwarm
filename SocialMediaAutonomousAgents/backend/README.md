@@ -47,7 +47,7 @@ Local `uvicorn` is optional for development; do **not** run local `uvicorn` and 
 
 ## Pipeline package (`app/pipeline`)
 
-Tools, subagents, and the reference-analysis runbook. See [pipeline-runbook](../../docs/subsystems/pipeline-runbook.md).
+Tools and the reference-analysis runbook. See [pipeline-runbook](../../docs/subsystems/pipeline-runbook.md).
 
 ```python
 from app.pipeline import runbook

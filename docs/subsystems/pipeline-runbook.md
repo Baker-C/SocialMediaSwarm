@@ -1,19 +1,19 @@
-# Pipeline runbook, tools, and subagents
+# Pipeline runbook and tools
 
-Scope: the **`app/pipeline`** package — catalog of tools, analytic subagents, and the **runbook** that orders them for reference analysis before compose. Parent: [../PROJECT.md](../PROJECT.md).
+Scope: the **`app/pipeline`** package — catalog of tools and the **runbook** that orders reference-analysis steps before compose. Parent: [../PROJECT.md](../PROJECT.md).
 
-This layer is being introduced alongside the existing tick in `interval/runner.py`. The **runbook** is the readable source of truth for step order; complexity stays in services, tools, and subagents.
+The runbook is integrated into the live tick via `interval/reference_phase.py`. Complexity stays in services, tools, and step functions.
 
 ## Design goals
 
 | Goal | How |
 |------|-----|
-| Simple imports | `from app.pipeline import tools, runbook, subagents` |
+| Simple imports | `from app.pipeline import tools, runbook` |
 | Obvious LLM vs non-LLM | Path: `tools/data/`, `tools/deterministic/`, `tools/llm/` |
 | Readable execution order | `runbooks/post_tick.py` — `Step` records with artifact reads/writes |
 | Typed context artifacts | `types/artifacts.py` — Pydantic models; all writes via `set_artifact` |
 | Hidden wiring | `services/steps.py`, `services/deps.py`, `_runbook_engine.py` |
-| Expandable catalog | Register tools in `tools/_bootstrap.py`; add runbook lines |
+| Expandable catalog | Register tools in `tools/_bootstrap.py`; add runbook steps |
 
 ## Quick start
 
@@ -38,10 +38,10 @@ tools.llm.as_dict()                # all LLM tools by short name
 
 ```
 backend/app/pipeline/
-  __init__.py              # exports: tools, runbook, subagents, pipeline
+  __init__.py              # exports: tools, runbook, pipeline
   runbook.py               # public: start(), reference_analysis(), steps
   service.py               # PipelineService singleton + registry
-  registry.py              # ToolSpec / SubagentSpec metadata
+  registry.py              # ToolSpec metadata
   accessors.py             # tool_catalog() for internal use (avoids import clash)
   _runbook_engine.py       # step loop (not public)
   types/
@@ -59,9 +59,6 @@ backend/app/pipeline/
     llm/                   # every Claude call + PROMPT_STEM
     _bootstrap.py          # registers all tools
     _catalog.py            # tools.data.* / .deterministic.* / .llm.*
-  subagents/
-    timeline.py            # thin wrapper: rank_external + brief_external steps
-    own_posts.py             # thin wrapper: rank_own + brief_own steps
   runbooks/
     post_tick.py           # POST_TICK_REFERENCE_STEPS (ordered list)
 ```
@@ -100,32 +97,6 @@ Each tool module exports:
 
 Add a tool: create module under the right folder + one row in `tools/_bootstrap.py`.
 
-## Subagents
-
-A **subagent** is a named analytic role with one public function:
-
-```python
-def run(ctx: TickRunContext, deps: PostRunDeps) -> StepResult
-```
-
-Subagents are **thin wrappers** that delegate to expanded runbook steps (`rank_*` + `brief_*`). They are **not** autonomous LLM routers.
-
-| Subagent | Module | Delegates to |
-|----------|--------|--------------|
-| Timeline reference analyst | `subagents/timeline.py` | `rank_external_references` → `brief_external_references` |
-| Own-posts reference analyst | `subagents/own_posts.py` | `rank_own_posts` → `brief_own_posts` |
-
-Import:
-
-```python
-from app.pipeline import subagents
-
-subagents.timeline.run(ctx, deps)
-subagents.own_posts.run(ctx, deps)
-```
-
-**Skip behavior:** own-posts analysis skips (does not fail the run) when fewer than 3 tracked posts or no registry. Timeline analysis skips when no URL-bearing references exist.
-
 ## Runbook
 
 The runbook is the **only** place that defines step **order** for the reference-analysis phase.
@@ -156,7 +127,7 @@ Public API (`runbook.py`):
 |----------|------|
 | `runbook.start(account_id, niche=..., mode=...)` | Create `TickRunContext` |
 | `runbook.reference_analysis(account_id, ...)` | Run `POST_TICK_REFERENCE_STEPS` |
-| `runbook.steps` | Re-export of step tuple (tests, force-post UI alignment) |
+| `runbook.steps` | Re-export of `POST_TICK_REFERENCE_STEPS` (flatten via `flatten_steps()` for leaf ids) |
 
 `PostRunDeps.build()` constructs `TickDataService`, repos, and Twitter once per run. Callers do not pass tick_data into the runbook.
 
@@ -206,17 +177,16 @@ Contract tests: `tests/unit/test_artifacts.py`, `tests/unit/test_context_artifac
 
 ## Force post (dashboard / API)
 
-Manual force post still enters via `Orchestrator.run_tick(mode="force")` or `POST /api/accounts/{id}/force-post` (SSE progress). Progress step IDs in `force_post_progress.py` should align with runbook step names as integration proceeds.
+Manual force post enters via `Orchestrator.run_tick(mode="force")` or `POST /api/accounts/{id}/force-post` (SSE progress). Dashboard progress uses **coarse** step ids in `force_post_progress.py` / `forcePostSteps.ts` (`fetch_profile`, `fetch_timeline`, …) — not yet the dotted runbook ids (`runbook:load_account_bundle`, …) written to `PipelineOutcomeRepository`.
 
 See [api-and-dashboard](api-and-dashboard.md) and [frontend-dashboard](frontend-dashboard.md).
 
 ## Adding a new capability
 
 1. **Tool** — implement `run()` under `tools/{data|deterministic|llm}/`, register in `_bootstrap.py`.
-2. **Subagent** (optional) — `subagents/foo.py` with `run(ctx, deps)` calling tools.
-3. **Step wrapper** (if deps wiring is non-trivial) — one function in `services/steps.py`.
-4. **Runbook** — add a `Step(...)` to `POST_TICK_REFERENCE_STEPS` with declared `reads` / `writes`.
-5. **Docs** — update this file and [interval-crew-llm](interval-crew-llm.md) if new prompts.
+2. **Step wrapper** (if deps wiring is non-trivial) — one function in `services/steps.py`.
+3. **Runbook** — add a `Step(...)` to `POST_TICK_REFERENCE_STEPS` with declared `reads` / `writes`.
+4. **Docs** — update this file and [interval-crew-llm](interval-crew-llm.md) if new prompts.
 
 Do **not** import `_runbook_engine` or `_bootstrap` from outside `app/pipeline/`.
 

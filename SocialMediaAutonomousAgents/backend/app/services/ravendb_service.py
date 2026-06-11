@@ -106,9 +106,6 @@ class RavenDBService:
         out.sort(key=lambda r: str(r.get("posted_at") or ""), reverse=True)
         return out
 
-    def get_patterns(self) -> list[dict]:
-        return []
-
     def _load_account_metrics(self, account_id: str) -> AccountMetricsDocument | None:
         try:
             raw = get_ravendb_client().get_document(AccountMetricsDocument.document_id(account_id))
@@ -121,29 +118,6 @@ class RavenDBService:
             return AccountMetricsDocument.model_validate(stripped)
         except Exception:
             return None
-
-    def get_metrics(self, account_id: str) -> dict:
-        try:
-            rows = self._tracked.list_for_account(account_id)
-        except RavenDBHttpError:
-            rows = []
-        engagement = [r.get("engagement_rate") for r in rows if isinstance(r.get("engagement_rate"), (int, float))]
-        follower_delta = [r.get("follower_delta") for r in rows if isinstance(r.get("follower_delta"), int)]
-        reply_rates = [r.get("reply_rate") for r in rows if isinstance(r.get("reply_rate"), (int, float))]
-        like_rates = [r.get("like_rate") for r in rows if isinstance(r.get("like_rate"), (int, float))]
-        result: dict = {
-            "account_id": account_id,
-            "tracked_posts": len(rows),
-            "avg_engagement_rate": _avg(engagement) or 0.0,
-            "avg_follower_delta": _avg(follower_delta),
-            "avg_reply_rate": _avg(reply_rates),
-            "avg_like_rate": _avg(like_rates),
-        }
-        metrics_doc = self._load_account_metrics(account_id)
-        if metrics_doc is not None:
-            result.update(metrics_doc.model_dump(exclude_none=True))
-            result["tracked_posts"] = len(rows)
-        return result
 
     def get_account_metrics(self, account_id: str) -> dict | None:
         doc = self._load_account_metrics(account_id)

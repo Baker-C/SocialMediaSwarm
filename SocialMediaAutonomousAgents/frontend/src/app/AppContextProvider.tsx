@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AppContext, type AppContextValue } from './AppContext';
-import { apiBaseUrl } from '../lib/api';
+import { apiBaseUrl } from '../api/client';
 
 type AppContextProviderProps = {
   children: ReactNode;

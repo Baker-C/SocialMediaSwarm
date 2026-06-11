@@ -1,6 +1,6 @@
 # API and dashboard backend
 
-Scope: FastAPI HTTP layer consumed by the React dashboard and operators. Parent: [../PROJECT.md](../PROJECT.md).
+Scope: FastAPI HTTP layer consumed by the React analytics dashboard and operators. Parent: [../PROJECT.md](../PROJECT.md).
 
 ## Key paths
 
@@ -8,11 +8,10 @@ Scope: FastAPI HTTP layer consumed by the React dashboard and operators. Parent:
 |------|------|
 | `SocialMediaAutonomousAgents/backend/app/main.py` | App factory, CORS, router mounts under `/api` |
 | `SocialMediaAutonomousAgents/backend/app/api/routes/health.py` | Liveness |
-| `SocialMediaAutonomousAgents/backend/app/api/routes/accounts.py` | Account list, edit, archive, test post, pulled tweets |
+| `SocialMediaAutonomousAgents/backend/app/api/routes/accounts.py` | Account CRUD, edit, archive, test post, pulled tweets, account snapshots |
+| `SocialMediaAutonomousAgents/backend/app/api/routes/analytics.py` | Tracked posts, post snapshots, account metrics doc, pipeline outcomes, voice revisions |
 | `SocialMediaAutonomousAgents/backend/app/api/routes/dashboard.py` | Aggregate dashboard stats |
-| `SocialMediaAutonomousAgents/backend/app/api/routes/posts.py` | Posts list (stub) |
-| `SocialMediaAutonomousAgents/backend/app/api/routes/patterns.py` | Patterns list (stub) |
-| `SocialMediaAutonomousAgents/backend/app/api/routes/metrics.py` | Per-account metrics (stub) |
+| `SocialMediaAutonomousAgents/backend/app/api/routes/posts.py` | Fleet tracked-post rollup (`GET /posts`) |
 | `SocialMediaAutonomousAgents/backend/app/api/routes/force_post.py` | On-demand force post (JSON or SSE) |
 | `SocialMediaAutonomousAgents/backend/app/api/routes/oauth.py` | X OAuth2 connect / status / disconnect |
 | `SocialMediaAutonomousAgents/backend/app/services/ravendb_service.py` | Read models for API responses |
@@ -41,14 +40,31 @@ All routes are prefixed with `/api`.
 | GET | `/accounts/{id}` | Single account summary or 404 |
 | GET | `/accounts/{id}/edit` | Non-secret fields for update modal |
 | POST | `/accounts` | Create account with encrypted X credentials (409 if id exists) |
-| PATCH | `/accounts/{id}` | Update niche, handle, status, prompts, Buffer ids, optional credential rotation |
+| PATCH | `/accounts/{id}` | Update niche, handle, status, prompts, `search_queries`, Buffer ids, optional credential rotation |
 | PATCH/DELETE | `/accounts/{id}/archive` | Sets `status=inactive` |
 | GET | `/accounts/{id}/status` | `last_interval_slot`, `posts_total` |
 | POST | `/accounts/{id}/test` | Posts a short credential test tweet via X |
 | GET | `/accounts/{id}/pulled-tweets` | Stored reference tweets (`limit`, optional `since`) |
+| GET | `/accounts/{id}/snapshots` | Account metric snapshots (newest first) |
 | POST | `/accounts/{id}/force-post` | Run force-post pipeline for one account. Default: JSON result. With `Accept: text/event-stream`: SSE progress events (`progress`, `complete`, `error`). |
 
 Account provisioning details: [ACCOUNT_SETUP](../../SocialMediaAutonomousAgents/backend/docs/ACCOUNT_SETUP.md).
+
+### Analytics (tracked posts, outcomes, voice)
+
+Router: `api/routes/analytics.py`. Used by dashboard pages under `frontend/src/features/`.
+
+| Method | Path | Behavior |
+|--------|------|----------|
+| GET | `/accounts/{id}/tracked-posts` | `TrackedPosts` for account (`limit`, optional `since` ISO filter) |
+| GET | `/accounts/{id}/posts/{tweet_id}` | Single tracked post document |
+| GET | `/accounts/{id}/posts/{tweet_id}/snapshots` | `PostMetricSnapshot` time series for one tweet |
+| GET | `/accounts/{id}/account-metrics` | Latest `AccountMetrics` document or 404 |
+| GET | `/accounts/{id}/pipeline-outcomes` | Pipeline outcome rows (`since`, `limit`, optional `phase`, `status`) |
+| GET | `/accounts/{id}/voice-revisions` | Voice revision history |
+| GET | `/pipeline-outcomes` | Fleet-wide outcomes (optional `account_id`, `since`, `limit`, `phase`, `status`) |
+
+Pipeline outcome `phase` values include runbook steps such as `runbook:load_account_bundle` and dotted composite ids like `runbook:summarize_for_compose.analyze_external_references.rank_external_references` (see [pipeline-runbook](pipeline-runbook.md)).
 
 ### OAuth (X)
 
@@ -66,22 +82,21 @@ Account provisioning details: [ACCOUNT_SETUP](../../SocialMediaAutonomousAgents/
 |--------|------|----------|
 | GET | `/dashboard` | `active_accounts`, `top_niche` (mode of niches), `avg_engagement` (currently `0.0`) |
 
-### Stubs
+### Fleet posts rollup
 
-| Method | Path | Current behavior |
-|--------|------|------------------|
-| GET | `/posts` | Empty list `[]` |
-| GET | `/patterns` | Empty list `[]` |
-| GET | `/metrics/{account_id}` | `{account_id, avg_engagement_rate: 0.0, health_score: 0}` |
+| Method | Path | Behavior |
+|--------|------|----------|
+| GET | `/posts` | Recent tracked posts across active accounts (`limit_per_account`, default 10) |
 
 RavenDB read failures degrade to empty/zero data with logged warnings rather than crashing the process.
 
 ## Frontend consumption
 
-The dashboard loads these in parallel on mount: `health`, `accounts`, `posts`, `patterns`, `dashboard`. See [frontend-dashboard](frontend-dashboard.md).
+The dashboard uses TanStack Query hooks that call analytics and account endpoints on demand per route. See [frontend-dashboard](frontend-dashboard.md).
 
 ## Related docs
 
 - Data backing reads: [persistence-ravendb](persistence-ravendb.md)
+- Engagement metrics on tracked posts: [engagement-and-metrics](engagement-and-metrics.md)
 - X test post / credentials: [social-x-integration](social-x-integration.md)
-- UI: [frontend-dashboard](frontend-dashboard.md)
+- UI routes and hooks: [frontend-dashboard](frontend-dashboard.md)

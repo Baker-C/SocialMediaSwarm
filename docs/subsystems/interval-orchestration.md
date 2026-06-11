@@ -52,7 +52,13 @@ flowchart TB
 
 1. **Pre-tick** — reload account; skip inactive; skip if `last_interval_slot == slot` (scheduled); [post guards](#guards)
 2. **Data** — profile + tracked metrics bundle ([reference-ingestion](reference-ingestion.md))
-3. **Reference phase** — `run_reference_phase` executes the [pipeline runbook](pipeline-runbook.md): profile → timeline pool → optional search pool (per-account `search_queries`) → merge → own-post pool → timeline + own-post subagents (pattern summaries, normalized rank)
+3. **Reference phase** — `run_reference_phase` in `interval/reference_phase.py` executes [POST_TICK_REFERENCE_STEPS](pipeline-runbook.md):
+   - `load_account_bundle`
+   - parallel `fetch_timeline_references` | `fetch_search_references` (search optional when `TREND_TWEET_SEARCH_ENABLED` and account has `search_queries`)
+   - `merge_external_references`
+   - `fetch_own_post_history`
+   - parallel chains: `rank_external_references` → `brief_external_references` | `rank_own_posts` → `brief_own_posts`
+   Produces typed context artifacts (`timeline_analysis`, `own_posts_analysis`, `timeline_ranked`, etc.) for compose.
 4. **Compose loop** — try ranked refs with `reference_context_block`; [compose-and-safety](compose-and-safety.md) per ref
 6. **Post-tick** — `post_tweet`, update account, `TrackedPosts`, copied-reference list
 
@@ -86,9 +92,9 @@ Scheduled mode **writes** `last_interval_slot` early during slot reservation so 
 |-------|------|
 | CLI | `scripts/create_forced_post.py` → `Orchestrator.run_tick(mode="force")` |
 | HTTP | `POST /api/accounts/{id}/force-post` (JSON or SSE with `Accept: text/event-stream`) |
-| Dashboard | Overview → Force post ([frontend-dashboard](frontend-dashboard.md)) |
+| Dashboard | Fleet overview → Force post ([frontend-dashboard](frontend-dashboard.md)) |
 
-Progress checkpoints are defined in `force_post_progress.py` and should stay aligned with [pipeline-runbook](pipeline-runbook.md) step IDs as integration proceeds.
+Progress checkpoints are defined in `force_post_progress.py` (coarse ids: `fetch_profile`, `fetch_timeline`, `rank_references`, …). These are **not yet aligned** with dotted runbook step ids logged as `runbook:*` in `PipelineOutcomeRepository` — see [pipeline-runbook](pipeline-runbook.md#force-post-dashboard--api).
 
 ## Related docs
 

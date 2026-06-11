@@ -73,7 +73,7 @@ If Claude is disabled, niche fit check is **skipped** (passes unless other rules
 
 ## Related docs
 
-- Pipeline runbook + subagents: [pipeline-runbook](pipeline-runbook.md)
+- Pipeline runbook: [pipeline-runbook](pipeline-runbook.md)
 - Prompt files overview: [interval-crew-llm](interval-crew-llm.md)
 - Reference selection: [reference-ingestion](reference-ingestion.md)
 - Post after approval: [interval-orchestration](interval-orchestration.md)

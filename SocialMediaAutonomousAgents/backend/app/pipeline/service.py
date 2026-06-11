@@ -1,8 +1,8 @@
-"""Central pipeline service: registry, tools, subagents, runbooks."""
+"""Central pipeline service: registry, tools, runbooks."""
 
 from __future__ import annotations
 
-from app.pipeline.registry import PipelineRegistry, SubagentSpec
+from app.pipeline.registry import PipelineRegistry
 from app.pipeline.tools._bootstrap import bootstrap_tools
 from app.pipeline.tools._catalog import ToolCatalog
 
@@ -19,9 +19,6 @@ class PipelineService:
     @property
     def tools(self) -> ToolCatalog:
         return self._tools
-
-    def register_subagent(self, spec: SubagentSpec) -> None:
-        self.registry.register_subagent(spec)
 
 
 _default_service: PipelineService | None = None
