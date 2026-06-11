@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import type { AccountSummary } from '../../types';
 import { formatGrowth, formatShortDate } from '../../lib/format';
 
@@ -90,24 +89,3 @@ export function CadenceGauge({ lastPostAt, intervalMinutes = 30 }: CadenceGaugeP
   );
 }
 
-type QuickLinksProps = {
-  accountId: string;
-};
-
-export function AccountQuickLinks({ accountId }: QuickLinksProps) {
-  const links = [
-    { to: `/accounts/${accountId}/posts`, label: 'Posts' },
-    { to: `/accounts/${accountId}/references`, label: 'References' },
-    { to: `/accounts/${accountId}/pipeline`, label: 'Pipeline' },
-    { to: `/accounts/${accountId}/voice`, label: 'Voice' },
-  ];
-  return (
-    <nav className="quick-links" aria-label="Quick links">
-      {links.map((l) => (
-        <Link key={l.to} to={l.to} className="quick-links__item">
-          {l.label}
-        </Link>
-      ))}
-    </nav>
-  );
-}

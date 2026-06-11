@@ -6,8 +6,8 @@ import {
 } from '../../analytics/selectors/engagementCurves';
 import { CorrelationScatter } from '../../components/charts/CorrelationScatter';
 import { DataTable, type DataTableColumn } from '../../components/data/DataTable';
+import { TablePanelHeader } from '../../components/data/TablePanelHeader';
 import { EmptyState } from '../../components/layout/EmptyState';
-import { PageHeader } from '../../components/layout/PageHeader';
 import { usePostSnapshots } from '../../hooks/queries/usePostSnapshots';
 import { useTrackedPost } from '../../hooks/queries/useTrackedPost';
 import { useTrackedPosts } from '../../hooks/queries/useTrackedPosts';
@@ -80,15 +80,11 @@ export function PostDetailPage() {
 
   return (
     <div className="page-content">
-      <PageHeader
-        title={`Post ${tweetId}`}
-        subtitle={formatShortDate(post.posted_at)}
-        actions={
-          <Link to={`/accounts/${accountId}/posts`} className="btn btn--ghost">
-            ← Back to posts
-          </Link>
-        }
-      />
+      <div className="page-header__actions page-content__toolbar">
+        <Link to={`/accounts/${accountId}/posts`} className="btn btn--ghost">
+          ← Back to posts
+        </Link>
+      </div>
 
       {stale ? (
         <div className="stale-banner" role="status">
@@ -103,7 +99,7 @@ export function PostDetailPage() {
       <CorrelationScatter points={correlationPoints} />
 
       <section className="hq-panel" aria-label="Metric snapshots">
-        <h3 className="hq-panel__title">Snapshots</h3>
+        <TablePanelHeader title="Snapshots" tableId="post-snapshots" />
         <DataTable
           columns={snapshotColumns}
           rows={snapshotsQuery.data?.snapshots ?? []}

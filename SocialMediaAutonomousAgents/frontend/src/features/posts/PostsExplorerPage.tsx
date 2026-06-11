@@ -6,7 +6,6 @@ import { postFiltersFromSearchParams } from '../../lib/urlFilters';
 import { downloadCsv, rowsToCsv } from '../../lib/csv';
 import { isStaleFetch } from '../../lib/format';
 import { FilterBar } from '../../components/filters/FilterBar';
-import { PageHeader } from '../../components/layout/PageHeader';
 import { useTrackedPosts } from '../../hooks/queries/useTrackedPosts';
 import type { TrackedPost } from '../../types';
 import { PostsTable } from './PostsTable';
@@ -55,15 +54,11 @@ export function PostsExplorerPage() {
 
   return (
     <div className="page-content">
-      <PageHeader
-        title="Posts Explorer"
-        subtitle="Tracked posts with filters and export"
-        actions={
-          <button type="button" className="btn btn--ghost" onClick={exportCsv} disabled={rows.length === 0}>
-            Export CSV
-          </button>
-        }
-      />
+      <div className="page-header__actions page-content__toolbar">
+        <button type="button" className="btn btn--ghost" onClick={exportCsv} disabled={rows.length === 0}>
+          Export CSV
+        </button>
+      </div>
 
       {staleBanner ? (
         <div className="stale-banner" role="status">

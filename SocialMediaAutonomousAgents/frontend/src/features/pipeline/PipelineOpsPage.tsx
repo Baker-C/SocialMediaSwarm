@@ -8,7 +8,7 @@ import {
 } from '../../analytics/selectors/pipelineOps';
 import { defaultSinceDays } from '../../lib/urlFilters';
 import { DataTable, type DataTableColumn } from '../../components/data/DataTable';
-import { PageHeader } from '../../components/layout/PageHeader';
+import { TablePanelHeader } from '../../components/data/TablePanelHeader';
 import {
   useFleetPipelineOutcomes,
   usePipelineOutcomes,
@@ -77,7 +77,14 @@ function PipelineOpsBody({ accountId, title, subtitle }: PipelineOpsBodyProps) {
 
   return (
     <div className="page-content">
-      <PageHeader title={title} subtitle={subtitle} />
+      {!accountId ? (
+        <header className="page-header">
+          <div className="page-header__text">
+            <h2 className="page-header__title">{title}</h2>
+            <p className="page-header__subtitle">{subtitle}</p>
+          </div>
+        </header>
+      ) : null}
 
       {highlights.length > 0 ? (
         <div className="ops-alerts" role="status">
@@ -98,7 +105,7 @@ function PipelineOpsBody({ accountId, title, subtitle }: PipelineOpsBodyProps) {
           <SkipReasonChart rows={skipRows} />
         </section>
         <section className="hq-panel" aria-label="Phase health">
-          <h3 className="hq-panel__title">Phase health (7d)</h3>
+          <TablePanelHeader title="Phase health (7d)" tableId="pipeline-phase-health" />
           <DataTable
             columns={[
               {
@@ -126,7 +133,7 @@ function PipelineOpsBody({ accountId, title, subtitle }: PipelineOpsBodyProps) {
       {outcomesQuery.isLoading ? <p className="App-loading">Loading pipeline outcomes…</p> : null}
       {!outcomesQuery.isLoading ? (
         <section className="hq-panel" aria-label="Outcomes timeline">
-          <h3 className="hq-panel__title">Outcomes</h3>
+          <TablePanelHeader title="Outcomes" tableId="pipeline-outcomes" />
           <DataTable
             columns={columns}
             rows={outcomes}

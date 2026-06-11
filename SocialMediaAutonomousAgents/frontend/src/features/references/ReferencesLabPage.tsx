@@ -7,7 +7,7 @@ import {
 } from '../../analytics/selectors/referenceFunnel';
 import { referenceFiltersFromSearchParams } from '../../lib/urlFilters';
 import { DataTable, type DataTableColumn } from '../../components/data/DataTable';
-import { PageHeader } from '../../components/layout/PageHeader';
+import { TablePanelHeader } from '../../components/data/TablePanelHeader';
 import { useAccount } from '../../hooks/queries/useAccounts';
 import { usePulledTweets } from '../../hooks/queries/usePulledTweets';
 import { useTrackedPosts } from '../../hooks/queries/useTrackedPosts';
@@ -111,8 +111,6 @@ export function ReferencesLabPage() {
 
   return (
     <div className="page-content">
-      <PageHeader title="References Lab" subtitle="Pulled tweets, funnel, and query yield" />
-
       <div className="funnel-strip" aria-label="Reference funnel">
         <div className="funnel-strip__step">
           <span className="funnel-strip__label">Pulled</span>
@@ -129,7 +127,7 @@ export function ReferencesLabPage() {
       </div>
 
       <section className="hq-panel" aria-label="Search query yield">
-        <h3 className="hq-panel__title">Search query yield</h3>
+        <TablePanelHeader title="Search query yield" tableId="references-query-yield" />
         <DataTable
           columns={[
             { id: 'q', header: 'Query', accessor: (r) => r.query, sortValue: (r) => r.query },
@@ -158,7 +156,7 @@ export function ReferencesLabPage() {
       {pulledQuery.isLoading ? <p className="App-loading">Loading references…</p> : null}
       {!pulledQuery.isLoading ? (
         <section className="hq-panel" aria-label="Pulled tweets">
-          <h3 className="hq-panel__title">Pulled tweets</h3>
+          <TablePanelHeader title="Pulled tweets" tableId="references-pulled-tweets" />
           <DataTable
             columns={tweetColumns}
             rows={enriched}
