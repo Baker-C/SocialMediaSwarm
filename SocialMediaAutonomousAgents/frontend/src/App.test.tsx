@@ -67,7 +67,7 @@ afterEach(() => {
 
 test('renders application title', async () => {
   render(<App />);
-  expect(screen.getByText(/Social Media Autonomous Agents/i)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /Social Media Ops/i })).toBeInTheDocument();
   await waitFor(() => {
     expect(screen.queryByText(/Loading API data/i)).not.toBeInTheDocument();
   });
@@ -80,7 +80,7 @@ test('shows active account count on overview tab', async () => {
     expect(within(overview).getByText('3')).toBeInTheDocument();
   });
   expect(screen.getByText(/Active accounts/i)).toBeInTheDocument();
-  expect(screen.getByRole('tab', { name: /Overview/i })).toHaveAttribute('aria-selected', 'true');
+  expect(screen.getByRole('link', { name: /Overview/i })).toHaveAttribute('aria-current', 'page');
 });
 
 test('overview lists accounts with leaderboard', async () => {
@@ -98,13 +98,13 @@ test('account tab shows account HQ', async () => {
     expect(screen.queryByText(/Loading API data/i)).not.toBeInTheDocument();
   });
 
-  fireEvent.click(screen.getByRole('tab', { name: /demo/i }));
+  fireEvent.click(screen.getByRole('link', { name: /demo Test niche/i }));
 
   await waitFor(() => {
     expect(screen.getByRole('heading', { name: 'demo' })).toBeInTheDocument();
   });
   expect(screen.getByLabelText('Account KPIs')).toBeInTheDocument();
-  expect(screen.getByText(/Account · demo/i)).toBeInTheDocument();
+  expect(screen.getByText(/DEMO \/ HQ/i)).toBeInTheDocument();
 });
 
 test('shows empty leaderboard when no accounts', async () => {
@@ -119,9 +119,9 @@ test('shows empty leaderboard when no accounts', async () => {
     return undefined;
   });
   render(<App />);
-  fireEvent.click(await screen.findByRole('tab', { name: /Overview/i }));
+  fireEvent.click(await screen.findByRole('link', { name: /Overview/i }));
   await waitFor(() => {
     expect(screen.getByText(/No accounts to rank/i)).toBeInTheDocument();
   });
-  expect(screen.queryByRole('tab', { name: /demo/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /demo/i })).not.toBeInTheDocument();
 });

@@ -21,9 +21,9 @@ export function EngagementCurve({ points }: EngagementCurveProps) {
         data={chartData}
         xKey="label"
         series={[
-          { dataKey: 'impressions', name: 'Impressions', color: '#6366f1' },
-          { dataKey: 'engagements', name: 'Engagements', color: '#059669' },
-          { dataKey: 'er', name: 'ER %', color: '#dc2626' },
+          { dataKey: 'impressions', name: 'Impressions', color: '#f97316' },
+          { dataKey: 'engagements', name: 'Engagements', color: '#ffffff' },
+          { dataKey: 'er', name: 'ER %', color: '#ef4444' },
         ]}
         height={320}
         ariaLabel="Post engagement curve"

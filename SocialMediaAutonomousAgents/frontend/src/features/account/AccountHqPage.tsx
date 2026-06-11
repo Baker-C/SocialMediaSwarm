@@ -4,7 +4,6 @@ import { POST_INTERVAL_MINUTES } from '../../analytics/constants';
 import { TimeSeriesChart } from '../../components/charts/TimeSeriesChart';
 import { EmptyState } from '../../components/layout/EmptyState';
 import { ErrorBanner } from '../../components/layout/ErrorBanner';
-import { PageHeader } from '../../components/layout/PageHeader';
 import { useAccount } from '../../hooks/queries/useAccounts';
 import { useAccountMetrics } from '../../hooks/queries/useAccountMetrics';
 import { useAccountSnapshots } from '../../hooks/queries/useAccountSnapshots';
@@ -13,7 +12,6 @@ import { OAuthStatusCard } from '../operations/OAuthStatusCard';
 import {
   AccountHeader,
   AccountKpiStrip,
-  AccountQuickLinks,
   CadenceGauge,
 } from './AccountHqComponents';
 
@@ -38,7 +36,6 @@ export function AccountHqPage() {
 
   return (
     <div className="page-content">
-      <PageHeader title="Account HQ" subtitle={`Operational overview for ${account.account_id}`} />
       {metricsQuery.isError ? (
         <ErrorBanner message="Account metrics unavailable — showing profile data only." />
       ) : null}
@@ -59,8 +56,8 @@ export function AccountHqPage() {
             data={chartData}
             xKey="label"
             series={[
-              { dataKey: 'followers', name: 'Followers', color: '#2563eb' },
-              { dataKey: 'totalViews', name: 'Total views', color: '#059669' },
+              { dataKey: 'followers', name: 'Followers', color: '#f97316' },
+              { dataKey: 'totalViews', name: 'Total views', color: '#ffffff' },
             ]}
             ariaLabel="Follower and total views over time"
           />
@@ -80,7 +77,6 @@ export function AccountHqPage() {
         </section>
       </div>
 
-      <AccountQuickLinks accountId={account.account_id} />
     </div>
   );
 }
