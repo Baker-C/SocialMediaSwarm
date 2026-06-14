@@ -12,7 +12,50 @@ import { useTrackedPosts } from '../../hooks/queries/useTrackedPosts';
 import { useVoiceRevisions } from '../../hooks/queries/useVoiceRevisions';
 import { formatPercent, formatShortDate } from '../../lib/format';
 import type { VoiceVersionStats } from '../../analytics/selectors/voiceComparison';
+import type { AccountVoiceDetail } from '../../types';
 import type { VoiceRevision } from '../../types';
+
+type VoicePromptSource = Pick<
+  VoiceRevision,
+  'system_prompt' | 'personality' | 'negative_semantics'
+> &
+  Partial<Pick<AccountVoiceDetail, 'system_prompt' | 'personality' | 'negative_semantics'>>;
+
+function hasStoredVoiceText(source: VoicePromptSource | null | undefined): boolean {
+  if (!source) return false;
+  return Boolean(
+    (source.system_prompt && source.system_prompt.trim()) ||
+      (source.personality && source.personality.trim()) ||
+      (source.negative_semantics && source.negative_semantics.length > 0)
+  );
+}
+
+function VoicePromptDetail({ voice }: { voice: VoicePromptSource }) {
+  return (
+    <>
+      <div className="voice-expand__block">
+        <span className="voice-expand__label">System prompt</span>
+        <p className="voice-expand__text">{voice.system_prompt?.trim() || '—'}</p>
+      </div>
+      {voice.personality?.trim() ? (
+        <div className="voice-expand__block">
+          <span className="voice-expand__label">Personality</span>
+          <p className="voice-expand__text">{voice.personality}</p>
+        </div>
+      ) : null}
+      {voice.negative_semantics && voice.negative_semantics.length > 0 ? (
+        <div className="voice-expand__block">
+          <span className="voice-expand__label">Negative semantics</span>
+          <ul className="voice-expand__list">
+            {voice.negative_semantics.map((item: string) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </>
+  );
+}
 
 export function VoiceExperimentsPage() {
   const { accountId } = useParams();
@@ -75,6 +118,9 @@ export function VoiceExperimentsPage() {
     const revision = revisions.find((r) => r.seq === row.seq);
     const isCurrent = row.seq != null && row.seq === currentSeq;
     const voice = voiceQuery.data;
+    const storedVoice = revision && hasStoredVoiceText(revision) ? revision : null;
+    const activeVoice = isCurrent && voice ? voice : null;
+    const promptSource = storedVoice ?? activeVoice;
 
     return (
       <div className="voice-expand">
@@ -94,39 +140,14 @@ export function VoiceExperimentsPage() {
           {isCurrent ? <span className="voice-expand__current">Active</span> : null}
         </div>
 
-        {isCurrent ? (
-          voiceQuery.isLoading ? (
-            <p className="App-loading">Loading voice…</p>
-          ) : voice ? (
-            <>
-              <div className="voice-expand__block">
-                <span className="voice-expand__label">System prompt</span>
-                <p className="voice-expand__text">{voice.system_prompt || '—'}</p>
-              </div>
-              {voice.personality ? (
-                <div className="voice-expand__block">
-                  <span className="voice-expand__label">Personality</span>
-                  <p className="voice-expand__text">{voice.personality}</p>
-                </div>
-              ) : null}
-              {voice.negative_semantics && voice.negative_semantics.length > 0 ? (
-                <div className="voice-expand__block">
-                  <span className="voice-expand__label">Negative semantics</span>
-                  <ul className="voice-expand__list">
-                    {voice.negative_semantics.map((item: string) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <p className="page-hint">Could not load the active voice details.</p>
-          )
+        {promptSource ? (
+          <VoicePromptDetail voice={promptSource} />
+        ) : isCurrent && voiceQuery.isLoading ? (
+          <p className="App-loading">Loading voice…</p>
         ) : (
           <p className="page-hint">
-            Prompt text is only stored for the active voice. Previous revisions are identified by
-            version hash only.
+            Prompt text was not recorded for this revision. Only revisions saved after the voice
+            archive update include full prompt details.
           </p>
         )}
       </div>
@@ -149,13 +170,27 @@ export function VoiceExperimentsPage() {
           <p className="page-hint">No voice revisions recorded.</p>
         ) : (
           <ol className="revision-timeline">
-            {timeline.map((r) => (
-              <li key={r.seq} className="revision-timeline__item">
-                <span className="revision-timeline__seq">#{r.seq}</span>
-                <span className="revision-timeline__label">{r.label}</span>
-                <span className="revision-timeline__date">{formatShortDate(r.changed_at)}</span>
-              </li>
-            ))}
+            {timeline.map((r) => {
+              const revision = revisions.find((item) => item.seq === r.seq);
+              const hasPrompt = revision && hasStoredVoiceText(revision);
+              return (
+                <li key={r.seq} className="revision-timeline__item">
+                  <div className="revision-timeline__row">
+                    <span className="revision-timeline__seq">#{r.seq}</span>
+                    <span className="revision-timeline__label">{r.label}</span>
+                    <span className="revision-timeline__date">{formatShortDate(r.changed_at)}</span>
+                  </div>
+                  {hasPrompt ? (
+                    <details className="revision-timeline__voice">
+                      <summary>Voice prompt</summary>
+                      <div className="voice-expand voice-expand--inline">
+                        <VoicePromptDetail voice={revision} />
+                      </div>
+                    </details>
+                  ) : null}
+                </li>
+              );
+            })}
           </ol>
         )}
       </section>

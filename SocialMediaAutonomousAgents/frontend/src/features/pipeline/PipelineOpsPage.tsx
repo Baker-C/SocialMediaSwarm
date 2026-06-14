@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { PHASE_LABELS, STATUS_LABELS } from '../../analytics/constants';
@@ -16,6 +17,7 @@ import {
 import type { PipelineOutcome } from '../../types';
 import { formatShortDate } from '../../lib/format';
 import { SkipReasonChart } from './SkipReasonChart';
+import { PipelineRunPanel } from './PipelineRunPanel';
 
 type PipelineOpsBodyProps = {
   accountId?: string;
@@ -24,6 +26,7 @@ type PipelineOpsBodyProps = {
 };
 
 function PipelineOpsBody({ accountId, title, subtitle }: PipelineOpsBodyProps) {
+  const queryClient = useQueryClient();
   const filters = useMemo(
     () => ({ since: defaultSinceDays(7), limit: 200 }),
     []
@@ -98,6 +101,19 @@ function PipelineOpsBody({ accountId, title, subtitle }: PipelineOpsBodyProps) {
           </ul>
         </div>
       ) : null}
+
+      <section className="hq-panel" aria-label="Live pipeline flow">
+        <PipelineRunPanel
+          accountId={accountId}
+          onComplete={() => {
+            if (accountId) {
+              void queryClient.invalidateQueries({ queryKey: ['pipelineOutcomes', accountId] });
+            } else {
+              void queryClient.invalidateQueries({ queryKey: ['pipelineOutcomes', 'fleet'] });
+            }
+          }}
+        />
+      </section>
 
       <div className="hq-grid">
         <section className="hq-panel" aria-label="Skip reasons">
