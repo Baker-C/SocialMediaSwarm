@@ -1,5 +1,6 @@
 @import './styles/tables.css';
 @import './styles/analytics.css';
+@import './styles/pipeline-flow.css';
 
 /*
  * Tactical ops theme (cyberpunk dashboard design)
@@ -923,4 +924,175 @@ pre {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* Table info dialog — cyberpunk agent-detail popup style */
+.info-dialog-panel {
+  position: relative;
+  z-index: 1;
+  width: min(840px, calc(100vw - 32px));
+  max-height: min(90vh, 900px);
+  overflow: auto;
+  background: #121212;
+  border-radius: 8px;
+  border: 1px solid #404040;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+.info-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 20px 0;
+}
+
+.info-dialog-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #fff;
+}
+
+.info-dialog-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: #737373;
+  font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.info-dialog-close {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  padding: 4px;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #737373;
+  transition: color 0.15s;
+}
+
+.info-dialog-close:hover {
+  color: #fff;
+}
+
+.info-dialog-body {
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.info-dialog-section {
+  margin: 0;
+}
+
+.info-dialog-label {
+  margin: 0 0 8px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #737373;
+}
+
+.info-dialog-value {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: #fff;
+}
+
+.info-dialog-analysis {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.info-dialog-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: #a3a3a3;
+}
+
+.info-dialog-list li {
+  position: relative;
+  padding-left: 1rem;
+}
+
+.info-dialog-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #f97316;
+}
+
+.info-dialog-table {
+  margin-top: 4px;
+  overflow-x: auto;
+  border: 1px solid #404040;
+  border-radius: 6px;
+  background: #171717;
+}
+
+.info-dialog-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.info-dialog-table th {
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #737373;
+  background: #1a1a1a;
+  border-bottom: 1px solid #404040;
+}
+
+.info-dialog-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #262626;
+  vertical-align: top;
+}
+
+.info-dialog-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.info-dialog-col-name {
+  width: 28%;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.info-dialog-col-desc {
+  color: #a3a3a3;
+  line-height: 1.45;
+}
+
+.info-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 20px 20px;
 }
