@@ -10,7 +10,7 @@ type TablePanelHeaderProps = {
 
 export function TablePanelHeader({ title, tableId, titleClassName }: TablePanelHeaderProps) {
   return (
-    <div className="mb-3 flex items-center gap-2">
+    <div className="mb-3 flex w-full items-center justify-between gap-2">
       <h3 className={cn('hq-panel__title mb-0', titleClassName)}>{title}</h3>
       <TableInfoButton tableId={tableId} />
     </div>
