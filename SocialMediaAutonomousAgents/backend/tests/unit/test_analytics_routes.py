@@ -145,6 +145,8 @@ def test_voice_revisions_for_account(mock_repo, mock_voice, client: TestClient) 
             label="v1",
             version_hash="abc",
             changed_at="2026-06-01T00:00:00+00:00",
+            system_prompt="Prompt A",
+            personality="Personality A",
         )
     ]
 
@@ -154,6 +156,7 @@ def test_voice_revisions_for_account(mock_repo, mock_voice, client: TestClient) 
     body = resp.json()
     assert body["count"] == 1
     assert body["revisions"][0]["label"] == "v1"
+    assert body["revisions"][0]["system_prompt"] == "Prompt A"
 
 
 @patch("app.api.routes.analytics.pipeline_outcomes")

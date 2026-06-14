@@ -98,6 +98,8 @@ def test_voice_revision_list_for_account_orders_by_seq() -> None:
             "label": "v1",
             "version_hash": "h1",
             "changed_at": "2026-06-01T00:00:00+00:00",
+            "system_prompt": "Prompt v1",
+            "personality": "Voice v1",
         },
         {
             "account_id": "acct1",
@@ -105,6 +107,8 @@ def test_voice_revision_list_for_account_orders_by_seq() -> None:
             "label": "v2",
             "version_hash": "h2",
             "changed_at": "2026-06-02T00:00:00+00:00",
+            "system_prompt": "Prompt v2",
+            "personality": "Voice v2",
         },
     ]
     repo = VoiceRevisionRepository(client=client)
