@@ -31,6 +31,15 @@ class PostLockRepository:
     def document_id(account_id: str) -> str:
         return f"post-locks/{account_id}"
 
+    def is_expired(self, payload: dict[str, Any] | None, *, now: datetime | None = None) -> bool:
+        if not payload:
+            return True
+        until = _parse_iso(payload.get("until"))
+        if until is None:
+            return True
+        ref = now or datetime.now(timezone.utc)
+        return until <= ref
+
     def try_acquire(self, account_id: str, *, holder: str, ttl_seconds: int) -> bool:
         doc_id = self.document_id(account_id)
         now = datetime.now(timezone.utc)
@@ -39,6 +48,12 @@ class PostLockRepository:
             until = _parse_iso(existing.get("until"))
             if until and until > now and existing.get("holder") != holder:
                 return False
+            if self.is_expired(existing, now=now):
+                logger.info(
+                    "replacing expired post lock account=%s previous_holder=%s",
+                    account_id,
+                    existing.get("holder"),
+                )
 
         until_iso = (now + timedelta(seconds=max(30, ttl_seconds))).isoformat()
         payload: dict[str, Any] = {
