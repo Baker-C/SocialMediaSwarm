@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -41,18 +42,19 @@ def _pipeline_failure_message(result: dict[str, Any]) -> str | None:
 async def _sse_force_post(account_id: str):
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+    run_id = uuid4().hex
 
     def emit(event: PipelineProgressEvent) -> None:
         loop.call_soon_threadsafe(queue.put_nowait, event.as_sse_dict())
 
     def worker() -> None:
         try:
-            result = run_force_post(account_id, on_progress=emit)
+            result = run_force_post(account_id, on_progress=emit, run_id=run_id)
             serialized = _serialize_result(result)
             failure = _pipeline_failure_message(result)
             loop.call_soon_threadsafe(
                 queue.put_nowait,
-                {"type": "complete", "result": serialized, "failure": failure},
+                {"type": "complete", "result": serialized, "failure": failure, "run_id": run_id},
             )
         except Exception as exc:
             loop.call_soon_threadsafe(
@@ -88,12 +90,13 @@ async def force_post(account_id: str, request: Request):
     if "text/event-stream" in accept:
         return StreamingResponse(_sse_force_post(aid), media_type="text/event-stream")
 
+    run_id = uuid4().hex
     try:
-        result = await asyncio.to_thread(run_force_post, aid)
+        result = await asyncio.to_thread(run_force_post, aid, run_id=run_id)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     failure = _pipeline_failure_message(result)
-    payload: dict[str, Any] = {"ok": failure is None, "result": _serialize_result(result)}
+    payload: dict[str, Any] = {"ok": failure is None, "result": _serialize_result(result), "run_id": run_id}
     if failure:
         payload["failure"] = failure
     return payload

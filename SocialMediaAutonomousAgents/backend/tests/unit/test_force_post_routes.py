@@ -69,7 +69,7 @@ def test_force_post_sse_progress(monkeypatch) -> None:
     )
     monkeypatch.setattr(force_post_routes, "repo", mock_repo)
 
-    def fake_run(account_id: str, *, on_progress=None, bypass_cooldown=True):
+    def fake_run(account_id: str, *, on_progress=None, bypass_cooldown=True, run_id=None):
         assert account_id == "acct1"
         if on_progress:
             on_progress(PipelineProgressEvent("load_account", "Loading account", "active"))

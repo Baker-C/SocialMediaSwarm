@@ -13,6 +13,7 @@ def run_force_post(
     *,
     on_progress: ProgressCallback | None = None,
     bypass_cooldown: bool = True,
+    run_id: str | None = None,
 ) -> dict[str, Any]:
     aid = (account_id or "").strip()
     if not aid:
@@ -24,6 +25,7 @@ def run_force_post(
             mode="force",
             account_ids=[aid],
             bypass_post_cooldown=bypass_cooldown,
+            run_id=run_id,
         )
 
     if on_progress is None:
