@@ -53,7 +53,9 @@ def create_account_snapshot(
                 "account snapshot X refresh failed account_id=%s: %s", account_id, exc
             )
 
-    total_likes, total_views = tracked_repo.totals_for_account(account_id)
+    total_likes, total_views, total_reposts, total_comments = tracked_repo.totals_for_account(
+        account_id
+    )
 
     snapshot = AccountSnapshotDocument(
         account_id=acc.account_id,
@@ -65,6 +67,8 @@ def create_account_snapshot(
         posts_total=posts_total,
         total_likes=total_likes,
         total_views=total_views,
+        total_reposts=total_reposts,
+        total_comments=total_comments,
         system_prompt=acc.system_prompt,
         personality=acc.personality,
         negative_semantics=list(acc.negative_semantics),

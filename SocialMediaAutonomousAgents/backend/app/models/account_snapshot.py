@@ -17,6 +17,8 @@ class AccountSnapshotDocument(BaseModel):
     posts_total: int = 0
     total_likes: int = 0
     total_views: int = 0
+    total_reposts: int = 0
+    total_comments: int = 0
     system_prompt: str = ""
     personality: str = ""
     negative_semantics: list[str] = Field(default_factory=list)

@@ -30,6 +30,9 @@ def test_first_init_sets_v1_and_writes_revision() -> None:
     saved = repo.save.call_args[0][0]
     assert saved.seq == 1
     assert saved.label == "v1"
+    assert saved.system_prompt == "Write hot takes."
+    assert saved.personality == "Snappy left-leaning voice."
+    assert len(saved.negative_semantics) >= 1
 
 
 def test_unchanged_voice_skips_revision_write() -> None:

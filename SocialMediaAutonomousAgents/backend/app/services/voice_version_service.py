@@ -60,6 +60,9 @@ def bump_voice_version_if_needed(
             label=account.voice_version_label or f"v{seq}",
             version_hash=account.voice_version_hash or current_hash,
             changed_at=datetime.now(timezone.utc).isoformat(),
+            system_prompt=(account.system_prompt or "").strip(),
+            personality=(account.personality or "").strip(),
+            negative_semantics=list(account.negative_semantics or []),
         )
     )
     return account
