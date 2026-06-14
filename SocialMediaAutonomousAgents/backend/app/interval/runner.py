@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from app.interval.compose_timeline_post import compose_formatted_post
 from app.interval.context import TickContext
@@ -31,6 +33,15 @@ from app.models.account import AccountDocument
 from app.core.config import settings
 from app.services.account_repository import AccountRepository, current_interval_slot_key
 from app.services.pipeline_progress import progress_active, progress_done, progress_error
+from app.pipeline.events.dispatcher import (
+    emit_run_completed,
+    emit_run_started,
+    emit_step_completed,
+    emit_step_failed,
+    emit_step_started,
+    run_events,
+)
+from app.pipeline.events.sinks import NatsPublishSink
 from app.metrics.derived import extract_entities, extract_text_features
 from app.services.pipeline_outcome_repository import PipelineOutcomeRepository
 
@@ -59,6 +70,7 @@ def build_tick_context(
     max_candidates: int = 5,
     max_regeneration_rounds: int | None = None,
     bypass_post_cooldown: bool = False,
+    forced_run_id: str | None = None,
 ) -> TickContext:
     slot = current_interval_slot_key()
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -81,6 +93,7 @@ def build_tick_context(
         max_candidates=max_candidates,
         max_regeneration_rounds=regen_rounds,
         bypass_post_cooldown=bypass_post_cooldown,
+        forced_run_id=forced_run_id,
         accounts=[],
     )
     trace_step(
@@ -98,7 +111,57 @@ def build_tick_context(
     return ctx
 
 
+def _orch_active(step_id: str, label: str | None = None) -> None:
+    progress_active(step_id, label)
+    emit_step_started(step_id, scope="orchestrator", purpose=label)
+
+
+def _orch_done(step_id: str, label: str | None = None) -> None:
+    progress_done(step_id, label)
+    emit_step_completed(step_id, scope="orchestrator", purpose=label)
+
+
+def _orch_error(step_id: str, message: str) -> None:
+    progress_error(step_id, message)
+    emit_step_failed(
+        step_id, scope="orchestrator", error={"type": "orchestrator", "message": message}
+    )
+
+
+def _run_status_from_out(out: dict[str, Any]) -> str:
+    if out.get("skipped"):
+        return "skipped"
+    if out.get("rejected"):
+        return "rejected"
+    if out.get("error"):
+        return "error"
+    return "ok"
+
+
 def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str, Any]:
+    """Public entry: wraps the per-account pipeline in an event-sourced run."""
+    run_id = ctx.forced_run_id or uuid4().hex
+    started = time.monotonic()
+    with run_events(
+        run_id=run_id,
+        account_id=account.account_id,
+        slot=ctx.slot,
+        mode=ctx.mode,
+        sinks=[NatsPublishSink()],
+    ):
+        emit_run_started(niche=account.niche or "")
+        status = "error"
+        try:
+            out = _run_account_pipeline(ctx, account)
+            status = _run_status_from_out(out)
+            return out
+        finally:
+            emit_run_completed(
+                status=status, duration_ms=int((time.monotonic() - started) * 1000)
+            )
+
+
+def _run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str, Any]:
     followers_at_post: int | None = None
     aid = account.account_id
     outcomes = PipelineOutcomeRepository()
@@ -109,10 +172,10 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
         handoff_to="reload_account",
     )
 
-    progress_active("load_account")
+    _orch_active("load_account")
     fresh = reload_account(ctx, aid)
     if fresh is None:
-        progress_error("load_account", "account_not_found")
+        _orch_error("load_account", "account_not_found")
         out = {"account_id": aid, "skipped": "account_not_found"}
         outcomes.append(account_id=aid, phase="runner", status="skipped", reason="account_not_found")
         trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
@@ -121,24 +184,24 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
 
     skip = should_skip_account(ctx, account)
     if skip:
-        progress_error("load_account", skip)
+        _orch_error("load_account", skip)
         out = {"account_id": aid, "skipped": skip}
         outcomes.append(account_id=aid, phase="runner", status="skipped", reason=skip)
         trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
         return out
 
     if ctx.mode == "scheduled" and account.last_interval_slot == ctx.slot:
-        progress_error("load_account", "already_posted_this_interval")
+        _orch_error("load_account", "already_posted_this_interval")
         out = {"account_id": aid, "skipped": "already_posted_this_interval"}
         outcomes.append(account_id=aid, phase="runner", status="skipped", reason="already_posted_this_interval")
         trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
         return out
-    progress_done("load_account")
+    _orch_done("load_account")
 
-    progress_active("post_lock")
+    _orch_active("post_lock")
     _, guard_skip = try_begin_post(ctx, aid, account)
     if guard_skip:
-        progress_error("post_lock", guard_skip)
+        _orch_error("post_lock", guard_skip)
         out = {"account_id": aid, "skipped": guard_skip}
         outcomes.append(account_id=aid, phase="runner", status="skipped", reason=guard_skip)
         trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
@@ -147,14 +210,14 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
     try:
         reservation, reserve_skip = try_reserve_interval_slot(ctx, aid)
         if reserve_skip:
-            progress_error("post_lock", reserve_skip)
+            _orch_error("post_lock", reserve_skip)
             out = {"account_id": aid, "skipped": reserve_skip}
             outcomes.append(account_id=aid, phase="runner", status="skipped", reason=reserve_skip)
             trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
             return out
         assert reservation is not None
         account = reservation.account
-        progress_done("post_lock")
+        _orch_done("post_lock")
 
         trace_step(
             aid,
@@ -240,7 +303,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
         winner: GatheredTweet | None = None
         topic_preanalysis = None
         references_tried = 0
-        progress_active("compose")
+        _orch_active("compose")
 
         for ref_idx, candidate in enumerate(ranked_refs):
             winner = candidate
@@ -276,7 +339,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
                     {"body": body, "chosen_embed_url": topic_preanalysis.chosen_embed_url},
                     handoff_to="safety_filter",
                 )
-                progress_active("safety")
+                _orch_active("safety")
                 approved, reject = ctx.guardian.evaluate(body, niche=account.niche)
                 trace_step(
                     aid,
@@ -285,11 +348,11 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
                     handoff_to="post_tick" if approved else f"regenerate_round_{reg_round + 1}",
                 )
                 if approved:
-                    progress_done("safety")
+                    _orch_done("safety")
                     selected_body = body
                     selected_round = reg_round
                     break
-                progress_done("safety")
+                _orch_done("safety")
                 candidate_reject = reject or "safety_rejected"
                 if is_niche_mismatch_reject(candidate_reject):
                     logger.info(
@@ -305,7 +368,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
             last_reject = candidate_reject or last_reject
 
         if selected_body is None or winner is None or topic_preanalysis is None:
-            progress_error("compose", last_reject or "all_compose_attempts_failed")
+            _orch_error("compose", last_reject or "all_compose_attempts_failed")
             out = {
                 "account_id": account.account_id,
                 "rejected": last_reject or "all_compose_attempts_failed",
@@ -320,7 +383,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
             )
             trace_step(aid, "pipeline_rejected", out, handoff_to="(end)")
             return out
-        progress_done("compose")
+        _orch_done("compose")
 
         trace_step(
             aid,
@@ -362,7 +425,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
             voice_version_label=account.voice_version_label,
             source_reference_metrics_at_pick=source_metrics_at_pick,
         )
-        progress_active("publish")
+        _orch_active("publish")
         result = finalize_post(
             ctx,
             account,
@@ -373,9 +436,9 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
             source_reference_tweet_id=source_id,
             followers_at_post=followers_at_post,
         )
-        progress_done("publish")
-        progress_active("complete")
-        progress_done("complete")
+        _orch_done("publish")
+        _orch_active("complete")
+        _orch_done("complete")
         trace_step(aid, "post_tick_result", result, handoff_to="(end)")
         outcomes.append(account_id=aid, phase="runner", status="ok")
         return result

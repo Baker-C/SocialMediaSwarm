@@ -47,6 +47,7 @@ class Orchestrator:
         mode: TickRunMode = "scheduled",
         account_ids: list[str] | None = None,
         bypass_post_cooldown: bool = False,
+        run_id: str | None = None,
     ) -> dict:
         """
         Interval orchestration entrypoint.
@@ -71,5 +72,6 @@ class Orchestrator:
             max_candidates=5,
             max_regeneration_rounds=max(1, int(settings.max_regeneration_rounds)),
             bypass_post_cooldown=bypass_post_cooldown,
+            forced_run_id=run_id,
         )
         return run_interval_tick(ctx)

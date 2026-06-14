@@ -32,6 +32,9 @@ class TickContext:
     max_candidates: int = 5
     max_regeneration_rounds: int = 10
     bypass_post_cooldown: bool = False
+    # Pre-assigned run id for single-account force runs (so the SSE gateway can
+    # subscribe up front); scheduled ticks leave this None and mint one per account.
+    forced_run_id: str | None = None
     accounts: list[AccountDocument] = field(default_factory=list)
     # account_id -> last_interval_slot before this tick's reservation (scheduled mode)
     slot_reservations: dict[str, str | None] = field(default_factory=dict)
