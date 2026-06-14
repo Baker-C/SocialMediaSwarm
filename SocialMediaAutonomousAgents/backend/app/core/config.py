@@ -78,6 +78,13 @@ class Settings(BaseSettings):
     following_feed_filter_by_trend: bool = True
     early_engagement_poll_minutes: int = 15
     early_engagement_window_hours: int = 2
+    # NATS JetStream event log for pipeline run tracking (Option B / event-sourced)
+    nats_enabled: bool = True
+    nats_url: str = "nats://localhost:4222"
+    pipeline_events_stream: str = "PIPELINE_EVENTS"
+    pipeline_events_max_age_days: int = 30
+    # Snapshot full (truncated) artifact bodies in step inputs/outputs; metadata is always captured
+    pipeline_capture_payloads: bool = True
 
 
 settings = Settings()
