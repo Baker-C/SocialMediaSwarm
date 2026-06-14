@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from app.infrastructure.ravendb_http import RavenDBHttpError
 from app.services.account_repository import AccountRepository
 from app.services.force_post_service import run_force_post
+from app.services.pipeline_progress import PipelineProgressEvent
 
 router = APIRouter()
 repo = AccountRepository()
@@ -41,11 +42,8 @@ async def _sse_force_post(account_id: str):
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
 
-    def emit(step_id: str, label: str, status: str) -> None:
-        loop.call_soon_threadsafe(
-            queue.put_nowait,
-            {"type": "progress", "step_id": step_id, "label": label, "status": status},
-        )
+    def emit(event: PipelineProgressEvent) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, event.as_sse_dict())
 
     def worker() -> None:
         try:

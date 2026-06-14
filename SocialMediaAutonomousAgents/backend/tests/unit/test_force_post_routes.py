@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.api.routes import force_post as force_post_routes
 from app.main import app
 from app.models.account import AccountDocument
+from app.services.pipeline_progress import PipelineProgressEvent
 
 client = TestClient(app)
 
@@ -71,8 +72,8 @@ def test_force_post_sse_progress(monkeypatch) -> None:
     def fake_run(account_id: str, *, on_progress=None, bypass_cooldown=True):
         assert account_id == "acct1"
         if on_progress:
-            on_progress("load_account", "Loading account", "active")
-            on_progress("load_account", "Loading account", "done")
+            on_progress(PipelineProgressEvent("load_account", "Loading account", "active"))
+            on_progress(PipelineProgressEvent("load_account", "Loading account", "done"))
         return {"slot": "s1", "results": [{"account_id": "acct1", "posted": True}]}
 
     with patch.object(force_post_routes, "run_force_post", side_effect=fake_run):

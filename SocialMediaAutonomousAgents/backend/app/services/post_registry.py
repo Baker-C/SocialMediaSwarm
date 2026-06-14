@@ -21,6 +21,18 @@ def _safe_rql_string(value: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_-]", "", value)
 
 
+def _sum_metric(rows: list[dict], key: str) -> int:
+    """Sum a numeric engagement field across tracked-post rows."""
+    total = 0
+    for row in rows:
+        value = row.get(key)
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)):
+            total += int(value)
+    return total
+
+
 class TrackedPostRepository:
     def __init__(self, client: RavenDBHttpClient | None = None) -> None:
         self._client = client
@@ -76,33 +88,19 @@ class TrackedPostRepository:
                 ids.append(tid)
         return ids
 
-    def totals_for_account(self, account_id: str) -> tuple[int, int]:
-        """Sum like_count and impression_count across the account's TrackedPosts.
+    def totals_for_account(self, account_id: str) -> tuple[int, int, int, int]:
+        """Sum engagement metrics across the account's TrackedPosts.
 
-        Returns ``(total_likes, total_views)`` treating missing metrics as 0.
+        Returns ``(total_likes, total_views, total_reposts, total_comments)``
+        treating missing metrics as 0.
         """
-        aid = _safe_rql_string(account_id)
-        if not aid:
-            return 0, 0
-        rql = f'from TrackedPosts where account_id == "{aid}"'
-        try:
-            rows = self.client.query(rql)
-        except RavenDBHttpError:
-            try:
-                rows = self.client.query(f'from @all where startsWith(id(), "trackedposts/{aid}-")')
-            except RavenDBHttpError as exc:
-                logger.warning("TrackedPosts totals query failed: %s", exc)
-                return 0, 0
-        total_likes = 0
-        total_views = 0
-        for r in rows:
-            like = r.get("like_count")
-            views = r.get("impression_count")
-            if isinstance(like, int):
-                total_likes += like
-            if isinstance(views, int):
-                total_views += views
-        return total_likes, total_views
+        rows = self._query_account_rows(account_id)
+        return (
+            _sum_metric(rows, "like_count"),
+            _sum_metric(rows, "impression_count"),
+            _sum_metric(rows, "retweet_count"),
+            _sum_metric(rows, "reply_count"),
+        )
 
     def record_post(
         self,

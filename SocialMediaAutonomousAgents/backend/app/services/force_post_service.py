@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any
 
 from app.agents.orchestrator import Orchestrator
-from app.services.force_post_progress import ProgressCallback, run_with_progress
+from app.services.pipeline_progress import ProgressCallback, run_with_progress
 
 
 def run_force_post(
