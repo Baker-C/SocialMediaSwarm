@@ -60,3 +60,36 @@ def test_try_begin_post_acquires_locks():
     assert skip is None
     assert out_acc is acc
     assert ctx.active_post_locks["guard_test_a1"]
+
+
+def test_stale_account_file_lock_is_removed_and_reacquired():
+    import os
+    import shutil
+    import tempfile
+    import time
+    from pathlib import Path
+
+    acc = AccountDocument(account_id="guard_test_stale", niche="T")
+    ctx = _ctx()
+    lock_repo = MagicMock()
+    lock_repo.try_acquire.return_value = True
+    base = Path(tempfile.gettempdir()) / "sma_account_post"
+    if base.is_dir():
+        shutil.rmtree(base, ignore_errors=True)
+    lock_path = base / "guard_test_stale.lock"
+    base.mkdir(parents=True, exist_ok=True)
+    lock_path.write_text("stale", encoding="utf-8")
+    old = time.time() - 7200
+    os.utime(lock_path, (old, old))
+
+    with (
+        patch("app.interval.orchestration.post_guard.PostLockRepository", return_value=lock_repo),
+        patch("app.interval.orchestration.post_guard.settings") as s,
+    ):
+        s.post_cooldown_minutes = 0
+        s.post_lock_ttl_seconds = 600
+        out_acc, skip = try_begin_post(ctx, "guard_test_stale", acc)
+
+    assert skip is None
+    assert out_acc is acc
+    assert lock_repo.try_acquire.called

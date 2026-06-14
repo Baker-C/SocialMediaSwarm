@@ -6,11 +6,13 @@ import logging
 import os
 import tempfile
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from app.core.config import settings
 from app.interval.context import TickContext
+from app.interval.orchestration.slot_claim import release_interval_slot_reservation
 from app.models.account import AccountDocument
 from app.services.post_lock_repository import PostLockRepository
 
@@ -32,6 +34,10 @@ def _account_thread_lock(account_id: str) -> threading.Lock:
 def _account_lock_path(account_id: str) -> Path:
     safe_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in account_id)
     return Path(tempfile.gettempdir()) / "sma_account_post" / f"{safe_id}.lock"
+
+
+def _stale_file_lock_seconds() -> int:
+    return max(30, int(settings.post_lock_ttl_seconds))
 
 
 def _parse_iso(value: str | None) -> datetime | None:
@@ -61,6 +67,14 @@ def check_post_cooldown(account: AccountDocument, *, bypass: bool) -> str | None
     return None
 
 
+def _is_stale_file_lock(lock_path: Path) -> bool:
+    try:
+        age = time.time() - lock_path.stat().st_mtime
+    except OSError:
+        return False
+    return age > _stale_file_lock_seconds()
+
+
 def _acquire_file_lock(lock_path: Path) -> bool:
     try:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,6 +83,10 @@ def _acquire_file_lock(lock_path: Path) -> bool:
         os.close(fd)
         return True
     except FileExistsError:
+        if _is_stale_file_lock(lock_path):
+            logger.warning("removing stale account post file lock %s", lock_path)
+            _release_file_lock(lock_path)
+            return _acquire_file_lock(lock_path)
         return False
 
 
@@ -85,7 +103,7 @@ def try_begin_post(
     account: AccountDocument,
 ) -> tuple[AccountDocument | None, str | None]:
     """
-    Cooldown + file lock + RavenDB lock before any pipeline work.
+    Cooldown + file lock + RavenDB claim before any pipeline work.
 
     Applies to scheduled and force modes (force can bypass cooldown via context flag).
     """
@@ -124,3 +142,11 @@ def release_post_guard(ctx: TickContext, account_id: str) -> None:
             logger.warning("release RavenDB post lock %s: %s", account_id, exc)
     if lock_path:
         _release_file_lock(lock_path)
+
+
+def release_post_pipeline_guards(ctx: TickContext, account_id: str) -> None:
+    """Revert slot reservation (if any) and release post locks for ``account_id``."""
+    if account_id in ctx.slot_reservations:
+        release_interval_slot_reservation(ctx, account_id)
+    if account_id in ctx.active_post_locks:
+        release_post_guard(ctx, account_id)
