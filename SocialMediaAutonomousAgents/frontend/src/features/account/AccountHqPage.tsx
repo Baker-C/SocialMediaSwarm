@@ -1,7 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { normalizeAccountSnapshots } from '../../analytics/normalize/accountSnapshot';
 import { POST_INTERVAL_MINUTES } from '../../analytics/constants';
-import { TimeSeriesChart } from '../../components/charts/TimeSeriesChart';
 import { EmptyState } from '../../components/layout/EmptyState';
 import { ErrorBanner } from '../../components/layout/ErrorBanner';
 import { useAccount } from '../../hooks/queries/useAccounts';
@@ -12,6 +11,7 @@ import { OAuthStatusCard } from '../operations/OAuthStatusCard';
 import {
   AccountHeader,
   AccountKpiStrip,
+  AccountTrendChart,
   CadenceGauge,
 } from './AccountHqComponents';
 
@@ -50,17 +50,9 @@ export function AccountHqPage() {
       />
 
       <div className="hq-grid">
-        <section className="hq-panel" aria-label="Follower trend">
-          <h3 className="hq-panel__title">Follower & views trend</h3>
-          <TimeSeriesChart
-            data={chartData}
-            xKey="label"
-            series={[
-              { dataKey: 'followers', name: 'Followers', color: '#f97316' },
-              { dataKey: 'totalViews', name: 'Total views', color: '#ffffff' },
-            ]}
-            ariaLabel="Follower and total views over time"
-          />
+        <section className="hq-panel" aria-label="Account metrics trend">
+          <h3 className="hq-panel__title">Followers & engagement trend</h3>
+          <AccountTrendChart data={chartData} />
         </section>
 
         <section className="hq-panel" aria-label="Cadence and OAuth">
