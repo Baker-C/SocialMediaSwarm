@@ -8,6 +8,7 @@ import { isStaleFetch } from '../../lib/format';
 import { FilterBar } from '../../components/filters/FilterBar';
 import { useTrackedPosts } from '../../hooks/queries/useTrackedPosts';
 import type { TrackedPost } from '../../types';
+import { LatestRunPanel } from './LatestRunPanel';
 import { PostsTable } from './PostsTable';
 
 export function PostsExplorerPage() {
@@ -65,6 +66,8 @@ export function PostsExplorerPage() {
           Some recent posts have stale metrics (last fetch &gt; 2h ago).
         </div>
       ) : null}
+
+      {accountId ? <LatestRunPanel accountId={accountId} /> : null}
 
       <FilterBar onChange={() => undefined} />
 
