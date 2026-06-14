@@ -10,9 +10,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from app.api.routes import accounts, analytics, oauth, posts, dashboard, health, force_post
+from app.api.routes import accounts, analytics, oauth, posts, dashboard, health, force_post, pipeline_runs
 from app.core.config import settings
+from app.infrastructure.nats_client import get_nats_client
 from app.infrastructure.scheduler_lock import release_scheduler_lock, try_acquire_scheduler_lock
+from app.pipeline.events.projection_consumer import ProjectionConsumer
 from app.jobs.engagement_job import run_engagement_job
 from app.jobs.early_engagement_job import run_early_engagement_job
 from app.jobs.interval_job import run_interval_job
@@ -97,6 +99,16 @@ def _build_scheduler() -> AsyncIOScheduler:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
+
+    # Event-sourced pipeline tracking: connect NATS JetStream + start the projection consumer.
+    nats_client = get_nats_client()
+    projection = ProjectionConsumer()
+    try:
+        await nats_client.connect()
+        await projection.start()
+    except Exception:
+        logger.exception("NATS/projection startup failed; pipeline event tracking degraded")
+
     scheduler = None
     if settings.run_scheduler and try_acquire_scheduler_lock():
         scheduler = _build_scheduler()
@@ -130,6 +142,11 @@ async def lifespan(app: FastAPI):
         scheduler.shutdown(wait=False)
         logger.info("APScheduler stopped")
     release_scheduler_lock()
+    try:
+        await projection.stop()
+        await nats_client.close()
+    except Exception:
+        logger.exception("NATS/projection shutdown error")
 
 
 app = FastAPI(title="Social Media Backend", lifespan=lifespan)
@@ -153,5 +170,6 @@ app.include_router(oauth.router, prefix="/api", tags=["oauth"])
 app.include_router(accounts.router, prefix="/api", tags=["accounts"])
 app.include_router(analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(force_post.router, prefix="/api", tags=["force-post"])
+app.include_router(pipeline_runs.router, prefix="/api", tags=["pipeline-runs"])
 app.include_router(posts.router, prefix="/api", tags=["posts"])
 app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
