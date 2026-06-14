@@ -30,6 +30,9 @@ type TimeSeriesChartProps = {
   series: TimeSeriesSeries[];
   height?: number;
   ariaLabel?: string;
+  /** Human-readable tooltip label when xKey is a unique id (e.g. ISO timestamp). */
+  displayLabelKey?: string;
+  formatXTick?: (value: string) => string;
 };
 
 export function TimeSeriesChart({
@@ -38,6 +41,8 @@ export function TimeSeriesChart({
   series,
   height = 280,
   ariaLabel = 'Time series chart',
+  displayLabelKey,
+  formatXTick,
 }: TimeSeriesChartProps) {
   if (data.length === 0) {
     return <p className="time-series-chart__empty">No chart data available.</p>;
@@ -53,11 +58,23 @@ export function TimeSeriesChart({
             tick={CHART_AXIS_TICK}
             axisLine={CHART_AXIS_LINE}
             tickLine={CHART_AXIS_LINE}
+            tickFormatter={formatXTick}
+            interval="preserveStartEnd"
+            minTickGap={24}
           />
           <YAxis tick={CHART_AXIS_TICK} axisLine={CHART_AXIS_LINE} tickLine={CHART_AXIS_LINE} />
           <Tooltip
             contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
             labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+            labelFormatter={
+              displayLabelKey
+                ? (_value, payload) => {
+                    const row = payload?.[0]?.payload as Record<string, unknown> | undefined;
+                    const label = row?.[displayLabelKey];
+                    return typeof label === 'string' ? label : '';
+                  }
+                : undefined
+            }
           />
           <Legend wrapperStyle={CHART_LEGEND_STYLE} />
           {series.map((s, i) => (

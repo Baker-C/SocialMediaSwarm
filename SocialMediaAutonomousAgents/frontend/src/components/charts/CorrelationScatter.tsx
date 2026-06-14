@@ -9,6 +9,7 @@ import {
   ZAxis,
 } from 'recharts';
 import type { CorrelationPoint } from '../../analytics/selectors/engagementCurves';
+import { TablePanelHeader } from '../data/TablePanelHeader';
 import {
   CHART_AXIS_LINE,
   CHART_AXIS_TICK,
@@ -35,7 +36,7 @@ export function CorrelationScatter({ points }: CorrelationScatterProps) {
 
   return (
     <section className="hq-panel" aria-label="Reference score vs post ER">
-      <h3 className="hq-panel__title">Ref score vs post ER</h3>
+      <TablePanelHeader title="Ref score vs post ER" tableId="ref-score-vs-er" />
       <div className="time-series-chart" role="img" aria-label="Correlation scatter plot">
         <ResponsiveContainer width="100%" height={280}>
           <ScatterChart margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
