@@ -1,4 +1,5 @@
 import type { AccountSnapshot } from '../../types';
+import { formatShortDate } from '../../lib/format';
 
 export type NormalizedSnapshotPoint = {
   capturedAt: string;
@@ -6,6 +7,8 @@ export type NormalizedSnapshotPoint = {
   followers: number;
   totalViews: number;
   totalLikes: number;
+  totalReposts: number;
+  totalComments: number;
   postsTotal: number;
 };
 
@@ -16,13 +19,12 @@ export function normalizeAccountSnapshots(
     .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
     .map((s) => ({
       capturedAt: s.created_at,
-      label: new Date(s.created_at).toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-      }),
+      label: formatShortDate(s.created_at),
       followers: s.followers ?? 0,
       totalViews: s.total_views ?? 0,
       totalLikes: s.total_likes ?? 0,
+      totalReposts: s.total_reposts ?? 0,
+      totalComments: s.total_comments ?? 0,
       postsTotal: s.posts_total ?? 0,
     }));
 }

@@ -1,13 +1,13 @@
-import type { ForcePostStreamEvent } from '../../lib/forcePostSteps';
+import type { PipelineRunStreamEvent } from '../../types/pipelineProgress';
 import { apiPrefix, parseHttpError } from '../client';
 
-function parseSseData(line: string): ForcePostStreamEvent | null {
+function parseSseData(line: string): PipelineRunStreamEvent | null {
   const payload = line.startsWith('data: ') ? line.slice(6) : line;
   if (!payload.trim()) {
     return null;
   }
   try {
-    return JSON.parse(payload) as ForcePostStreamEvent;
+    return JSON.parse(payload) as PipelineRunStreamEvent;
   } catch {
     return null;
   }
@@ -16,7 +16,7 @@ function parseSseData(line: string): ForcePostStreamEvent | null {
 export async function streamForcePost(
   apiBase: string,
   accountId: string,
-  onEvent: (event: ForcePostStreamEvent) => void,
+  onEvent: (event: PipelineRunStreamEvent) => void,
   signal?: AbortSignal
 ): Promise<void> {
   const prefix = apiPrefix(apiBase);

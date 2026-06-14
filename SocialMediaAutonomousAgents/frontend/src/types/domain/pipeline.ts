@@ -13,4 +13,7 @@ export type VoiceRevision = {
   label: string;
   version_hash: string;
   changed_at: string;
+  system_prompt?: string;
+  personality?: string;
+  negative_semantics?: string[];
 };

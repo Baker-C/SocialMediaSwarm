@@ -73,6 +73,11 @@ export type AccountSnapshot = {
   posts_total?: number;
   total_likes?: number;
   total_views?: number;
+  total_reposts?: number;
+  total_comments?: number;
+  system_prompt?: string;
+  personality?: string;
+  negative_semantics?: string[];
 };
 
 export type AccountMetrics = {
