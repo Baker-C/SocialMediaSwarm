@@ -3,8 +3,17 @@
 from __future__ import annotations
 
 import logging
+import time
+import traceback
 from collections.abc import Sequence
 
+from app.pipeline.events.capture import capture_artifacts
+from app.pipeline.events.dispatcher import (
+    emit_step_completed,
+    emit_step_failed,
+    emit_step_skipped,
+    emit_step_started,
+)
 from app.pipeline.services.deps import PostRunDeps
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.flow import FlatStep, Step, flatten_steps
@@ -43,11 +52,31 @@ def _run_step_with_progress(
         parent_id=flat.parent_id,
         purpose=step.purpose or None,
     )
+    inputs = capture_artifacts(ctx, tuple(step.reads) + tuple(step.reads_optional))
+    emit_step_started(
+        flat.id,
+        scope="runbook",
+        parent_id=flat.parent_id,
+        purpose=step.purpose or None,
+        inputs=inputs,
+    )
+    started = time.monotonic()
     try:
         result = step.run(ctx, deps)
     except Exception as exc:
         logger.exception("runbook step %s failed", flat.id)
         progress_error(flat.id, "step_exception", scope="runbook")
+        emit_step_failed(
+            flat.id,
+            scope="runbook",
+            parent_id=flat.parent_id,
+            error={
+                "type": type(exc).__name__,
+                "message": str(exc),
+                "traceback": traceback.format_exc(),
+            },
+            duration_ms=int((time.monotonic() - started) * 1000),
+        )
         entry = {
             "id": flat.id,
             "ok": False,
@@ -61,6 +90,8 @@ def _run_step_with_progress(
     if not isinstance(result, StepResult):
         result = StepResult(ok=True, payload={"value": result})
 
+    duration_ms = int((time.monotonic() - started) * 1000)
+
     entry = {
         "id": flat.id,
         "ok": result.ok,
@@ -73,7 +104,7 @@ def _run_step_with_progress(
         "purpose": step.purpose,
     }
 
-    if result.skipped or result.ok:
+    if result.skipped:
         progress_done(
             flat.id,
             step.purpose or None,
@@ -81,8 +112,38 @@ def _run_step_with_progress(
             parent_id=flat.parent_id,
             purpose=step.purpose or None,
         )
+        emit_step_skipped(
+            flat.id,
+            scope="runbook",
+            parent_id=flat.parent_id,
+            skip_reason=result.skip_reason,
+            duration_ms=duration_ms,
+        )
+    elif result.ok:
+        progress_done(
+            flat.id,
+            step.purpose or None,
+            scope="runbook",
+            parent_id=flat.parent_id,
+            purpose=step.purpose or None,
+        )
+        emit_step_completed(
+            flat.id,
+            scope="runbook",
+            parent_id=flat.parent_id,
+            purpose=step.purpose or None,
+            outputs=capture_artifacts(ctx, tuple(step.writes)),
+            duration_ms=duration_ms,
+        )
     else:
         progress_error(flat.id, result.skip_reason or "step_failed", scope="runbook")
+        emit_step_failed(
+            flat.id,
+            scope="runbook",
+            parent_id=flat.parent_id,
+            error={"type": "StepFailed", "message": result.skip_reason or "step_failed"},
+            duration_ms=duration_ms,
+        )
 
     return result, entry
 
