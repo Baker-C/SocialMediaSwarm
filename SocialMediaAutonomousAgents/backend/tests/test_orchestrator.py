@@ -93,7 +93,7 @@ def test_interval_posts_once_per_slot():
         patch.object(tw, "post_tweet", return_value={"id": "1", "text": composed}),
     ):
         mock_td = mock_tds_cls.return_value
-        mock_td.compile_account_bundle.return_value = {"profile": {}}
+        mock_td.compile_account_bundle.return_value = {"account_id": "a2", "profile": {}}
         mock_td.compile_timeline_reference_tweets.return_value = timeline_payload
         mock_td.merge_reference_pool.side_effect = TickDataService.merge_reference_pool
         orch = Orchestrator(
@@ -128,7 +128,7 @@ def test_pipeline_posts_composed_body_after_safety():
     tick_data = MagicMock()
     from app.services.tick_data_service import TickDataService
 
-    tick_data.compile_account_bundle.return_value = {"profile": {}}
+    tick_data.compile_account_bundle.return_value = {"account_id": "a2", "profile": {}}
     tick_data.compile_timeline_reference_tweets.return_value = {
         "timeline_reference_tweets": [
             {
@@ -174,7 +174,7 @@ def test_pipeline_skips_when_no_url_references():
     tick_data = MagicMock()
     from app.services.tick_data_service import TickDataService
 
-    tick_data.compile_account_bundle.return_value = {"profile": {}}
+    tick_data.compile_account_bundle.return_value = {"account_id": "a2", "profile": {}}
     tick_data.compile_timeline_reference_tweets.return_value = {
         "timeline_reference_tweets": [{"id": "1", "text": "no link here"}],
         "reference_errors": [],
@@ -251,7 +251,7 @@ def test_force_mode_bypasses_slot_guard():
         patch.object(tw, "post_tweet", return_value={"id": "99", "text": composed}),
     ):
         mock_td = mock_tds_cls.return_value
-        mock_td.compile_account_bundle.return_value = {"profile": {}}
+        mock_td.compile_account_bundle.return_value = {"account_id": "a2", "profile": {}}
         mock_td.compile_timeline_reference_tweets.return_value = timeline_payload
         mock_td.merge_reference_pool.side_effect = TickDataService.merge_reference_pool
         orch = Orchestrator(

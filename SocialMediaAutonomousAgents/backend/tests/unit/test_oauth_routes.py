@@ -14,7 +14,9 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_oauth_callback_access_denied_user_friendly() -> None:
+def test_oauth_callback_access_denied_user_friendly(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Force the API-error fallback path (no frontend redirect base configured).
+    monkeypatch.setattr(oauth_routes, "_frontend_redirect", lambda **kw: None)
     response = client.get(
         "/api/oauth/x/callback",
         params={"error": "access_denied", "error_description": "User cancelled"},
@@ -24,13 +26,15 @@ def test_oauth_callback_access_denied_user_friendly() -> None:
     assert "cancelled" in detail or "denied" in detail
 
 
-def test_oauth_callback_missing_code_or_state() -> None:
+def test_oauth_callback_missing_code_or_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(oauth_routes, "_frontend_redirect", lambda **kw: None)
     response = client.get("/api/oauth/x/callback", params={"code": "", "state": ""})
     assert response.status_code == 400
     assert "restart" in response.json()["detail"].lower()
 
 
 def test_oauth_callback_exchange_invalid_grant(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(oauth_routes, "_frontend_redirect", lambda **kw: None)
     mock_svc = MagicMock()
     mock_svc.exchange_authorization_code.side_effect = ValueError(
         "Authorization code expired or already used. Please restart X connection."

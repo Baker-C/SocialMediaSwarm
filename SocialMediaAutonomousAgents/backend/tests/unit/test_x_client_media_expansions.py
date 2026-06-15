@@ -27,5 +27,6 @@ def test_search_recent_tweets_requests_media_expansions() -> None:
     assert len(rows) == 1
     call_kw = mock_client.search_recent_tweets.call_args.kwargs
     assert "attachments" in call_kw["tweet_fields"]
-    assert call_kw["expansions"] == ["attachments.media_keys"]
+    assert "attachments.media_keys" in call_kw["expansions"]
+    assert "author_id" in call_kw["expansions"]
     assert "type" in call_kw["media_fields"]
