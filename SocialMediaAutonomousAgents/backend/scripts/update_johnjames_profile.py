@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-off: update JohnJames_News niche, personality, system_prompt, and negative_semantics."""
+"""One-off: update JohnJames_News niche, personality, posting_prompt, and contrast_patterns."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.models.account import default_negative_semantics  # noqa: E402
+from app.models.account import ContrastPattern, default_contrast_patterns  # noqa: E402
 from app.services.account_repository import AccountRepository  # noqa: E402
 
 ACCOUNT_ID = "JohnJames_News"
@@ -38,16 +38,16 @@ def main() -> None:
         raise SystemExit(f"Account not found: {ACCOUNT_ID}")
     acc.niche = NICHE
     acc.personality = PERSONALITY
-    acc.system_prompt = SYSTEM_PROMPT
-    acc.negative_semantics = default_negative_semantics()
+    acc.posting_prompt = SYSTEM_PROMPT
+    acc.contrast_patterns = [ContrastPattern.model_validate(d) for d in default_contrast_patterns()]
     repo.save(acc)
     print(
         {
             "account_id": acc.account_id,
             "niche": acc.niche,
             "personality_len": len(acc.personality or ""),
-            "system_prompt_len": len(acc.system_prompt or ""),
-            "negative_semantics_count": len(acc.negative_semantics or []),
+            "posting_prompt_len": len(acc.posting_prompt or ""),
+            "contrast_patterns_count": len(acc.contrast_patterns or []),
         }
     )
 
