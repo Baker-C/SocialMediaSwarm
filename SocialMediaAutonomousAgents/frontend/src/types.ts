@@ -3,6 +3,8 @@ export type {
   AccountSummary,
   AccountEditPayload,
   AccountVoiceDetail,
+  ContrastPattern,
+  PunctuationRule,
   OAuthStatus,
   OAuthAuthorizeResponse,
   AccountSnapshot,

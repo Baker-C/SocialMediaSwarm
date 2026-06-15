@@ -26,6 +26,7 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
   const [twitterHandle, setTwitterHandle] = useState('');
   const [status, setStatus] = useState('active');
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [personality, setPersonality] = useState('');
   const [followers, setFollowers] = useState(0);
   const [postsTotal, setPostsTotal] = useState(0);
   const [oauthConnected, setOauthConnected] = useState(false);
@@ -70,7 +71,8 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
         setNiche(data.niche ?? '');
         setTwitterHandle(data.twitter_handle ?? '');
         setStatus(data.status || 'active');
-        setSystemPrompt(data.system_prompt ?? '');
+        setSystemPrompt(data.posting_prompt ?? (data as { system_prompt?: string }).system_prompt ?? '');
+        setPersonality(data.personality ?? '');
         setFollowers(typeof data.followers === 'number' ? data.followers : 0);
         setPostsTotal(typeof data.posts_total === 'number' ? data.posts_total : 0);
         setOauthConnected(Boolean(data.oauth_connected));
@@ -135,7 +137,8 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
         niche,
         twitter_handle: twitterHandle,
         status,
-        system_prompt: systemPrompt,
+        posting_prompt: systemPrompt,
+        personality,
         followers,
         posts_total: postsTotal,
       };
@@ -276,10 +279,20 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
             </label>
 
             <label className="modal-field modal-field--tall">
-              <span>System prompt</span>
+              <span>Posting prompt</span>
               <textarea
                 value={systemPrompt}
                 onChange={(ev) => setSystemPrompt(ev.target.value)}
+                rows={5}
+                spellCheck={false}
+              />
+            </label>
+
+            <label className="modal-field modal-field--tall">
+              <span>Personality</span>
+              <textarea
+                value={personality}
+                onChange={(ev) => setPersonality(ev.target.value)}
                 rows={5}
                 spellCheck={false}
               />

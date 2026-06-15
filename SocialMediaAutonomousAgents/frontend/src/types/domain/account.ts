@@ -24,12 +24,23 @@ export type AccountSummary = {
   copied_reference_tweet_ids?: string[];
 };
 
+export type ContrastPattern = {
+  text: string;
+  correlation: 'positive' | 'negative';
+};
+
+export type PunctuationRule = {
+  pattern: string;
+  replacement: string | null;
+};
+
 export type AccountEditPayload = {
   account_id: string;
   niche: string;
   twitter_handle: string;
   status: string;
-  system_prompt: string;
+  posting_prompt: string;
+  personality?: string;
   followers: number;
   posts_total: number;
   registered_at?: string | null;
@@ -40,11 +51,18 @@ export type AccountEditPayload = {
   oauth_expires_at?: string | null;
 };
 
+// /edit payload — now the single source of truth for the Voice tab.
 export type AccountVoiceDetail = {
   account_id: string;
-  system_prompt: string;
+  // soul
+  posting_prompt: string; // was system_prompt
   personality?: string;
-  negative_semantics?: string[];
+  contrast_patterns?: ContrastPattern[]; // was negative_semantics
+  punctuation_rules?: PunctuationRule[]; // NEW
+  // version stamp (now returned by account_edit_view, Task 03)
+  voice_version_label?: string | null;
+  voice_version_seq?: number | null;
+  voice_version_hash?: string | null;
 };
 
 export type OAuthStatus = {

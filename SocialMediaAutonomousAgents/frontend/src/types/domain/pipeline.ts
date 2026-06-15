@@ -13,7 +13,12 @@ export type VoiceRevision = {
   label: string;
   version_hash: string;
   changed_at: string;
-  system_prompt?: string;
+  // soul snapshot (Task 02)
   personality?: string;
+  posting_prompt?: string;
+  contrast_patterns?: { text: string; correlation: 'positive' | 'negative' }[];
+  punctuation_rules?: { pattern: string; replacement: string | null }[];
+  // legacy (older revisions) — kept optional for graceful display
+  system_prompt?: string;
   negative_semantics?: string[];
 };
