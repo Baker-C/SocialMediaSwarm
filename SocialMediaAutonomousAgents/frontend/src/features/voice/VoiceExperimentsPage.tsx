@@ -205,7 +205,10 @@ export function VoiceExperimentsPage() {
   const currentSeq = voice?.voice_version_seq ?? accountQuery.data?.voice_version_seq ?? null;
   const currentLabel =
     voice?.voice_version_label ?? accountQuery.data?.voice_version_label ?? 'v1';
-  const revisions: VoiceRevision[] = revisionsQuery.data?.revisions ?? [];
+  const revisions: VoiceRevision[] = useMemo(
+    () => revisionsQuery.data?.revisions ?? [],
+    [revisionsQuery.data]
+  );
 
   // Version dropdown options: every recorded version, newest first. Ensure the current
   // version is present even if it somehow lacks a revision row.

@@ -36,7 +36,10 @@ export function ReferencesLabPage() {
     return ids;
   }, [postsQuery.data]);
 
-  const copiedIds = accountQuery.data?.copied_reference_tweet_ids ?? [];
+  const copiedIds = useMemo(
+    () => accountQuery.data?.copied_reference_tweet_ids ?? [],
+    [accountQuery.data]
+  );
 
   const enriched = useMemo(() => {
     let rows = enrichPulledTweets(pulledQuery.data?.tweets ?? [], copiedIds, publishedRefIds);

@@ -17,7 +17,7 @@ export function FleetOverviewPage() {
   const accountsQuery = useAccounts();
   const queryClient = useQueryClient();
 
-  const accounts = accountsQuery.data ?? [];
+  const accounts = useMemo(() => accountsQuery.data ?? [], [accountsQuery.data]);
   const kpis = computeFleetKpis(dashboardQuery.data, accounts);
 
   const staleAccountIds = useMemo(() => {
