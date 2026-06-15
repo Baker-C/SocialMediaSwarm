@@ -15,6 +15,49 @@ import type { VoiceVersionStats } from '../../analytics/selectors/voiceCompariso
 import type { AccountVoiceDetail } from '../../types';
 import type { VoiceRevision } from '../../types';
 
+// Voice polish rules reference
+const VOICE_POLISH_RULES = {
+  bannedPhrases: [
+    { pattern: 'as an AI', replace: '' },
+    { pattern: 'as a language model', replace: '' },
+    { pattern: 'I hope this helps', replace: '' },
+    { pattern: 'in conclusion', replace: '' },
+    { pattern: 'to summarize', replace: '' },
+    { pattern: 'in summary', replace: '' },
+    { pattern: 'furthermore', replace: '' },
+    { pattern: 'moreover', replace: '' },
+    { pattern: 'let that sink in', replace: '' },
+    { pattern: 'deep dive', replace: '' },
+    { pattern: 'at its core', replace: '' },
+    { pattern: 'paradigm shift', replace: 'shift' },
+    { pattern: 'game-changer', replace: 'big deal' },
+    { pattern: 'utilize', replace: 'use' },
+    { pattern: 'leverage', replace: 'use' },
+    { pattern: 'robust', replace: 'solid' },
+    { pattern: 'stakeholders', replace: 'people' },
+    { pattern: 'ecosystem', replace: 'world' },
+    { pattern: 'navigate the', replace: 'handle the' },
+    { pattern: 'shed light on', replace: 'show' },
+    { pattern: 'inflection point', replace: 'turning point' },
+  ],
+  contrastPatterns: [
+    "It's not X, it's Y",
+    'The real issue isn\'t ... it\'s ...',
+    'This isn\'t about X, it\'s about Y',
+    'Don\'t think of it as ... think of it as ...',
+    'Less about X ... more about Y',
+  ],
+  punctuationRules: [
+    'No em dashes (—) — use commas or periods instead',
+    'No double hyphens (--) — use commas or periods',
+    'Fix multiple spaces',
+    'Remove space before punctuation',
+  ],
+  textRules: [
+    '30% chance to lowercase first letter of sentences (casual tone)',
+  ],
+};
+
 type VoicePromptSource = Pick<
   VoiceRevision,
   'system_prompt' | 'personality' | 'negative_semantics'
@@ -54,6 +97,160 @@ function VoicePromptDetail({ voice }: { voice: VoicePromptSource }) {
         </div>
       ) : null}
     </>
+  );
+}
+
+function CurrentVoiceSection({
+  account,
+  voice,
+  revision,
+  isLoading,
+}: {
+  account: any;
+  voice: AccountVoiceDetail | undefined;
+  revision: VoiceRevision | undefined;
+  isLoading: boolean;
+}) {
+  const systemPrompt = revision?.system_prompt || voice?.system_prompt || account?.system_prompt || '';
+  const personality = revision?.personality || voice?.personality || account?.personality || '';
+  const negSemantics = revision?.negative_semantics || voice?.negative_semantics || account?.negative_semantics || [];
+
+  return (
+    <section className="hq-panel" aria-label="Current voice">
+      <div className="hq-panel__header">
+        <h3 className="hq-panel__title">Current voice</h3>
+        <div className="flex gap-2">
+          <span className="text-xs px-2 py-1 bg-orange-900/30 text-orange-400 rounded">
+            {account?.voice_version_label || 'v1'}
+          </span>
+          {account?.voice_version_seq && (
+            <span className="text-xs px-2 py-1 bg-gray-800 text-gray-400 rounded">
+              seq #{account.voice_version_seq}
+            </span>
+          )}
+          {account?.voice_version_hash && (
+            <span
+              className="text-xs px-2 py-1 bg-gray-800 text-gray-400 rounded font-mono cursor-help"
+              title={account.voice_version_hash}
+            >
+              {account.voice_version_hash.slice(0, 12)}…
+            </span>
+          )}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <p className="App-loading">Loading voice…</p>
+      ) : systemPrompt || personality || negSemantics.length > 0 ? (
+        <div className="space-y-6">
+          {systemPrompt && (
+            <div>
+              <h4 className="text-sm font-semibold text-orange-400 mb-2">System prompt</h4>
+              <p className="text-sm text-gray-300 whitespace-pre-wrap bg-gray-950 p-3 rounded border border-gray-800">
+                {systemPrompt}
+              </p>
+            </div>
+          )}
+
+          {personality && (
+            <div>
+              <h4 className="text-sm font-semibold text-orange-400 mb-2">Personality</h4>
+              <p className="text-sm text-gray-300 whitespace-pre-wrap bg-gray-950 p-3 rounded border border-gray-800">
+                {personality}
+              </p>
+            </div>
+          )}
+
+          {negSemantics.length > 0 && (
+            <div>
+              <h4 className="text-sm font-semibold text-orange-400 mb-2">
+                Negative semantics ({negSemantics.length})
+              </h4>
+              <ul className="text-sm text-gray-300 space-y-1 bg-gray-950 p-3 rounded border border-gray-800">
+                {negSemantics.map((item: string) => (
+                  <li key={item} className="flex items-start gap-2">
+                    <span className="text-gray-600 mt-0.5">—</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="page-hint">No voice configuration set.</p>
+      )}
+    </section>
+  );
+}
+
+function VoicePolishRulesSection() {
+  return (
+    <section className="hq-panel" aria-label="Voice polish rules">
+      <h3 className="hq-panel__title">Voice polish rules (auto-applied)</h3>
+
+      <div className="space-y-6">
+        <div>
+          <h4 className="text-sm font-semibold text-orange-400 mb-3">Auto-fixed phrases (~20)</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            {VOICE_POLISH_RULES.bannedPhrases.map((rule) => (
+              <div
+                key={rule.pattern}
+                className="bg-gray-950 p-2 rounded border border-gray-800 font-mono"
+              >
+                <span className="text-red-400">{rule.pattern}</span>
+                {rule.replace && (
+                  <>
+                    <span className="text-gray-600"> → </span>
+                    <span className="text-green-400">{rule.replace}</span>
+                  </>
+                )}
+                {!rule.replace && <span className="text-gray-600"> → (removed)</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <h4 className="text-sm font-semibold text-orange-400 mb-2">Contrast patterns (soft-flag)</h4>
+          <ul className="text-sm text-gray-300 space-y-1 bg-gray-950 p-3 rounded border border-gray-800">
+            {VOICE_POLISH_RULES.contrastPatterns.map((pattern) => (
+              <li key={pattern} className="flex items-start gap-2">
+                <span className="text-yellow-600 mt-0.5">⚠</span>
+                <span>{pattern}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-gray-500 mt-2 italic">
+            Posts with these patterns are rejected and regenerated.
+          </p>
+        </div>
+
+        <div>
+          <h4 className="text-sm font-semibold text-orange-400 mb-2">Punctuation rules</h4>
+          <ul className="text-sm text-gray-300 space-y-1 bg-gray-950 p-3 rounded border border-gray-800">
+            {VOICE_POLISH_RULES.punctuationRules.map((rule) => (
+              <li key={rule} className="flex items-start gap-2">
+                <span className="text-gray-600 mt-0.5">—</span>
+                <span>{rule}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="text-sm font-semibold text-orange-400 mb-2">Additional rules</h4>
+          <ul className="text-sm text-gray-300 space-y-1 bg-gray-950 p-3 rounded border border-gray-800">
+            {VOICE_POLISH_RULES.textRules.map((rule) => (
+              <li key={rule} className="flex items-start gap-2">
+                <span className="text-gray-600 mt-0.5">—</span>
+                <span>{rule}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -154,6 +351,8 @@ export function VoiceExperimentsPage() {
     );
   };
 
+  const currentRevision = revisions.find((r) => r.seq === currentSeq);
+
   return (
     <div className="page-content">
       <div className="page-header__actions page-content__toolbar">
@@ -161,6 +360,15 @@ export function VoiceExperimentsPage() {
           Current: {currentVoice}
         </Link>
       </div>
+
+      <CurrentVoiceSection
+        account={accountQuery.data}
+        voice={voiceQuery.data}
+        revision={currentRevision}
+        isLoading={voiceQuery.isLoading}
+      />
+
+      <VoicePolishRulesSection />
 
       <section className="hq-panel" aria-label="Revision timeline">
         <h3 className="hq-panel__title">Revision timeline</h3>
