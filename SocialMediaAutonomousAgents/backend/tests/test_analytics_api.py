@@ -154,9 +154,9 @@ def test_list_voice_revisions(mock_repo, mock_revisions, client: TestClient) -> 
             label="v1",
             version_hash="h1",
             changed_at="t0",
-            system_prompt="Write hot takes.",
+            posting_prompt="Write hot takes.",
             personality="Snappy left-leaning voice.",
-            negative_semantics=["No em dash"],
+            contrast_patterns=[{"text": "No em dash", "correlation": "negative"}],
         )
     ]
 
@@ -166,4 +166,4 @@ def test_list_voice_revisions(mock_repo, mock_revisions, client: TestClient) -> 
     body = resp.json()
     assert body["count"] == 1
     assert body["revisions"][0]["label"] == "v1"
-    assert body["revisions"][0]["system_prompt"] == "Write hot takes."
+    assert body["revisions"][0]["posting_prompt"] == "Write hot takes."

@@ -86,3 +86,22 @@ def test_compose_fallback_without_llm() -> None:
 
 def test_compose_length_attempt_cap() -> None:
     assert COMPOSE_LENGTH_MAX_ATTEMPTS >= 2
+
+
+def test_compose_applies_punctuation_polish_to_body() -> None:
+    """An em-dash in the model output must be gone from the final assembled body."""
+    winner = GatheredTweet(
+        tweet_id="1",
+        text="Source tweet text",
+        popularity_score=1.0,
+        metrics={"tweet_permalink": "https://x.com/i/status/1"},
+    )
+    with patch("app.interval.compose_timeline_post.get_claude_client") as mock_claude:
+        mock_claude.return_value.enabled = True
+        mock_claude.return_value.messages_json_dict.return_value = {
+            "opinion": "Wild take — the policy shifted again.",
+            "quip": "Follow for more",
+        }
+        body = compose_formatted_post(winner, "News")
+    assert "—" not in body
+    assert len(body) <= 280

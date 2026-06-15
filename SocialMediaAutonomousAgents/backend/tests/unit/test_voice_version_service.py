@@ -14,7 +14,7 @@ def _account(**kwargs: object) -> AccountDocument:
 
 def test_first_init_sets_v1_and_writes_revision() -> None:
     acc = _account()
-    acc.system_prompt = "Write hot takes."
+    acc.posting_prompt = "Write hot takes."
     acc.personality = "Snappy left-leaning voice."
     repo = MagicMock()
 
@@ -23,23 +23,30 @@ def test_first_init_sets_v1_and_writes_revision() -> None:
     assert out.voice_version_seq == 1
     assert out.voice_version_label == "v1"
     assert out.voice_version_hash == compute_voice_hash(
-        system_prompt=out.system_prompt,
+        posting_prompt=out.posting_prompt,
         personality=out.personality,
+        contrast_patterns=out.contrast_patterns,
+        punctuation_rules=out.punctuation_rules,
     )
     repo.save.assert_called_once()
     saved = repo.save.call_args[0][0]
     assert saved.seq == 1
     assert saved.label == "v1"
-    assert saved.system_prompt == "Write hot takes."
+    assert saved.posting_prompt == "Write hot takes."
     assert saved.personality == "Snappy left-leaning voice."
-    assert len(saved.negative_semantics) >= 1
+    assert isinstance(saved.contrast_patterns, list)
 
 
 def test_unchanged_voice_skips_revision_write() -> None:
     acc = _account()
-    acc.system_prompt = "Same prompt"
+    acc.posting_prompt = "Same prompt"
     acc.personality = "Same personality"
-    h = compute_voice_hash(system_prompt=acc.system_prompt, personality=acc.personality)
+    h = compute_voice_hash(
+        posting_prompt=acc.posting_prompt,
+        personality=acc.personality,
+        contrast_patterns=acc.contrast_patterns,
+        punctuation_rules=acc.punctuation_rules,
+    )
     acc.voice_version_hash = h
     acc.voice_version_seq = 1
     acc.voice_version_label = "v1"
@@ -53,9 +60,9 @@ def test_unchanged_voice_skips_revision_write() -> None:
 
 def test_voice_change_bumps_to_v2() -> None:
     acc = _account()
-    acc.system_prompt = "New prompt"
+    acc.posting_prompt = "New prompt"
     acc.personality = "Old personality"
-    old_hash = compute_voice_hash(system_prompt="Old prompt", personality="Old personality")
+    old_hash = compute_voice_hash(posting_prompt="Old prompt", personality="Old personality")
     acc.voice_version_hash = old_hash
     acc.voice_version_seq = 1
     acc.voice_version_label = "v1"

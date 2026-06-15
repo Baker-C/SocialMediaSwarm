@@ -1,111 +1,51 @@
-from unittest.mock import patch
+"""Deterministic punctuation polish (pure, parameterized)."""
 
-from app.interval.orchestration.voice_polish import (
-    apply_casual_sentence_starts,
-    detect_voice_violations,
-    polish_post,
-)
+from app.interval.orchestration.voice_polish import polish_post, polish_text
+from app.models.account import default_punctuation_rules
 
 
-def test_removes_em_dash_and_banned_phrase():
-    raw = (
-        "Wait, this is wild. Furthermore, the White House moved again "
-        "and it's worth noting that Congress sat out."
-    )
-    out = polish_post(raw)
+def test_em_dash_becomes_comma():
+    out = polish_text("Wait, this is wild — the White House moved again.")
     assert "—" not in out.polished
-    assert "furthermore" not in out.polished.lower()
-    assert "worth noting" not in out.polished.lower()
     assert out.changed
-    assert not out.soft_flag
 
 
-def test_replaces_utilize_and_collapses_spaces():
-    raw = "Seriously? They utilize robust messaging -- again."
-    out = polish_post(raw)
-    assert "utilize" not in out.polished.lower()
-    assert "robust" not in out.polished.lower()
+def test_double_hyphen_between_words_becomes_comma():
+    out = polish_text("They messaged again -- loudly.")
     assert "--" not in out.polished
+    assert out.changed
+
+
+def test_collapses_multiple_spaces():
+    out = polish_text("Seriously?   That   again.")
     assert "  " not in out.polished
-    assert not out.soft_flag
 
 
-def test_soft_flag_contrast_not_x_its_y():
-    raw = (
-        "Wild take: it's not about immigration policy, it's about who holds power "
-        "when Congress refuses to legislate."
-    )
-    out = polish_post(raw)
-    assert out.soft_flag
-    assert any("contrast" in v for v in out.violations)
+def test_strips_leading_punctuation_and_space():
+    out = polish_text("  , and then it happened.")
+    assert not out.polished.startswith(",")
+    assert not out.polished.startswith(" ")
 
 
-def test_soft_flag_were_not_were():
-    raw = "We're not having a policy debate, we're having a power struggle and everyone knows it."
-    out = polish_post(raw)
-    assert out.soft_flag
-    assert "contrast_were_not" in out.violations
+def test_replacement_none_deletes_match():
+    rules = [{"pattern": r"\bDELETEME\b", "replacement": None}]
+    out = polish_text("keep DELETEME this", rules)
+    assert "DELETEME" not in out.polished
 
 
-def test_soft_flag_no_no_staccato():
-    raw = (
-        "Seriously? No law passes. No fix sticks. And voters keep being told "
-        "the other side is the whole problem."
-    )
-    out = polish_post(raw)
-    assert out.soft_flag
-    assert "contrast_no_no_staccato" in out.violations
-
-
-def test_soft_flag_not_not_staccato():
-    raw = "Wild. Not a policy fight. Not a budget fight. Just power theater."
-    out = polish_post(raw)
-    assert out.soft_flag
-    assert "contrast_not_not_staccato" in out.violations
-
-
-@patch("app.interval.orchestration.voice_polish.random.random", return_value=1.0)
-def test_clean_post_no_soft_flag(_mock_random):
-    raw = "Wild how this keeps happening. Same loop, new headline every week."
-    out = polish_post(raw)
-    assert out.polished == raw
+def test_empty_input_is_noop():
+    out = polish_text("")
+    assert out.polished == ""
     assert not out.changed
-    assert not out.soft_flag
-    assert not out.violations
 
 
-def test_casual_sentence_starts_lowercases_selected_sentences():
-    text, notes = apply_casual_sentence_starts(
-        "Wild how this keeps happening. Same loop, new headline every week.",
-        probability=1.0,
-    )
-    assert text == "wild how this keeps happening. same loop, new headline every week."
-    assert notes.count("casual:sentence_start_lower") == 2
+def test_clean_text_unchanged():
+    rules = default_punctuation_rules()
+    out = polish_text("Wild how this keeps happening, same loop every week.", rules)
+    assert not out.changed
 
 
-def test_casual_sentence_starts_can_leave_caps():
-    text, notes = apply_casual_sentence_starts(
-        "Wild how. Same loop.",
-        probability=0.0,
-    )
-    assert text == "Wild how. Same loop."
-    assert notes == []
-
-
-@patch(
-    "app.interval.orchestration.voice_polish.random.random",
-    side_effect=[0.0, 1.0, 1.0],
-)
-def test_polish_applies_casual_starts_after_passing_soft_flag(_mock_random):
-    raw = "Wild how this keeps happening. Same loop, new headline every week."
-    out = polish_post(raw)
-    assert not out.soft_flag
-    assert out.polished.startswith("wild how")
-    assert "Same loop" in out.polished
-
-
-def test_detect_violations_independent():
-    assert detect_voice_violations("Furthermore, moreover.") == [
-        "phrase_furthermore",
-        "phrase_moreover",
-    ]
+def test_polish_post_is_alias_of_polish_text():
+    a = polish_post("a — b")
+    b = polish_text("a — b")
+    assert a.polished == b.polished
