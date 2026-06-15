@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.account import AccountDocument, default_negative_semantics, default_system_prompt
+from app.models.account import (
+    AccountDocument,
+    ContrastPattern,
+    PunctuationRule,
+    default_contrast_patterns,
+    default_punctuation_rules,
+    default_system_prompt,
+)
 from app.services.account_repository import AccountRepository
 from app.services.twitter_oauth2_service import TwitterOAuth2Service
 from app.services.voice_version_service import bump_voice_version_if_needed
@@ -18,9 +25,13 @@ class AccountUpdateBody(BaseModel):
     niche: str | None = Field(default=None, max_length=2000)
     twitter_handle: str | None = Field(default=None, max_length=500)
     status: str | None = Field(default=None, max_length=64)
-    system_prompt: str | None = Field(default=None, max_length=32000)
+
+    # ── Soul fields ──
+    posting_prompt: str | None = Field(default=None, max_length=32000)   # was system_prompt
     personality: str | None = Field(default=None, max_length=16000)
-    negative_semantics: list[str] | None = None
+    contrast_patterns: list[ContrastPattern] | None = None               # was negative_semantics
+    punctuation_rules: list[PunctuationRule] | None = None               # NEW
+
     followers: int | None = Field(default=None, ge=0)
     posts_total: int | None = Field(default=None, ge=0)
     search_queries: list[str] | None = None
@@ -28,7 +39,7 @@ class AccountUpdateBody(BaseModel):
 
 
 def account_edit_view(acc: AccountDocument, oauth: TwitterOAuth2Service | None = None) -> dict:
-    """Safe JSON for the dashboard update-account form (no ciphertext or plaintext secrets)."""
+    """Safe JSON for the dashboard edit form (no secrets). Returns the full soul."""
     oauth_svc = oauth or TwitterOAuth2Service()
     status = oauth_svc.connection_status(acc.account_id)
     niche = acc.niche or ""
@@ -38,9 +49,17 @@ def account_edit_view(acc: AccountDocument, oauth: TwitterOAuth2Service | None =
         "niche": niche,
         "twitter_handle": acc.twitter_handle or "",
         "status": acc.status or "active",
-        "system_prompt": (acc.system_prompt or "").strip() or default_system_prompt(niche),
+        # ── Soul ──
+        "posting_prompt": (acc.posting_prompt or "").strip() or default_system_prompt(niche),
         "personality": (acc.personality or "").strip(),
-        "negative_semantics": list(acc.negative_semantics or default_negative_semantics()),
+        "contrast_patterns": [p.model_dump() for p in (acc.contrast_patterns or [])]
+            or default_contrast_patterns(),
+        "punctuation_rules": [r.model_dump() for r in (acc.punctuation_rules or [])]
+            or default_punctuation_rules(),
+        # ── version + profile/oauth ──
+        "voice_version_label": acc.voice_version_label,
+        "voice_version_seq": acc.voice_version_seq,
+        "voice_version_hash": acc.voice_version_hash,
         "followers": acc.followers,
         "posts_total": acc.posts_total,
         "registered_at": acc.registered_at,
@@ -65,36 +84,37 @@ def apply_account_update(account_id: str, body: AccountUpdateBody, repo: Account
 
     data = existing.model_dump()
     profile = data.setdefault("profile", {})
-    voice = data.setdefault("voice", {})
+    soul = data.setdefault("soul", {})          # write into soul, not voice
 
     if body.niche is not None:
-        niche = body.niche.strip() or existing.niche or aid
-        profile["niche"] = niche
+        profile["niche"] = body.niche.strip() or existing.niche or aid
     niche = profile.get("niche") or existing.niche or aid
 
     if body.twitter_handle is not None:
         profile["twitter_handle"] = body.twitter_handle.strip()
-
     if body.status is not None:
         profile["status"] = (body.status or "active").strip() or "active"
 
-    if body.system_prompt is not None:
-        sp = body.system_prompt.strip()
-        voice["system_prompt"] = sp if sp else default_system_prompt(niche)
+    # ── Soul updates ──
+    if body.posting_prompt is not None:
+        sp = body.posting_prompt.strip()
+        soul["posting_prompt"] = sp if sp else default_system_prompt(niche)
 
     if body.personality is not None:
-        voice["personality"] = body.personality.strip()
+        soul["personality"] = body.personality.strip()
 
-    if body.negative_semantics is not None:
-        cleaned = [s.strip() for s in body.negative_semantics if s and str(s).strip()]
-        voice["negative_semantics"] = cleaned if cleaned else default_negative_semantics()
+    if body.contrast_patterns is not None:
+        cleaned = [p.model_dump() for p in body.contrast_patterns if (p.text or "").strip()]
+        soul["contrast_patterns"] = cleaned if cleaned else default_contrast_patterns()
+
+    if body.punctuation_rules is not None:
+        cleaned = [r_.model_dump() for r_ in body.punctuation_rules if (r_.pattern or "").strip()]
+        soul["punctuation_rules"] = cleaned if cleaned else default_punctuation_rules()
 
     if body.followers is not None:
         profile["followers"] = body.followers
-
     if body.posts_total is not None:
         profile["posts_total"] = body.posts_total
-
     if body.search_queries is not None:
         profile["search_queries"] = [s.strip() for s in body.search_queries if s and str(s).strip()]
 

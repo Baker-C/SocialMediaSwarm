@@ -8,7 +8,6 @@ from app.services.post_metric_snapshot_repository import PostMetricSnapshotRepos
 from app.services.post_registry import TrackedPostRepository
 from app.services.ravendb_service import RavenDBService
 from app.services.voice_revision_repository import VoiceRevisionRepository
-from app.services.voice_polish_rules import get_voice_polish_rules
 
 router = APIRouter()
 repo = AccountRepository()
@@ -140,9 +139,3 @@ def list_fleet_pipeline_outcomes(
         raise HTTPException(status_code=503, detail=f"RavenDB error: {exc}") from exc
     outcomes = [r.model_dump(exclude_none=True) for r in rows]
     return {"count": len(outcomes), "outcomes": outcomes}
-
-
-@router.get("/voice-polish-rules")
-def get_voice_rules():
-    """Return voice polish rules applied to all generated posts."""
-    return get_voice_polish_rules()

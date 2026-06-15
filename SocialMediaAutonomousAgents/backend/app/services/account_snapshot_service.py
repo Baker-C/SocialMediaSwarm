@@ -69,9 +69,10 @@ def create_account_snapshot(
         total_views=total_views,
         total_reposts=total_reposts,
         total_comments=total_comments,
-        system_prompt=acc.system_prompt,
+        posting_prompt=acc.posting_prompt,
         personality=acc.personality,
-        negative_semantics=list(acc.negative_semantics),
+        contrast_patterns=list(acc.contrast_patterns or []),
+        punctuation_rules=list(acc.punctuation_rules or []),
     )
     snapshot_repo.save(snapshot)
     logger.info("account snapshot created account_id=%s", account_id)

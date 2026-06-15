@@ -11,8 +11,8 @@ from app.models.account import (
     AccountDocument,
     AccountPostingState,
     AccountProfile,
-    AccountVoice,
-    default_negative_semantics,
+    _soul_from_legacy,
+    default_soul,
     default_system_prompt,
 )
 from app.services.voice_version_service import bump_voice_version_if_needed
@@ -23,10 +23,11 @@ def _strip_metadata(doc: dict) -> dict:
 
 
 def normalize_account_document(raw: dict) -> dict:
-    """Map legacy flat account keys into nested profile/voice/posting groups."""
+    """Map any historical RavenDB shape into {account_id, profile, soul, posting}.
+    Soul construction is delegated to the model's _soul_from_legacy so there is ONE
+    mapping of legacy fields → soul (no drift between repo and model)."""
     d = _strip_metadata(raw)
     profile = dict(d.get("profile") or {})
-    voice = dict(d.get("voice") or {})
     posting = dict(d.get("posting") or {})
 
     profile.setdefault("niche", d.get("niche") or d.get("account_id") or "")
@@ -41,15 +42,13 @@ def normalize_account_document(raw: dict) -> dict:
         sq = d.get("search_queries")
     profile["search_queries"] = list(sq or [])
 
-    voice.setdefault("system_prompt", d.get("system_prompt") or "")
-    voice.setdefault("personality", d.get("personality") or "")
-    voice.setdefault("voice_version_hash", d.get("voice_version_hash"))
-    voice.setdefault("voice_version_seq", int(d.get("voice_version_seq") or 1))
-    voice.setdefault("voice_version_label", d.get("voice_version_label") or "v1")
-    neg = voice.get("negative_semantics")
-    if not neg:
-        neg = d.get("negative_semantics")
-    voice["negative_semantics"] = list(neg) if neg else default_negative_semantics()
+    # Soul: prefer an existing nested soul; else migrate from legacy `voice`; else from flat keys.
+    if d.get("soul"):
+        soul = dict(d["soul"])
+    elif d.get("voice"):
+        soul = _soul_from_legacy(dict(d["voice"]))   # legacy nested voice object
+    else:
+        soul = _soul_from_legacy(d)                   # very old flat document
 
     slot = posting.get("last_interval_slot")
     if slot is None:
@@ -69,7 +68,7 @@ def normalize_account_document(raw: dict) -> dict:
     return {
         "account_id": d.get("account_id"),
         "profile": profile,
-        "voice": voice,
+        "soul": soul,           # emit soul, not voice
         "posting": posting,
     }
 
@@ -79,14 +78,16 @@ def document_to_account(doc: dict) -> AccountDocument:
 
 
 def account_to_document(account: AccountDocument) -> dict:
+    """Serialize for storage. Soul is canonical; we never write a `voice` key.
+    Seed posting_prompt from the niche if somehow empty (keeps composes deterministic)."""
     d = account.model_dump(exclude_none=True)
     d.pop("@metadata", None)
+    d.pop("voice", None)                       # ensure no deprecated object is persisted
     profile = d.setdefault("profile", {})
-    voice = d.setdefault("voice", {})
-    if not voice.get("system_prompt"):
-        voice["system_prompt"] = default_system_prompt(profile.get("niche") or account.account_id)
-    if not voice.get("negative_semantics"):
-        voice["negative_semantics"] = default_negative_semantics()
+    soul = d.setdefault("soul", {})
+    if not soul.get("posting_prompt"):         # seed posting_prompt (was voice.system_prompt)
+        soul["posting_prompt"] = default_system_prompt(profile.get("niche") or account.account_id)
+    # NOTE: no negative_semantics backfill — contrast_patterns default via the model's factory.
     return d
 
 
@@ -149,10 +150,7 @@ class AccountRepository:
                     registered_at=now,
                     followers_when_registered=0,
                 ),
-                voice=AccountVoice(
-                    system_prompt=default_system_prompt(niche or account_id),
-                    negative_semantics=default_negative_semantics(),
-                ),
+                soul=default_soul(niche or account_id),   # full default soul
                 posting=AccountPostingState(),
             )
         else:

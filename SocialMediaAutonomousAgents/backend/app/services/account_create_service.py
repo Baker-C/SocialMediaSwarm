@@ -19,9 +19,10 @@ class AccountCreateBody(BaseModel):
     niche: str | None = Field(default=None, max_length=2000)
     twitter_handle: str | None = Field(default=None, max_length=500)
     status: str | None = Field(default="active", max_length=64)
-    system_prompt: str | None = Field(default=None, max_length=32000)
+    posting_prompt: str | None = Field(default=None, max_length=32000)   # was system_prompt
     personality: str | None = Field(default=None, max_length=16000)
-    negative_semantics: list[str] | None = None
+    contrast_patterns: list | None = None                                # was negative_semantics
+    punctuation_rules: list | None = None                                # NEW
 
 
 class AccountAlreadyExistsError(ValueError):
@@ -49,16 +50,18 @@ def apply_account_create(body: AccountCreateBody, repo: AccountRepository | None
 
     profile_fields = (
         body.status,
-        body.system_prompt,
+        body.posting_prompt,
         body.personality,
-        body.negative_semantics,
+        body.contrast_patterns,
+        body.punctuation_rules,
     )
     if any(v is not None for v in profile_fields):
         update = AccountUpdateBody(
             status=body.status,
-            system_prompt=body.system_prompt,
+            posting_prompt=body.posting_prompt,
             personality=body.personality,
-            negative_semantics=body.negative_semantics,
+            contrast_patterns=body.contrast_patterns,
+            punctuation_rules=body.punctuation_rules,
         )
         acc = apply_account_update(aid, update, repo=r)
 
