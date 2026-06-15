@@ -290,9 +290,7 @@ def _run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[st
             niche=account.niche,
             slot=ctx.slot,
             mode=ctx.mode,
-            account_system_prompt=(account.system_prompt or "").strip(),
             account_personality=(account.personality or "").strip(),
-            negative_semantics=list(account.negative_semantics or []),
             max_candidates=ctx.max_candidates,
         )
         trace_step(aid, "tick_input", tick_input, handoff_to="compose_and_safety")
@@ -326,9 +324,10 @@ def _run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[st
                 body = compose_formatted_post(
                     winner,
                     account.niche,
-                    account_system_prompt=(account.system_prompt or "").strip(),
+                    account_posting_prompt=(account.posting_prompt or "").strip(),
                     account_personality=(account.personality or "").strip(),
-                    negative_semantics=list(account.negative_semantics or []),
+                    contrast_patterns=list(account.contrast_patterns or []),
+                    punctuation_rules=list(account.punctuation_rules or []),
                     reference_context_block=reference_context_block,
                     regeneration_round=reg_round,
                     safety_reject_reason=candidate_reject if reg_round > 0 else None,

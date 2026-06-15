@@ -7,7 +7,8 @@ import re
 from dataclasses import dataclass
 
 from app.interval.tweet_topic_preanalysis import GatheredTweet
-from app.models.account import format_negative_semantics_for_prompt
+from app.models.account import format_contrast_patterns_for_prompt
+from app.interval.orchestration.voice_polish import polish_text
 from app.interval_crew import prompt_loader
 from app.infrastructure.claude_client import get_claude_client
 from app.agents.safety_guardian import is_niche_mismatch_reject
@@ -198,9 +199,9 @@ def _generate_post_parts(
     niche: str,
     budget: PostLengthBudget,
     *,
-    account_system_prompt: str = "",
+    account_posting_prompt: str = "",
     account_personality: str = "",
-    negative_semantics: list[str] | None = None,
+    contrast_patterns: list | None = None,
     reference_context_block: str = "",
     regeneration_round: int,
     length_attempt: int,
@@ -215,7 +216,7 @@ def _generate_post_parts(
 
     system = prompt_loader.load("tasks/compose_timeline_post.system.md")
     append_display = budget.link if budget.link else "(none — no link on this post)"
-    structure = (account_system_prompt or "").strip() or (
+    structure = (account_posting_prompt or "").strip() or (
         "Energetic, emotional opinion on the story and linked media, then a topic-tailored quip. "
         "Loose X grammar (spotty caps, emphatic NOT, ?!) — like someone in the country venting, not AI."
     )
@@ -223,9 +224,10 @@ def _generate_post_parts(
     user = prompt_loader.load_template(
         "tasks/compose_timeline_post.user.md",
         niche=(niche or "general").strip(),
-        account_system_prompt=structure,
+        account_system_prompt=structure,                # template var name kept (Task 07 relabels prose only)
         account_personality=_personality_section(account_personality),
-        negative_semantics_block=format_negative_semantics_for_prompt(negative_semantics),
+        # contrast patterns rendered as avoid/lean blocks (replaces negative_semantics_block)
+        negative_semantics_block=format_contrast_patterns_for_prompt(contrast_patterns),
         reference_context_block=ref_block,
         tweet_id=winner.tweet_id,
         popularity_score=winner.popularity_score,
@@ -268,9 +270,10 @@ def compose_formatted_post(
     winner: GatheredTweet,
     niche: str,
     *,
-    account_system_prompt: str = "",
+    account_posting_prompt: str = "",
     account_personality: str = "",
-    negative_semantics: list[str] | None = None,
+    contrast_patterns: list | None = None,
+    punctuation_rules: list | None = None,
     reference_context_block: str = "",
     regeneration_round: int = 0,
     safety_reject_reason: str | None = None,
@@ -293,15 +296,20 @@ def compose_formatted_post(
             winner,
             niche,
             budget,
-            account_system_prompt=account_system_prompt,
+            account_posting_prompt=account_posting_prompt,
             account_personality=account_personality,
-            negative_semantics=negative_semantics,
+            contrast_patterns=contrast_patterns,
             reference_context_block=reference_context_block,
             regeneration_round=regeneration_round,
             length_attempt=length_attempt,
             previous=previous,
             safety_reject_reason=safety_reject_reason,
         )
+        # Punctuation auto-fix BEFORE the budget check, so fixes that change length
+        # (em-dash → ", ", removals) can't push the assembled post over 280. Polish
+        # opinion and quip separately so the appended media URL is never mangled.
+        opinion = polish_text(opinion, punctuation_rules).polished
+        quip = polish_text(quip, punctuation_rules).polished
         if fits_post_budget(opinion, quip, budget):
             body = assemble_formatted_body(opinion, quip, source_url)
             logger.info(
@@ -322,6 +330,13 @@ def compose_formatted_post(
             COMPOSE_LENGTH_MAX_ATTEMPTS,
         )
 
+    # Emergency path: POLISH FIRST, THEN SHRINK — shrink must be the last length-changing
+    # step so the budget guarantee holds. (The em-dash → ", " rule GROWS length, so polishing
+    # AFTER shrink could re-inflate the post past 280 with no further check.) opinion/quip
+    # were already polished in the loop above, so this call is normally a no-op; shrink then
+    # trims to budget and is purely length-reducing.
+    opinion = polish_text(opinion, punctuation_rules).polished
+    quip = polish_text(quip, punctuation_rules).polished
     opinion, quip = _shrink_to_budget(opinion, quip, budget)
     body = assemble_formatted_body(opinion, quip, source_url)
     logger.warning(

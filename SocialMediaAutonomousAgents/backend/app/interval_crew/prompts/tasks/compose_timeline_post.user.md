@@ -1,12 +1,12 @@
 Account niche: {niche}
 
-Account personality (voice for the opinion section — follow closely; energetic, emotional, loose grammar, not AI):
+Account personality (the account's character and voice — follow closely; energetic, emotional, loose grammar, not AI):
 {account_personality}
 
-Post structure and formatting rules:
+Posting prompt (structure and formatting rules for this account):
 {account_system_prompt}
 
-Banned semantics, phrases, characters, and sentence structures (never use in opinion or quip):
+Voice guidance — patterns to avoid and patterns to lean into:
 {negative_semantics_block}
 
 Reference analysis (patterns from top external + own posts — nudge voice, not topic):
