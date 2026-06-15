@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from app.models.account import ContrastPattern, PunctuationRule
+
 
 class AccountSnapshotDocument(BaseModel):
-    """One captured snapshot of an account's profile, voice, and engagement totals."""
+    """One captured snapshot of an account's profile, soul, and engagement totals."""
 
     account_id: str
     created_at: str
@@ -19,9 +21,14 @@ class AccountSnapshotDocument(BaseModel):
     total_views: int = 0
     total_reposts: int = 0
     total_comments: int = 0
-    system_prompt: str = ""
+    # ── Soul snapshot (mirrors VoiceRevisionDocument) ──
     personality: str = ""
-    negative_semantics: list[str] = Field(default_factory=list)
+    posting_prompt: str = ""                                   # was system_prompt
+    contrast_patterns: list[ContrastPattern] = Field(default_factory=list)
+    punctuation_rules: list[PunctuationRule] = Field(default_factory=list)
+    # Read-only legacy passthrough for pre-refactor snapshots (same rationale as the revision).
+    system_prompt: str | None = None
+    negative_semantics: list[str] | None = None
     following_list: list[str] = Field(default_factory=list)
     follower_list: list[str] = Field(default_factory=list)
 

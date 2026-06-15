@@ -1,11 +1,34 @@
-"""Account document shape stored in RavenDB (collection Accounts)."""
+"""Account document shape stored in RavenDB (collection Accounts).
+
+The account's writing identity lives in `soul` (see AccountSoul). Older documents
+stored a flat layout or a `voice` object; `_lift_legacy_fields` migrates both into `soul`.
+"""
+
+from typing import Literal  # correlation enum for ContrastPattern
 
 from pydantic import AliasChoices, BaseModel, Field, model_validator
 
 
-def default_negative_semantics() -> list[str]:
-    """Phrases, structures, and stylistic tells to avoid in composed posts."""
-    return [
+# ─────────────────────────────────────────────────────────────────────────────
+# Soul defaults
+# ─────────────────────────────────────────────────────────────────────────────
+
+def default_system_prompt(niche: str) -> str:
+    """Default *posting* prompt (structural composition instructions) for a niche.
+    Name kept for compatibility with existing imports; it now seeds soul.posting_prompt."""
+    return (
+        f"Generate a post about {niche}. "
+        "Open with a shocked, opinionated hook (conversational, not newsy) and keep it as one long, "
+        "almost run-on sentence with commas—not a chain of short separate sentences. "
+        "Post length: 150-280 characters."
+    )
+
+
+def default_contrast_patterns() -> list[dict]:
+    """Default contrast patterns. These REPLACE the old negative_semantics list:
+    each former 'avoid this' string becomes a pattern with correlation='negative'.
+    Stored as plain dicts so Pydantic builds ContrastPattern instances on validation."""
+    negatives = [
         "\"It's not that, it's this\" / \"It's not X, it's Y\" false-dichotomy reframes",
         "Similar contrast gimmicks: \"The real story isn't … it's …\", \"This isn't about X, it's about Y\"",
         "Em dash (—) punctuation; use commas or periods instead",
@@ -16,23 +39,118 @@ def default_negative_semantics() -> list[str]:
         "Rhetorical question chains or faux-Socratic setup (\"The question isn't … it's …\")",
         "Numbered lesson lists, thread voice, or \"Lesson:\" / \"Thread:\" openers",
     ]
+    return [{"text": t, "correlation": "negative"} for t in negatives]
 
 
-def format_negative_semantics_for_prompt(items: list[str] | None) -> str:
-    """Bullet block for compose prompts."""
-    cleaned = [s.strip() for s in (items or []) if s and s.strip()]
-    if not cleaned:
-        cleaned = default_negative_semantics()
-    return "\n".join(f"- {line}" for line in cleaned)
+def default_punctuation_rules() -> list[dict]:
+    """Deterministic punctuation auto-fixes applied AFTER generation.
+    Pure formatting hygiene only — NOT the old ~80 banned phrases (those are archived
+    in docs/voice-banned-phrases-archive.md and intentionally not recreated here).
+    `replacement: None` means 'delete the match'."""
+    return [
+        {"pattern": r"\s*[—–]\s*", "replacement": ", "},           # em/en dash → comma
+        {"pattern": r"(?<=\w)\s*--\s*(?=\w)", "replacement": ", "},  # double hyphen between words → comma
+        {"pattern": r" {2,}", "replacement": " "},                   # collapse runs of spaces
+        {"pattern": r"\s+([,.!?;:])", "replacement": r"\1"},        # drop space before punctuation
+        {"pattern": r",\s*,", "replacement": ","},                   # ",," → ","
+        {"pattern": r"\.\s*\.", "replacement": "."},                # ".." → "."
+        {"pattern": r",\s*\.", "replacement": "."},                 # ",." → "."
+        {"pattern": r"^[,;:\s]+", "replacement": ""},               # strip leading punctuation/space
+    ]
 
 
-def default_system_prompt(niche: str) -> str:
-    return (
-        f"Generate a post about {niche}. "
-        "Open with a shocked, opinionated hook (conversational, not newsy) and keep it as one long, "
-        "almost run-on sentence with commas—not a chain of short separate sentences. "
-        "Post length: 150-280 characters."
+def format_contrast_patterns_for_prompt(patterns: "list[ContrastPattern] | list[dict] | None") -> str:
+    """Render contrast patterns into a compose-prompt block, split by correlation.
+    Negative → things to avoid; positive → things to lean into. Replaces
+    format_negative_semantics_for_prompt(). Accepts model instances or raw dicts."""
+    def _text(p) -> str:
+        return (p.text if isinstance(p, ContrastPattern) else str(p.get("text", ""))).strip()
+
+    def _corr(p) -> str:
+        return p.correlation if isinstance(p, ContrastPattern) else str(p.get("correlation", "negative"))
+
+    items = [p for p in (patterns or []) if _text(p)]
+    if not items:
+        items = [ContrastPattern.model_validate(d) for d in default_contrast_patterns()]
+
+    avoid = [_text(p) for p in items if _corr(p) == "negative"]
+    lean = [_text(p) for p in items if _corr(p) == "positive"]
+
+    blocks: list[str] = []
+    if avoid:
+        blocks.append("Avoid these patterns and tells:\n" + "\n".join(f"- {t}" for t in avoid))
+    if lean:
+        blocks.append("Lean into these patterns:\n" + "\n".join(f"- {t}" for t in lean))
+    return "\n\n".join(blocks)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Soul building blocks
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ContrastPattern(BaseModel):
+    """A writing pattern the LLM should avoid or favor.
+    correlation drives how it is rendered into the prompt (see format_contrast_patterns_for_prompt)."""
+    text: str
+    correlation: Literal["positive", "negative"] = "negative"
+
+
+class PunctuationRule(BaseModel):
+    """A deterministic regex auto-fix applied to generated text.
+    replacement=None deletes the match; otherwise substitutes."""
+    pattern: str
+    replacement: str | None = None
+
+
+class AccountSoul(BaseModel):
+    """The writing identity of an account: who it is and how its text is shaped."""
+    # Prose describing character, likes/dislikes, reactions to people/topics, tone quirks
+    # (e.g. occasional lowercase sentence starts). This is the primary LLM steering text.
+    personality: str = Field(default="")
+    # Structural instructions for composing a post (was AccountVoice.system_prompt).
+    posting_prompt: str = Field(default="")
+    # LLM guidance: avoid (negative) / lean into (positive). Replaces negative_semantics.
+    contrast_patterns: list[ContrastPattern] = Field(default_factory=default_contrast_patterns)
+    # Deterministic post-generation punctuation hygiene (auto-fix; never regenerate).
+    punctuation_rules: list[PunctuationRule] = Field(default_factory=default_punctuation_rules)
+    # Version stamp; bumps when ANY field above changes (see voice_version_service).
+    voice_version_hash: str | None = None
+    voice_version_seq: int = 1
+    voice_version_label: str | None = "v1"
+
+
+def default_soul(niche: str) -> AccountSoul:
+    """Fresh soul for a new account; posting_prompt is seeded from the niche."""
+    return AccountSoul(
+        personality="",
+        posting_prompt=default_system_prompt(niche),
+        contrast_patterns=[ContrastPattern.model_validate(d) for d in default_contrast_patterns()],
+        punctuation_rules=[PunctuationRule.model_validate(d) for d in default_punctuation_rules()],
     )
+
+
+def _soul_from_legacy(src: dict) -> dict:
+    """Build a soul dict from a legacy flat doc or legacy `voice` object.
+    - posting_prompt ← system_prompt
+    - personality    ← personality
+    - contrast_patterns ← negative_semantics mapped to correlation='negative'
+      (falls back to defaults when absent)
+    - punctuation_rules ← defaults (legacy docs never had these)
+    Version stamp is carried over so we don't reset history on migration."""
+    neg = src.get("negative_semantics")
+    contrast = (
+        [{"text": s, "correlation": "negative"} for s in neg if s and str(s).strip()]
+        if neg else default_contrast_patterns()
+    )
+    return {
+        "personality": src.get("personality") or "",
+        "posting_prompt": src.get("system_prompt") or src.get("posting_prompt") or "",
+        "contrast_patterns": contrast,
+        "punctuation_rules": src.get("punctuation_rules") or default_punctuation_rules(),
+        "voice_version_hash": src.get("voice_version_hash"),
+        "voice_version_seq": int(src.get("voice_version_seq") or 1),
+        "voice_version_label": src.get("voice_version_label") or "v1",
+    }
 
 
 class AccountProfile(BaseModel):
@@ -46,17 +164,6 @@ class AccountProfile(BaseModel):
     followers_when_registered: int | None = None
     # Raw X recent-search queries for reference ingestion (see data.search_fetch)
     search_queries: list[str] = Field(default_factory=list)
-
-
-class AccountVoice(BaseModel):
-    system_prompt: str = Field(default="")
-    # Voice profile for opinion section and tone (personality page / account character)
-    personality: str = Field(default="")
-    # Banned semantics/phrases/structures for compose (see format_negative_semantics_for_prompt)
-    negative_semantics: list[str] = Field(default_factory=default_negative_semantics)
-    voice_version_hash: str | None = None
-    voice_version_seq: int = 1
-    voice_version_label: str | None = "v1"
 
 
 class AccountPostingState(BaseModel):
@@ -77,17 +184,30 @@ class AccountDocument(BaseModel):
 
     account_id: str
     profile: AccountProfile
-    voice: AccountVoice = Field(default_factory=AccountVoice)
+    # soul replaces the old `voice` object as the single writing-identity source.
+    soul: AccountSoul = Field(default_factory=AccountSoul)
     posting: AccountPostingState = Field(default_factory=AccountPostingState)
 
     @model_validator(mode="before")
     @classmethod
     def _lift_legacy_fields(cls, value: object) -> object:
+        """Accept three shapes and normalize to {account_id, profile, soul, posting}:
+          (A) already-nested NEW docs (have 'soul')         → pass through
+          (B) nested docs with legacy 'voice' but no 'soul' → migrate voice → soul
+          (C) old flat docs (no 'profile')                  → lift everything into groups
+        """
         if not isinstance(value, dict):
             return value
+
+        # (A)/(B): already nested (has 'profile')
         if "profile" in value:
+            if "soul" not in value or not value.get("soul"):
+                legacy_voice = value.get("voice") or {}
+                value["soul"] = _soul_from_legacy(legacy_voice)
+            value.pop("voice", None)  # drop deprecated object; soul is canonical
             return value
 
+        # (C): old flat document — lift profile/soul/posting out of top-level keys
         return {
             "account_id": value.get("account_id"),
             "profile": {
@@ -100,14 +220,7 @@ class AccountDocument(BaseModel):
                 "followers_when_registered": value.get("followers_when_registered"),
                 "search_queries": list(value.get("search_queries") or []),
             },
-            "voice": {
-                "system_prompt": value.get("system_prompt") or "",
-                "personality": value.get("personality") or "",
-                "negative_semantics": value.get("negative_semantics") or default_negative_semantics(),
-                "voice_version_hash": value.get("voice_version_hash"),
-                "voice_version_seq": int(value.get("voice_version_seq") or 1),
-                "voice_version_label": value.get("voice_version_label") or "v1",
-            },
+            "soul": _soul_from_legacy(value),  # reads system_prompt/personality/negative_semantics if present
             "posting": {
                 "last_interval_slot": value.get("last_interval_slot") or value.get("last_post_slot"),
                 "last_post_id": value.get("last_post_id"),
@@ -118,7 +231,7 @@ class AccountDocument(BaseModel):
             },
         }
 
-    # Compatibility accessors while call sites migrate.
+    # ── Profile accessors (compatibility while call sites migrate) ──
     @property
     def niche(self) -> str:
         return self.profile.niche
@@ -183,54 +296,79 @@ class AccountDocument(BaseModel):
     def search_queries(self, value: list[str]) -> None:
         self.profile.search_queries = value
 
+    # ── Soul accessors (kept to shield existing call sites; now back soul) ──
     @property
     def system_prompt(self) -> str:
-        return self.voice.system_prompt
+        return self.soul.posting_prompt
 
     @system_prompt.setter
     def system_prompt(self, value: str) -> None:
-        self.voice.system_prompt = value
+        self.soul.posting_prompt = value
+
+    @property
+    def posting_prompt(self) -> str:        # canonical accessor
+        return self.soul.posting_prompt
+
+    @posting_prompt.setter
+    def posting_prompt(self, value: str) -> None:
+        self.soul.posting_prompt = value
 
     @property
     def personality(self) -> str:
-        return self.voice.personality
+        return self.soul.personality
 
     @personality.setter
     def personality(self, value: str) -> None:
-        self.voice.personality = value
+        self.soul.personality = value
 
     @property
-    def negative_semantics(self) -> list[str]:
-        return self.voice.negative_semantics
+    def contrast_patterns(self) -> list[ContrastPattern]:
+        return self.soul.contrast_patterns
 
-    @negative_semantics.setter
-    def negative_semantics(self, value: list[str]) -> None:
-        self.voice.negative_semantics = value
+    @contrast_patterns.setter
+    def contrast_patterns(self, value: list[ContrastPattern]) -> None:
+        self.soul.contrast_patterns = value
+
+    @property
+    def punctuation_rules(self) -> list[PunctuationRule]:
+        return self.soul.punctuation_rules
+
+    @punctuation_rules.setter
+    def punctuation_rules(self, value: list[PunctuationRule]) -> None:
+        self.soul.punctuation_rules = value
 
     @property
     def voice_version_hash(self) -> str | None:
-        return self.voice.voice_version_hash
+        return self.soul.voice_version_hash
 
     @voice_version_hash.setter
     def voice_version_hash(self, value: str | None) -> None:
-        self.voice.voice_version_hash = value
+        self.soul.voice_version_hash = value
 
     @property
     def voice_version_seq(self) -> int:
-        return self.voice.voice_version_seq
+        return self.soul.voice_version_seq
 
     @voice_version_seq.setter
     def voice_version_seq(self, value: int) -> None:
-        self.voice.voice_version_seq = value
+        self.soul.voice_version_seq = value
 
     @property
     def voice_version_label(self) -> str | None:
-        return self.voice.voice_version_label
+        return self.soul.voice_version_label
 
     @voice_version_label.setter
     def voice_version_label(self, value: str | None) -> None:
-        self.voice.voice_version_label = value
+        self.soul.voice_version_label = value
 
+    # NOTE: the `negative_semantics` accessor is INTENTIONALLY REMOVED.
+    #       Every reader was swept to contrast_patterns/soul fields:
+    #         - runner.py compose call + TickInput construction (Task 06)
+    #         - account_snapshot_service.py (Task 02 addendum)
+    #         - voice_version_service.py (Task 05)
+    #         - account_update_service / account_repository (dict, not accessor) (03/04)
+
+    # ── Posting-state accessors ──
     @property
     def last_interval_slot(self) -> str | None:
         return self.posting.last_interval_slot
