@@ -6,20 +6,16 @@ import {
   computeFleetKpis,
 } from '../../analytics/selectors/fleetKpis';
 import { isStaleFetch } from '../../lib/format';
-import { apiBaseUrl } from '../../api/client';
-import { ForcePostSection } from '../operations/ForcePostSection';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { StatTile } from '../../components/layout/StatTile';
 import { useAccounts } from '../../hooks/queries/useAccounts';
 import { useDashboard } from '../../hooks/queries/useDashboard';
-import { useAppContext } from '../../app/AppContext';
 import { AccountLeaderboard, OpsAlertStrip } from './FleetComponents';
 
 export function FleetOverviewPage() {
   const dashboardQuery = useDashboard();
   const accountsQuery = useAccounts();
   const queryClient = useQueryClient();
-  const { apiBase } = useAppContext();
 
   const accounts = accountsQuery.data ?? [];
   const kpis = computeFleetKpis(dashboardQuery.data, accounts);
@@ -83,14 +79,6 @@ export function FleetOverviewPage() {
 
       <OpsAlertStrip alerts={alerts} />
       <AccountLeaderboard rows={leaderboard} />
-
-      <section className="fleet-operations" aria-label="Operations">
-        <ForcePostSection
-          apiBase={apiBase || apiBaseUrl()}
-          accounts={accounts}
-          onComplete={() => void queryClient.invalidateQueries()}
-        />
-      </section>
     </div>
   );
 }

@@ -93,8 +93,10 @@ const stepCard: CSSProperties = {
   marginBottom: '0.6rem',
 };
 
+const PANEL_MAX_HEIGHT = 400;
+
 const docPre: CSSProperties = {
-  maxHeight: 220,
+  maxHeight: 120,
   overflow: 'auto',
   background: 'hsl(var(--background))',
   border: '1px solid hsl(var(--border))',
@@ -207,7 +209,15 @@ export function LatestRunPanel({ accountId }: { accountId: string }) {
   return (
     <section style={card} aria-label="Latest post pipeline run">
       <RunHeader run={run} />
-      <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+      <ol
+        style={{
+          listStyle: 'none',
+          margin: 0,
+          padding: 0,
+          maxHeight: PANEL_MAX_HEIGHT,
+          overflow: 'auto',
+        }}
+      >
         {run.steps.map((step: PipelineStepRecord) => (
           <StepRow key={`${step.scope}:${step.step_id}`} step={step} />
         ))}
