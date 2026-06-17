@@ -37,7 +37,8 @@ def _account_public(acc: AccountDocument, oauth: TwitterOAuth2Service | None = N
 
     return {
         "account_id": acc.account_id,
-        "niche": acc.niche,
+        "category": acc.category,
+        "niches": [n.model_dump() for n in acc.niches],
         "twitter_handle": acc.twitter_handle,
         "status": acc.status,
         "followers": acc.followers,
@@ -49,7 +50,6 @@ def _account_public(acc: AccountDocument, oauth: TwitterOAuth2Service | None = N
         "recent_post": recent_post,
         "voice_version_label": acc.voice_version_label,
         "voice_version_seq": acc.voice_version_seq,
-        "search_queries_count": len(acc.search_queries),
         "copied_reference_count": len(acc.copied_reference_tweet_ids),
     }
 
@@ -140,7 +140,7 @@ class RavenDBService:
                     "accounts_without_posts": 0,
                     "computed_at": computed_at,
                 }
-            top_niche = Counter(a.niche for a in accs).most_common(1)[0][0]
+            top_niche = Counter(a.category for a in accs).most_common(1)[0][0]
             all_engagement: list[float] = []
             all_reply_rates: list[float] = []
             total_tracked = 0

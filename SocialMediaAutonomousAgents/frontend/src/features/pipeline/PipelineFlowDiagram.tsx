@@ -1,11 +1,21 @@
-import type { CSSProperties } from 'react';
+/* ────────────────────────────────────────────────────────────────────────────
+ * ⚠️  KEEP IN SYNC WITH THE BACKEND RUNBOOK.
+ *
+ * This component renders the post-tick pipeline defined in
+ *   backend/app/pipeline/runbooks/post_tick.py  (POST_TICK_REFERENCE_STEPS).
+ * The flow it draws comes from ./lib/pipeline/flowGraph.ts, which mirrors that
+ * runbook step-for-step. If you change the runbook, update flowGraph.ts (and
+ * therefore this display); if you change the display, make sure it still matches
+ * the runbook. One should never drift from the other.
+ * ──────────────────────────────────────────────────────────────────────────── */
+import { Fragment } from 'react';
 import {
-  PIPELINE_FLOW_LANE_LABELS,
-  PIPELINE_FLOW_LANE_ORDER,
-  PIPELINE_FLOW_NODES,
-  type FlowLayer,
+  EXTERNAL_LABELS,
+  PIPELINE_FLOW,
+  type FlowNodeDef,
+  type FlowRow,
 } from '../../lib/pipeline/flowGraph';
-import type { FlowNodeState } from '../../types/pipelineProgress';
+import type { FlowNodeState, FlowNodeStatus } from '../../types/pipelineProgress';
 
 type PipelineFlowDiagramProps = {
   nodeState: FlowNodeState;
@@ -13,17 +23,54 @@ type PipelineFlowDiagramProps = {
   error: string | null;
 };
 
-const LANE_ACCENT: Record<FlowLayer, string> = {
-  entry: '#a855f7',
-  orchestrator: '#3b82f6',
-  runbook: '#3b82f6',
-  tools: '#f97316',
-  persistence: '#22c55e',
-  external: '#22c55e',
-};
+function statusOf(nodeState: FlowNodeState, id: string): FlowNodeStatus {
+  return nodeState[id] ?? 'pending';
+}
 
-function nodesForLayer(layer: FlowLayer) {
-  return PIPELINE_FLOW_NODES.filter((n) => n.layer === layer);
+function NodeCard({ node, status }: { node: FlowNodeDef; status: FlowNodeStatus }) {
+  return (
+    <div
+      className={`pflow-node pflow-node--${status}`}
+      aria-current={status === 'active' ? 'step' : undefined}
+    >
+      <span className="pflow-node__title">{node.label}</span>
+      {node.subtext ? <span className="pflow-node__sub">{node.subtext}</span> : null}
+      {node.external ? (
+        <span className={`pflow-node__ext pflow-node__ext--${status}`}>
+          {EXTERNAL_LABELS[node.external]}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+const Arrow = () => <div className="pflow-arrow" aria-hidden="true" />;
+
+function Row({ row, nodeState }: { row: FlowRow; nodeState: FlowNodeState }) {
+  if (row.type === 'step') {
+    return <NodeCard node={row.node} status={statusOf(nodeState, row.node.id)} />;
+  }
+  return (
+    <div className="pflow-parallel">
+      <div className="pflow-parallel__head">
+        <span className="pflow-parallel__badge">∥ parallel</span>
+        <span className="pflow-parallel__note">{row.note}</span>
+      </div>
+      <div className="pflow-parallel__branches">
+        {row.branches.map((branch) => (
+          <div key={branch.id} className="pflow-branch">
+            <span className="pflow-branch__label">{branch.label}</span>
+            {branch.steps.map((step, i) => (
+              <Fragment key={step.id}>
+                {i > 0 ? <Arrow /> : null}
+                <NodeCard node={step} status={statusOf(nodeState, step.id)} />
+              </Fragment>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function PipelineFlowDiagram({ nodeState, running, error }: PipelineFlowDiagramProps) {
@@ -44,42 +91,24 @@ export function PipelineFlowDiagram({ nodeState, running, error }: PipelineFlowD
         ) : null}
       </div>
 
-      <div className="pipeline-flow__lanes">
-        {PIPELINE_FLOW_LANE_ORDER.map((layer) => {
-          const nodes = nodesForLayer(layer);
-          if (nodes.length === 0) {
-            return null;
-          }
-          return (
+      <div className="pflow">
+        {PIPELINE_FLOW.map((section, sIdx) => (
+          <Fragment key={section.id}>
+            {sIdx > 0 ? <Arrow /> : null}
             <section
-              key={layer}
-              className={`pipeline-flow__lane pipeline-flow__lane--${layer}`}
-              style={{ '--lane-accent': LANE_ACCENT[layer] } as CSSProperties}
-              aria-label={PIPELINE_FLOW_LANE_LABELS[layer]}
+              className={`pflow-section ${section.label ? 'pflow-section--labelled' : ''}`}
+              aria-label={section.label}
             >
-              <h4 className="pipeline-flow__lane-title">{PIPELINE_FLOW_LANE_LABELS[layer]}</h4>
-              <div className="pipeline-flow__lane-body">
-                {nodes.map((node) => {
-                  const status = nodeState[node.id] ?? 'pending';
-                  return (
-                    <div
-                      key={node.id}
-                      className={`pipeline-flow__node pipeline-flow__node--${status} ${
-                        node.kind === 'satellite' ? 'pipeline-flow__node--satellite' : ''
-                      }`}
-                      aria-current={status === 'active' ? 'step' : undefined}
-                    >
-                      <span className="pipeline-flow__node-title">{node.label}</span>
-                      {node.subtext ? (
-                        <span className="pipeline-flow__node-sub">{node.subtext}</span>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
+              {section.label ? <h4 className="pflow-section__label">{section.label}</h4> : null}
+              {section.rows.map((row, rIdx) => (
+                <Fragment key={row.type === 'step' ? row.node.id : row.id}>
+                  {rIdx > 0 ? <Arrow /> : null}
+                  <Row row={row} nodeState={nodeState} />
+                </Fragment>
+              ))}
             </section>
-          );
-        })}
+          </Fragment>
+        ))}
       </div>
     </div>
   );

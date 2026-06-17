@@ -6,11 +6,12 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from app.api.routes import accounts, analytics, oauth, posts, dashboard, health, force_post, pipeline_runs
+from app.api.routes import accounts, analytics, oauth, posts, dashboard, health, force_post, pipeline_runs, auth
+from app.api.routes.auth import require_auth
 from app.core.config import settings
 from app.infrastructure.nats_client import get_nats_client
 from app.infrastructure.scheduler_lock import release_scheduler_lock, try_acquire_scheduler_lock
@@ -151,6 +152,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Social Media Backend", lifespan=lifespan)
 
+_extra_origins = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -158,6 +161,7 @@ app.add_middleware(
         "http://localhost:3001",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
+        *_extra_origins,
     ],
     allow_origin_regex=r"^http://(localhost|127\.0\.0\.1):\d+$",
     allow_credentials=True,
@@ -165,11 +169,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Routers reachable without a session token: health probes, the login endpoint
+# itself, and OAuth (the X callback is hit by Twitter's servers, which cannot send
+# our bearer token).
 app.include_router(health.router, prefix="/api", tags=["health"])
+app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(oauth.router, prefix="/api", tags=["oauth"])
-app.include_router(accounts.router, prefix="/api", tags=["accounts"])
-app.include_router(analytics.router, prefix="/api", tags=["analytics"])
-app.include_router(force_post.router, prefix="/api", tags=["force-post"])
-app.include_router(pipeline_runs.router, prefix="/api", tags=["pipeline-runs"])
-app.include_router(posts.router, prefix="/api", tags=["posts"])
-app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
+
+# Everything below requires a valid login token when DASHBOARD_PASSWORD is set.
+_auth = [Depends(require_auth)]
+app.include_router(accounts.router, prefix="/api", tags=["accounts"], dependencies=_auth)
+app.include_router(analytics.router, prefix="/api", tags=["analytics"], dependencies=_auth)
+app.include_router(force_post.router, prefix="/api", tags=["force-post"], dependencies=_auth)
+app.include_router(pipeline_runs.router, prefix="/api", tags=["pipeline-runs"], dependencies=_auth)
+app.include_router(posts.router, prefix="/api", tags=["posts"], dependencies=_auth)
+app.include_router(dashboard.router, prefix="/api", tags=["dashboard"], dependencies=_auth)

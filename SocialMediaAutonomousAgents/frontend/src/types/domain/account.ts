@@ -5,9 +5,18 @@ export type RecentPost = {
   views?: number | null;
 };
 
+export type NicheScore = {
+  niche: string;
+  score: number;
+  times_updated: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AccountSummary = {
   account_id: string;
-  niche: string;
+  category: string;
+  niches?: NicheScore[];
   twitter_handle: string;
   status: string;
   followers: number;
@@ -19,7 +28,6 @@ export type AccountSummary = {
   recent_post?: RecentPost | null;
   voice_version_label?: string | null;
   voice_version_seq?: number | null;
-  search_queries_count?: number | null;
   copied_reference_count?: number | null;
   copied_reference_tweet_ids?: string[];
 };
@@ -36,7 +44,8 @@ export type PunctuationRule = {
 
 export type AccountEditPayload = {
   account_id: string;
-  niche: string;
+  category: string;
+  niches?: NicheScore[];
   twitter_handle: string;
   status: string;
   posting_prompt: string;
@@ -55,6 +64,8 @@ export type AccountEditPayload = {
 export type AccountVoiceDetail = {
   account_id: string;
   // soul
+  category?: string;
+  niches?: NicheScore[];
   posting_prompt: string; // was system_prompt
   personality?: string;
   contrast_patterns?: ContrastPattern[]; // was negative_semantics

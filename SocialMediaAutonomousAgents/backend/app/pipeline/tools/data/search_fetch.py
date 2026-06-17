@@ -25,6 +25,7 @@ def run(
     authenticated_user_id: str | None = None,
     account_id: str | None = None,
     slot: str | None = None,
+    max_results_per_query: int | None = None,
 ) -> StepResult:
     aid = (account_id or ctx.account_id).strip()
     slot_key = (slot or ctx.slot).strip()
@@ -33,6 +34,7 @@ def run(
         queries=queries,
         slot=slot_key,
         authenticated_user_id=authenticated_user_id,
+        max_results_per_query=max_results_per_query,
     )
     ctx.set_artifact(ArtifactKey.SEARCH_REFERENCES, payload)
     return StepResult(ok=True, payload={"search_references": payload})

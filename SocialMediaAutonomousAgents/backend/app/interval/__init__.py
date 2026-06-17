@@ -1,10 +1,8 @@
-"""Interval posting tick: gateway-style orchestration (pre → crew → post)."""
+"""Interval posting tick: gateway-style orchestration (pre → compose → post)."""
 
-from app.interval.schemas import TickBrief, TickInput, TickMode, TickOutput
+from app.interval.schemas import TickInput, TickMode
 
 __all__ = [
-    "TickBrief",
     "TickInput",
     "TickMode",
-    "TickOutput",
 ]

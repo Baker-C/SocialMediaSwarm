@@ -89,6 +89,9 @@ services:
 
       TICK_PIPELINE_TRACE: "false"
 
+      # Browser origins allowed by CORS — add your Vercel site here (localhost is always allowed).
+      # ALLOWED_ORIGINS: "https://your-app.vercel.app"
+
       TWITTER_OAUTH2_REDIRECT_URI: "http://localhost:8000/api/oauth/x/callback"
 
       TWITTER_OAUTH2_SUCCESS_REDIRECT_URL: "http://localhost:3000"

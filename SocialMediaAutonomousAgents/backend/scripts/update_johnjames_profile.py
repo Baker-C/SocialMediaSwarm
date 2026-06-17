@@ -36,7 +36,7 @@ def main() -> None:
     acc = repo.load(ACCOUNT_ID)
     if acc is None:
         raise SystemExit(f"Account not found: {ACCOUNT_ID}")
-    acc.niche = NICHE
+    acc.category = NICHE
     acc.personality = PERSONALITY
     acc.posting_prompt = SYSTEM_PROMPT
     acc.contrast_patterns = [ContrastPattern.model_validate(d) for d in default_contrast_patterns()]
@@ -44,7 +44,7 @@ def main() -> None:
     print(
         {
             "account_id": acc.account_id,
-            "niche": acc.niche,
+            "category": acc.category,
             "personality_len": len(acc.personality or ""),
             "posting_prompt_len": len(acc.posting_prompt or ""),
             "contrast_patterns_count": len(acc.contrast_patterns or []),

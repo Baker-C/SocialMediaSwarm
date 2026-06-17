@@ -100,7 +100,6 @@ def test_runner_tries_next_reference_on_niche_mismatch() -> None:
         ctx = build_tick_context(
             repo=repo,
             twitter=tw,
-            creator=MagicMock(),
             guardian=guardian,
             tick_data=MagicMock(),
             post_registry=None,

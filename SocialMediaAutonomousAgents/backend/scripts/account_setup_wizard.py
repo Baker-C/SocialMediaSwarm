@@ -18,12 +18,12 @@ from app.jobs.create_account_job import CreateAccountJobError, run_create_accoun
 @click.command()
 def main() -> None:
     account_id = click.prompt("account_id")
-    niche = click.prompt("niche", default=account_id, show_default=True)
+    category = click.prompt("category", default=account_id, show_default=True)
     handle = click.prompt("twitter_handle", default="", show_default=False)
     try:
         acc = run_create_account_job(
             account_id=account_id,
-            niche=niche,
+            category=category,
             twitter_handle=handle or "",
         )
     except CreateAccountJobError as exc:

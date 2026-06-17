@@ -1,6 +1,7 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
+from app.core.config import settings
 from app.models.account import AccountDocument
 from app.models.post_metric_snapshot import PostMetricSnapshotDocument
 from app.services.pipeline_outcome_repository import PipelineOutcomeRepository
@@ -20,18 +21,38 @@ def run_engagement_job() -> dict:
     tw = TwitterService(repo)
     snapshots = PostMetricSnapshotRepository()
     outcomes = PipelineOutcomeRepository()
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(hours=max(1, int(settings.metrics_poll_window_hours)))
+    ).isoformat()
     rows: list[dict] = []
     for acc in repo.list_active():
         aid = acc.account_id
-        tweet_ids = trepo.list_tweet_ids(aid)
+        # Window + dead-mark: poll only live posts inside the engagement window.
+        poll_rows = trepo.live_rows_for_polling(aid, since=cutoff)
+        tweet_ids = [str(r.get("tweet_id")) for r in poll_rows if r.get("tweet_id")]
         if not tweet_ids:
             rows.append({"account_id": aid, "status": "no_tracked_posts"})
             continue
         updated = 0
         last_err: str | None = None
-        for tid in tweet_ids:
+        try:
+            metrics_by_id, missing = tw.get_posts_metrics(aid, tweet_ids)
+        except Exception as exc:
+            last_err = str(exc)
+            logger.warning("engagement_job batch metrics %s: %s", aid, exc)
+            metrics_by_id, missing = {}, []
+            if "402" in last_err:
+                outcomes.append(
+                    account_id=aid,
+                    phase="engagement_job",
+                    status="partial_or_failed",
+                    reason="x_metrics_402",
+                    details={"error": last_err},
+                )
+        for tid in missing:  # gone from X — never poll again
+            trepo.mark_deleted(aid, tid)
+        for tid, m in metrics_by_id.items():
             try:
-                m = tw.get_tweet_metrics(aid, tid)
                 m["follower_delta"] = account_follower_delta(acc)
                 m.update(compute_rates(m))
                 trepo.update_metrics(aid, tid, m)
@@ -58,30 +79,15 @@ def run_engagement_job() -> dict:
                 updated += 1
             except Exception as exc:
                 last_err = str(exc)
-                logger.warning("engagement_job metrics %s %s: %s", aid, tid, exc)
-                if "402" in last_err:
-                    outcomes.append(
-                        account_id=aid,
-                        phase="engagement_job",
-                        status="partial_or_failed",
-                        reason="x_metrics_402",
-                        details={"tweet_id": tid, "error": last_err},
-                    )
+                logger.warning("engagement_job persist %s %s: %s", aid, tid, exc)
         status = "ok" if updated else "partial_or_failed"
-        if updated == 0 and last_err:
-            status = "partial_or_failed"
         fresh = repo.load(aid)
-        if fresh and fresh.last_post_id and fresh.last_post_id in tweet_ids:
-            try:
-                m = tw.get_tweet_metrics(aid, fresh.last_post_id)
-                imp = m.get("impression_count")
-                if isinstance(imp, int):
-                    data = fresh.model_dump()
-                    data["last_post_views"] = imp
-                    repo.save(AccountDocument.model_validate(data))
-            except Exception as exc:
-                last_err = str(exc)
-                logger.warning("engagement_job account last_post_views %s: %s", aid, exc)
+        if fresh and fresh.last_post_id and fresh.last_post_id in metrics_by_id:
+            imp = metrics_by_id[fresh.last_post_id].get("impression_count")
+            if isinstance(imp, int):
+                data = fresh.model_dump()
+                data["last_post_views"] = imp
+                repo.save(AccountDocument.model_validate(data))
         rows.append(
             {
                 "account_id": aid,

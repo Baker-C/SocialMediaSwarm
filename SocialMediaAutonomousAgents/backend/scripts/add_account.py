@@ -18,12 +18,12 @@ from app.jobs.create_account_job import CreateAccountJobError, run_create_accoun
 
 @click.command()
 @click.option("--account-id", default=None)
-@click.option("--niche", default=None)
+@click.option("--category", "--niche", "category", default=None)
 @click.option("--twitter-handle", default="")
 @click.option("--json-file", type=click.Path(exists=True, dir_okay=False), default=None)
 def main(
     account_id: str | None,
-    niche: str | None,
+    category: str | None,
     twitter_handle: str,
     json_file: str | None,
 ) -> None:
@@ -31,14 +31,14 @@ def main(
         with open(json_file, encoding="utf-8") as f:
             payload = json.load(f)
         account_id = payload["account_id"]
-        niche = payload.get("niche")
+        category = payload.get("category") or payload.get("niche")
         twitter_handle = payload.get("twitter_handle", "")
     if not account_id:
         raise click.ClickException("--account-id is required (or use --json-file).")
     try:
         acc = run_create_account_job(
             account_id=account_id,
-            niche=niche,
+            category=category,
             twitter_handle=twitter_handle or "",
         )
     except CreateAccountJobError as exc:

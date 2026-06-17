@@ -137,7 +137,7 @@ export function ForcePostSection({ apiBase, accounts, onComplete }: ForcePostSec
             >
               {activeAccounts.map((a) => (
                 <option key={a.account_id} value={a.account_id}>
-                  {a.account_id} · {a.niche}
+                  {a.account_id} · {a.category}
                 </option>
               ))}
             </select>

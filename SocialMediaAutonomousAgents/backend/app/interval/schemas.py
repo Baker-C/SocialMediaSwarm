@@ -1,10 +1,10 @@
-"""Shared contracts between orchestration and interval_crew runtime."""
+"""Shared contracts for the interval orchestration tick."""
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 TickMode = Literal["scheduled", "force"]
 
@@ -14,27 +14,5 @@ class TickInput(BaseModel):
     niche: str
     slot: str
     mode: TickMode = "scheduled"
-    # account_system_prompt is still read by the LEGACY interval_crew pipeline
-    # (app/interval_crew/runner.py), which is NOT wired into the live tick path
-    # (app/interval/runner.py only uses tick_input for tracing). Kept to avoid a
-    # latent break in that dead path; slated for removal with interval_crew.
-    account_system_prompt: str = ""
     account_personality: str = ""
-    # negative_semantics REMOVED: the soul refactor drops this vocabulary; the live
-    # runner no longer constructs it and contrast_patterns now flow directly into compose.
     max_candidates: int = 5
-
-
-class TickBrief(BaseModel):
-    account_bundle: dict[str, Any] = Field(default_factory=dict)
-    niche_bundle: dict[str, Any] = Field(default_factory=dict)
-    analysis: dict[str, Any] = Field(default_factory=dict)
-    topic_preanalysis: dict[str, Any] = Field(default_factory=dict)
-    prompt_bundle: str = ""
-
-
-class TickOutput(BaseModel):
-    candidates: list[str] = Field(default_factory=list)
-    prompt_bundle: str = ""
-    brief: TickBrief | None = None
-    errors: list[str] = Field(default_factory=list)

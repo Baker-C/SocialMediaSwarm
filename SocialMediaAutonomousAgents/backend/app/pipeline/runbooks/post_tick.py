@@ -2,6 +2,13 @@
 
 Each entry is a ``Step`` with declared artifact reads/writes. Composites use
 ``parallel()`` and ``chain()`` for fetch fan-out and rank→brief sequences.
+
+⚠️  KEEP IN SYNC WITH THE FRONTEND FLOW DIAGRAM.
+The dashboard mirrors this runbook step-for-step in
+``frontend/src/lib/pipeline/flowGraph.ts`` (rendered by
+``frontend/src/features/pipeline/PipelineFlowDiagram.tsx``). The node ids there
+must equal the dotted step ids ``flatten_steps`` produces from this file. If you
+add/rename/reorder a step here, update flowGraph.ts — and vice versa.
 """
 
 from __future__ import annotations
@@ -17,32 +24,19 @@ POST_TICK_REFERENCE_STEPS: tuple[Step, ...] = (
         writes=(ArtifactKey.ACCOUNT_BUNDLE,),
         purpose="Load X profile and tracked-post engagement metrics",
     ),
-    parallel(
-        Step(
-            "fetch_timeline_references",
-            steps.fetch_timeline_references,
-            reads=(ArtifactKey.ACCOUNT_BUNDLE,),
-            writes=(ArtifactKey.TIMELINE_REFERENCES,),
-            purpose="Fetch following-timeline reference tweets",
-        ),
-        Step(
-            "fetch_search_references",
-            steps.fetch_search_references,
-            reads=(ArtifactKey.ACCOUNT_BUNDLE,),
-            writes=(ArtifactKey.SEARCH_REFERENCES,),
-            reads_optional=frozenset({ArtifactKey.SEARCH_REFERENCES}),
-            purpose="Fetch X recent-search reference tweets (optional)",
-        ),
-        id="fetch_external_references",
-        purpose="Acquire external reference pools in parallel",
+    Step(
+        "fetch_search_references",
+        steps.fetch_search_references,
+        reads=(ArtifactKey.ACCOUNT_BUNDLE,),
+        writes=(ArtifactKey.SEARCH_REFERENCES,),
+        purpose="Fetch X recent-search reference tweets, one query per niche",
     ),
     Step(
-        "merge_external_references",
-        steps.merge_external_references,
-        reads=(ArtifactKey.TIMELINE_REFERENCES, ArtifactKey.SEARCH_REFERENCES),
+        "collect_external_references",
+        steps.collect_external_references,
+        reads=(ArtifactKey.SEARCH_REFERENCES,),
         writes=(ArtifactKey.TIMELINE_REFERENCES,),
-        reads_optional=frozenset({ArtifactKey.SEARCH_REFERENCES}),
-        purpose="Merge timeline and search reference pools by tweet id",
+        purpose="Build the external reference pool from per-niche search results",
     ),
     Step(
         "fetch_own_post_history",

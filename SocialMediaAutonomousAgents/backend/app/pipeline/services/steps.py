@@ -4,9 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.core.config import settings
-from app.pipeline.accessors import tool_catalog
 from app.pipeline.services.deps import PostRunDeps
+from app.pipeline.tools.data import (
+    account_profile,
+    own_posts_fetch,
+    search_fetch,
+)
+from app.pipeline.tools.deterministic import reference_rank
+from app.pipeline.tools.llm import reference_pattern_summary
 from app.pipeline.services.reference_analysis import (
     authenticated_user_id_from_bundle,
     avg_char_count,
@@ -17,84 +22,102 @@ from app.pipeline.services.reference_analysis import (
 from app.pipeline.types.artifacts import (
     ArtifactKey,
     ReferencePatternBrief,
-    TimelineReferencesPayload,
 )
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 from app.services.tick_data_service import TickDataService
 from app.social.tweet_enrichment import filter_rows_with_urls
+from app.social.trend_query import trend_topic_query
 
 MIN_TOP_N = 10
 MIN_OWN_POSTS = 3
+# Per-niche cap for the recent-search reference fetch (X API max is 100).
+SEARCH_RESULTS_PER_NICHE = 50
 
 
 def load_account_bundle(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
-    return tool_catalog().data.account_profile.run(ctx, tick_data=deps.tick_data)
+    return account_profile.run(ctx, tick_data=deps.tick_data)
 
 
-def fetch_timeline_references(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
-    bundle_raw = ctx.get(ArtifactKey.ACCOUNT_BUNDLE.value) or {}
-    auth_id = authenticated_user_id_from_bundle(bundle_raw if isinstance(bundle_raw, dict) else {})
-    return tool_catalog().data.timeline_fetch.run(
-        ctx,
-        tick_data=deps.tick_data,
-        authenticated_user_id=auth_id,
-    )
+def _trend_search_queries(twitter: Any, account_id: str, *, limit: int = 8) -> list[str]:
+    """Keyword queries from the account's live (personalized) X trends."""
+    try:
+        trends = twitter.get_trends(account_id, limit=20)
+    except Exception:
+        return []
+    out: list[str] = []
+    for item in (trends or {}).get("trends") or []:
+        name = item.get("name") if isinstance(item, dict) else None
+        if not name:
+            continue
+        q = trend_topic_query(str(name))
+        if q and q not in out:
+            out.append(q)
+        if len(out) >= limit:
+            break
+    return out
 
 
 def fetch_search_references(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
-    if not settings.trend_tweet_search_enabled:
-        return StepResult(ok=True, skipped=True, skip_reason="search_disabled")
     acc = deps.repo.load(ctx.account_id)
     if acc is None:
         return StepResult(ok=False, skip_reason="account_not_found")
-    queries = list(acc.search_queries or [])
+    # Query source, in priority order:
+    #   1. Scored niches  — specific topics the account is observed to ride.
+    #   2. Live X trends  — the hot topics to ride right now (keyword-extracted).
+    #   3. Category       — the account's descriptor; last-resort so search never
+    #                       runs dry even with no niches and no trends.
+    queries = [n.niche.strip() for n in acc.niches if n.niche and n.niche.strip()]
     if not queries:
-        return StepResult(ok=True, skipped=True, skip_reason="no_search_queries")
+        queries = _trend_search_queries(deps.twitter, ctx.account_id)
+    if not queries:
+        category = (acc.category or "").strip()
+        if category:
+            queries = [category]
+    if not queries:
+        return StepResult(ok=True, skipped=True, skip_reason="no_search_topics")
     bundle_raw = ctx.get(ArtifactKey.ACCOUNT_BUNDLE.value) or {}
     auth_id = authenticated_user_id_from_bundle(bundle_raw if isinstance(bundle_raw, dict) else {})
-    return tool_catalog().data.search_fetch.run(
+    return search_fetch.run(
         ctx,
         tick_data=deps.tick_data,
         queries=queries,
         authenticated_user_id=auth_id,
+        max_results_per_query=SEARCH_RESULTS_PER_NICHE,
     )
 
 
-def merge_external_references(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
+def collect_external_references(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
+    """Promote the per-niche search results into the external reference pool.
+
+    The pool is stored under TIMELINE_REFERENCES (the key downstream rank/brief
+    steps read); the following-timeline pull was removed, so search is the sole
+    external source.
+    """
     _ = deps
-    timeline_raw = ctx.get(ArtifactKey.TIMELINE_REFERENCES.value) or {}
     search_raw = ctx.get(ArtifactKey.SEARCH_REFERENCES.value) or {}
-    timeline_payload = dict(timeline_raw) if isinstance(timeline_raw, dict) else {}
     search_payload = search_raw if isinstance(search_raw, dict) else {}
-    timeline_rows = list(timeline_payload.get("timeline_reference_tweets") or [])
     search_rows = list(search_payload.get("search_reference_tweets") or [])
-    merged = TickDataService.merge_reference_pool_rows(timeline_rows, search_rows)
-    timeline_payload["timeline_reference_tweets"] = merged
-    timeline_payload["search_merged_count"] = len(search_rows)
-    timeline_payload["timeline_only_count"] = len(timeline_rows)
-    if search_payload:
-        sq = search_payload.get("search_queries")
-        if isinstance(sq, list) and sq:
-            timeline_payload["search_queries_run"] = sq
-        search_errors = search_payload.get("reference_errors")
-        if isinstance(search_errors, list) and search_errors:
-            existing = list(timeline_payload.get("reference_errors") or [])
-            timeline_payload["reference_errors"] = existing + search_errors
-    ctx.set_artifact(ArtifactKey.TIMELINE_REFERENCES, timeline_payload)
-    return StepResult(
-        ok=True,
-        payload={
-            "merged_count": len(merged),
-            "search_merged_count": len(search_rows),
-        },
-    )
+
+    pool: dict = {
+        "timeline_reference_tweets": search_rows,
+        "search_merged_count": len(search_rows),
+    }
+    sq = search_payload.get("search_queries")
+    if isinstance(sq, list) and sq:
+        pool["search_queries_run"] = sq
+    search_errors = search_payload.get("reference_errors")
+    if isinstance(search_errors, list) and search_errors:
+        pool["reference_errors"] = list(search_errors)
+
+    ctx.set_artifact(ArtifactKey.TIMELINE_REFERENCES, pool)
+    return StepResult(ok=True, payload={"reference_count": len(search_rows)})
 
 
 def fetch_own_post_history(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
     if deps.post_registry is None:
         return StepResult(ok=True, skipped=True, skip_reason="no_post_registry")
-    return tool_catalog().data.own_posts_fetch.run(ctx, post_registry=deps.post_registry)
+    return own_posts_fetch.run(ctx, post_registry=deps.post_registry)
 
 
 def rank_external_references(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
@@ -109,7 +132,7 @@ def rank_external_references(ctx: TickRunContext, deps: PostRunDeps) -> StepResu
             {"ranked": [], "winner": None},
         )
         return StepResult(ok=True, skipped=True, skip_reason="no_reference_with_urls")
-    return tool_catalog().deterministic.reference_rank.run(
+    return reference_rank.run(
         ctx,
         rows=pool,
         top_n=MIN_TOP_N,
@@ -134,7 +157,7 @@ def brief_external_references(ctx: TickRunContext, deps: PostRunDeps) -> StepRes
         return StepResult(ok=True, skipped=True, skip_reason="no_reference_with_urls", payload=brief.model_dump())
 
     enriched = [enrich_row_features(r) for r in ranked if isinstance(r, dict)]
-    summary = tool_catalog().llm.reference_pattern_summary.run(
+    summary = reference_pattern_summary.run(
         ctx,
         source="timeline",
         niche=ctx.niche,
@@ -166,7 +189,7 @@ def rank_own_posts(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
 
     own_raw = ctx.get(ArtifactKey.OWN_POSTS.value)
     if not own_raw:
-        pool_step = tool_catalog().data.own_posts_fetch.run(ctx, post_registry=deps.post_registry)
+        pool_step = own_posts_fetch.run(ctx, post_registry=deps.post_registry)
         if not pool_step.ok:
             return pool_step
         own_raw = ctx.get(ArtifactKey.OWN_POSTS.value) or {}
@@ -185,7 +208,7 @@ def rank_own_posts(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
             payload={"post_count": len(rows)},
         )
 
-    return tool_catalog().deterministic.reference_rank.run(
+    return reference_rank.run(
         ctx,
         rows=rows,
         top_n=MIN_TOP_N,
@@ -223,7 +246,7 @@ def brief_own_posts(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
         return StepResult(ok=True, skipped=True, skip_reason="insufficient_own_posts", payload=brief.model_dump())
 
     enriched = [enrich_row_features(r) for r in ranked if isinstance(r, dict)]
-    summary = tool_catalog().llm.reference_pattern_summary.run(
+    summary = reference_pattern_summary.run(
         ctx,
         source="own_posts",
         niche=ctx.niche,

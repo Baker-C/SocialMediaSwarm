@@ -1,5 +1,6 @@
 import type { PipelineRunStreamEvent } from '../../types/pipelineProgress';
 import { apiPrefix, parseHttpError } from '../client';
+import { authHeaders } from '../auth';
 
 function parseSseData(line: string): PipelineRunStreamEvent | null {
   const payload = line.startsWith('data: ') ? line.slice(6) : line;
@@ -22,7 +23,7 @@ export async function streamForcePost(
   const prefix = apiPrefix(apiBase);
   const res = await fetch(`${prefix}/accounts/${encodeURIComponent(accountId)}/force-post`, {
     method: 'POST',
-    headers: { Accept: 'text/event-stream' },
+    headers: { Accept: 'text/event-stream', ...authHeaders() },
     signal,
   });
   if (!res.ok) {

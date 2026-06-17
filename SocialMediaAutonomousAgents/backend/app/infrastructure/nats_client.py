@@ -112,6 +112,26 @@ class NatsClient:
         except Exception:
             logger.exception("JetStream publish failed seq=%s kind=%s", event.seq, event.kind)
 
+    def publish_domain_event(self, subject: str, payload: dict) -> None:
+        """Publish a domain event via NATS core (not the JetStream run stream).
+
+        Fire-and-forget from sync callers; degrades to a no-op when NATS is
+        unavailable so domain emission never breaks business logic.
+        """
+        if self._nc is None or self._loop is None:
+            return
+        asyncio.run_coroutine_threadsafe(self._publish_domain(subject, payload), self._loop)
+
+    async def _publish_domain(self, subject: str, payload: dict) -> None:
+        if self._nc is None:
+            return
+        import json
+
+        try:
+            await self._nc.publish(subject, json.dumps(payload, default=str).encode("utf-8"))
+        except Exception:
+            logger.exception("domain publish failed subject=%s", subject)
+
     # --- consumer / read helpers (async, run on the main loop) -------------
 
     async def replay_run_events(self, run_id: str) -> list[PipelineEvent]:

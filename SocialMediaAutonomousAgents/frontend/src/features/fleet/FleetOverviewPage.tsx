@@ -47,7 +47,7 @@ export function FleetOverviewPage() {
   return (
     <div className="page-content">
       <PageHeader
-        title="Fleet Overview"
+        title="Daemon Swarm Overview"
         subtitle="Cross-account KPIs and operations"
         actions={
           <button type="button" className="btn btn--ghost" onClick={refresh}>
@@ -56,14 +56,13 @@ export function FleetOverviewPage() {
         }
       />
 
-      <section className="kpi-grid" aria-label="Fleet KPIs">
-        <StatTile kicker="Fleet" title="Active accounts" value={kpis.activeAccounts ?? '—'} />
+      <section className="kpi-grid" aria-label="Swarm KPIs">
+        <StatTile kicker="Swarm" title="Active daemons" value={kpis.activeAccounts ?? '—'} />
         <StatTile
           kicker="Engagement"
           title="Avg engagement"
           value={kpis.avgEngagement != null ? `${(kpis.avgEngagement * 100).toFixed(2)}%` : '—'}
         />
-        <StatTile kicker="Niche" title="Top niche" value={kpis.topNiche ?? '—'} />
         <StatTile
           kicker="Posts"
           title="Total tracked posts"

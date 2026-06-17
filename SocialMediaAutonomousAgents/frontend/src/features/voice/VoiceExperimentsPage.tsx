@@ -12,11 +12,14 @@ import { useTrackedPosts } from '../../hooks/queries/useTrackedPosts';
 import { useVoiceRevisions } from '../../hooks/queries/useVoiceRevisions';
 import { formatPercent, formatShortDate } from '../../lib/format';
 import type { VoiceVersionStats } from '../../analytics/selectors/voiceComparison';
-import type { ContrastPattern, PunctuationRule } from '../../types';
+import type { ContrastPattern, NicheScore, PunctuationRule } from '../../types';
 import type { VoiceRevision } from '../../types';
 
 // A soul source can be either the live /edit payload or an archived revision.
+// category/niches are only present on the live payload (not archived in revisions).
 type SoulSource = {
+  category?: string;
+  niches?: NicheScore[];
   personality?: string;
   posting_prompt?: string;
   contrast_patterns?: ContrastPattern[];
@@ -29,7 +32,9 @@ type SoulSource = {
 function hasStoredSoul(s: SoulSource | null | undefined): boolean {
   if (!s) return false;
   return Boolean(
-    s.personality?.trim() ||
+    s.category?.trim() ||
+      (s.niches && s.niches.length) ||
+      s.personality?.trim() ||
       s.posting_prompt?.trim() ||
       s.system_prompt?.trim() ||
       (s.contrast_patterns && s.contrast_patterns.length) ||
@@ -46,8 +51,30 @@ function SoulDetail({ soul }: { soul: SoulSource }) {
     (soul.negative_semantics ?? []).map((t) => ({ text: t, correlation: 'negative' as const }));
   const punctuation = soul.punctuation_rules ?? [];
 
+  const niches = soul.niches ?? [];
+
   return (
     <>
+      <div className="voice-expand__block">
+        <span className="voice-expand__label">Category</span>
+        <p className="voice-expand__text">{soul.category?.trim() || '—'}</p>
+      </div>
+      <div className="voice-expand__block">
+        <span className="voice-expand__label">Popular niches</span>
+        {niches.length > 0 ? (
+          <ul className="voice-expand__list">
+            {[...niches]
+              .sort((a, b) => b.score - a.score)
+              .map((n) => (
+                <li key={n.niche}>
+                  <span className="text-orange-400">[{n.score}]</span> {n.niche}
+                </li>
+              ))}
+          </ul>
+        ) : (
+          <p className="voice-expand__text">—</p>
+        )}
+      </div>
       {soul.personality?.trim() && (
         <div className="voice-expand__block">
           <span className="voice-expand__label">Personality</span>

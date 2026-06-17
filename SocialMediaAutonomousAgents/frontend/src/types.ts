@@ -3,6 +3,7 @@ export type {
   AccountSummary,
   AccountEditPayload,
   AccountVoiceDetail,
+  NicheScore,
   ContrastPattern,
   PunctuationRule,
   OAuthStatus,

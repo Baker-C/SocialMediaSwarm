@@ -10,9 +10,7 @@ from app.core.config import settings
 from app.services.account_repository import AccountRepository
 from app.services.post_registry import TrackedPostRepository
 from app.services.pulled_tweet_repository import PulledTweetRepository
-from app.services.reference_tweet_cache import get_cached, set_cached
 from app.services.twitter_service import TwitterService
-from app.social.exceptions import SocialPlatformError
 from app.social.reference_rows import filter_out_own_tweets
 
 logger = logging.getLogger(__name__)
@@ -42,25 +40,22 @@ class TickDataService:
             errors.append(f"profile:{exc}")
             logger.warning("TickData profile failed %s: %s", account_id, exc)
 
-        engagements: list[dict[str, Any]] = []
+        # The post tick needs the live profile only. Per-post engagement metrics are
+        # polled by the dedicated engagement jobs (and were discarded here anyway —
+        # merge_for_prompt blanks post_engagements before the LLM). Re-fetching every
+        # tracked post on every tick was the bulk of the account's X API volume.
         tweet_ids: list[str] = []
         if self._posts:
             try:
                 tweet_ids = self._posts.list_tweet_ids(account_id)
             except Exception as exc:
                 errors.append(f"list_tracked:{exc}")
-            for tid in tweet_ids:
-                try:
-                    engagements.append(self._twitter.get_tweet_metrics(account_id, tid))
-                except Exception as exc:
-                    engagements.append({"tweet_id": tid, "error": str(exc)})
-                    logger.warning("TickData metrics %s %s: %s", account_id, tid, exc)
 
         return {
             "account_id": account_id,
             "profile": profile,
             "tracked_tweet_ids": tweet_ids,
-            "post_engagements": engagements,
+            "post_engagements": [],
             "errors": errors,
         }
 
@@ -104,58 +99,6 @@ class TickDataService:
             "errors": errors,
         }
 
-    def compile_timeline_reference_tweets(
-        self,
-        account_id: str,
-        *,
-        authenticated_user_id: str | None,
-        slot: str,
-    ) -> dict[str, Any]:
-        """
-        Following home timeline only (up to 100 tweets).
-
-        Own tweets are excluded. TrackedPosts are not used here.
-        """
-        cached = get_cached(account_id, slot)
-        if cached is not None:
-            logger.info(
-                "timeline_reference cache hit account=%s slot=%s",
-                account_id,
-                slot,
-            )
-            return self._finalize_reference_payload(cached, account_id=account_id, slot=slot)
-
-        errors: list[str] = []
-        timeline_rows: list[dict[str, Any]] = []
-
-        if settings.following_feed_enabled:
-            try:
-                timeline_rows = self._twitter.get_following_feed(
-                    account_id,
-                    max_results=settings.following_timeline_max_results,
-                )
-            except (SocialPlatformError, ValueError) as exc:
-                errors.append(f"following_timeline:{exc}")
-                logger.warning("TickData following timeline failed %s: %s", account_id, exc)
-        else:
-            errors.append("following_feed_disabled")
-
-        timeline_rows = filter_out_own_tweets(timeline_rows, authenticated_user_id)
-
-        payload = {
-            "timeline_reference_tweets": timeline_rows,
-            "reference_errors": errors,
-        }
-        payload = self._finalize_reference_payload(payload, account_id=account_id, slot=slot)
-        ttl = max(1, int(settings.reference_tweet_cache_minutes)) * 60
-        set_cached(account_id, slot, payload, ttl_seconds=float(ttl))
-        logger.info(
-            "timeline_reference fetched account=%s count=%d",
-            account_id,
-            len(timeline_rows),
-        )
-        return payload
-
     def compile_search_reference_tweets(
         self,
         account_id: str,
@@ -181,7 +124,7 @@ class TickDataService:
 
         for query in normalized:
             try:
-                rows = self._twitter.search_tweets(
+                rows = self._twitter.search_tweets_for_trend(
                     account_id,
                     query,
                     max_results=max_results_per_query,
@@ -235,24 +178,6 @@ class TickDataService:
             len(search_rows),
         )
         return payload
-
-    def _finalize_reference_payload(
-        self,
-        payload: dict[str, Any],
-        *,
-        account_id: str,
-        slot: str,
-    ) -> dict[str, Any]:
-        out = dict(payload)
-        if self._pulled_tweets:
-            rows = out.get("timeline_reference_tweets") or []
-            stats = self._pulled_tweets.record_pulls(
-                list(rows),
-                account_id=account_id,
-                slot=slot,
-            )
-            out["pulled_tweet_stats"] = stats.model_dump()
-        return out
 
     @staticmethod
     def merge_reference_pool_rows(*row_lists: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -1,9 +1,6 @@
-"""CrewAI tool: collect and persist a point-in-time account snapshot."""
+"""Collect and persist a point-in-time account snapshot."""
 
 from __future__ import annotations
-
-import json
-from typing import Any
 
 from app.models.account_snapshot import AccountSnapshotDocument
 from app.services.account_repository import AccountRepository
@@ -31,21 +28,3 @@ def take_snapshot(
         tracked=post_registry,
         snapshots=snapshots,
     )
-
-
-def make_take_snapshot_tool(
-    repo: AccountRepository | None = None,
-    post_registry: TrackedPostRepository | None = None,
-) -> Any:
-    try:
-        from crewai.tools import tool
-    except ImportError:
-        return None
-
-    @tool("take_account_snapshot")
-    def _tool(account_id: str) -> str:
-        """Capture and persist a snapshot of an account's profile, voice, and engagement totals."""
-        snap = take_snapshot(account_id, repo=repo, post_registry=post_registry)
-        return json.dumps(snap.model_dump(exclude_none=True), default=str)
-
-    return _tool

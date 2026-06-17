@@ -18,7 +18,7 @@ export function AccountHeader({ account }: AccountHeaderProps) {
       <div>
         <h2 className="account-header__title">{account.account_id}</h2>
         <p className="account-header__meta">
-          {account.niche} · @{account.twitter_handle?.replace(/^@/, '') || '—'} ·{' '}
+          {account.category} · @{account.twitter_handle?.replace(/^@/, '') || '—'} ·{' '}
           {account.followers.toLocaleString()} followers · {formatGrowth(account.follower_growth_vs_registered)}
         </p>
       </div>
@@ -93,10 +93,16 @@ export function CadenceGauge({ lastPostAt, intervalMinutes = 30 }: CadenceGaugeP
   );
 }
 
-type TrendMetricKey = 'followers' | 'totalLikes' | 'totalReposts' | 'totalComments';
+type TrendMetricKey =
+  | 'followers'
+  | 'totalViews'
+  | 'totalLikes'
+  | 'totalReposts'
+  | 'totalComments';
 
 const TREND_METRICS: { key: TrendMetricKey; label: string; color: string }[] = [
   { key: 'followers', label: 'Followers', color: CHART_COLORS.orange },
+  { key: 'totalViews', label: 'Views (1k)', color: CHART_COLORS.neutral },
   { key: 'totalLikes', label: 'Likes', color: CHART_COLORS.white },
   { key: 'totalReposts', label: 'Reposts', color: CHART_COLORS.yellow },
   { key: 'totalComments', label: 'Comments', color: CHART_COLORS.red },
@@ -133,6 +139,7 @@ type AccountTrendChartProps = {
 
 const DEFAULT_ENABLED_METRICS: TrendMetricKey[] = [
   'followers',
+  'totalViews',
   'totalLikes',
   'totalReposts',
   'totalComments',
@@ -145,6 +152,12 @@ export function AccountTrendChart({ data }: AccountTrendChartProps) {
   const [timeRange, setTimeRange] = useState<TrendTimeRange>('all');
 
   const filteredData = useMemo(() => filterByTimeRange(data, timeRange), [data, timeRange]);
+
+  // Views (impressions) are large — plot them in thousands so "24" means 24k.
+  const chartData = useMemo(
+    () => filteredData.map((point) => ({ ...point, totalViews: point.totalViews / 1000 })),
+    [filteredData]
+  );
 
   const toggleMetric = (key: TrendMetricKey) => {
     setEnabled((prev) => {
@@ -217,12 +230,13 @@ export function AccountTrendChart({ data }: AccountTrendChartProps) {
         </div>
       </div>
       <TimeSeriesChart
-        data={filteredData}
+        data={chartData}
         xKey="capturedAt"
         displayLabelKey="label"
         formatXTick={(value) => formatShortDate(value)}
         series={series}
-        ariaLabel={`Account metrics over time: ${enabledLabels}`}
+        logBase={100}
+        ariaLabel={`Account metrics over time (log base 100, views in 1k): ${enabledLabels}`}
       />
     </>
   );

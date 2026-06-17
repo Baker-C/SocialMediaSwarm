@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.jobs.create_account_job import CreateAccountJobError, run_create_account_job
 from app.models.account import AccountDocument
@@ -13,10 +13,13 @@ from app.services.account_update_service import AccountUpdateBody, apply_account
 class AccountCreateBody(BaseModel):
     """POST body for provisioning a new account profile (OAuth connected separately)."""
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     account_id: str = Field(min_length=1, max_length=500)
-    niche: str | None = Field(default=None, max_length=2000)
+    # Accepts legacy `niche` from older clients via alias.
+    category: str | None = Field(
+        default=None, max_length=2000, validation_alias=AliasChoices("category", "niche")
+    )
     twitter_handle: str | None = Field(default=None, max_length=500)
     status: str | None = Field(default="active", max_length=64)
     posting_prompt: str | None = Field(default=None, max_length=32000)   # was system_prompt
@@ -41,7 +44,7 @@ def apply_account_create(body: AccountCreateBody, repo: AccountRepository | None
     try:
         acc = run_create_account_job(
             account_id=aid,
-            niche=body.niche,
+            category=body.category,
             twitter_handle=body.twitter_handle or "",
             repo=r,
         )

@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from app.infrastructure.ravendb_http import RavenDBHttpError
 from app.models.account import AccountDocument
+from app.services import niche_service
 from app.services.account_repository import AccountRepository
 from app.services.account_create_service import AccountAlreadyExistsError, AccountCreateBody, apply_account_create
 from app.services.account_snapshot_repository import AccountSnapshotRepository
@@ -165,3 +167,46 @@ def account_test_post(account_id: str):
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "result": out}
+
+
+# ── Popular niches ────────────────────────────────────────────────────────────
+
+class NicheSightingBody(BaseModel):
+    niche: str = Field(min_length=1, max_length=2000)
+
+
+class NicheAdjustBody(BaseModel):
+    niche: str = Field(min_length=1, max_length=2000)
+    delta: int = Field(description="Score change to apply (e.g. -1 to penalize)")
+
+
+@router.get("/accounts/{account_id}/niches")
+def list_niches(account_id: str):
+    """Scored popular niches for this account, as stored."""
+    acc = repo.load(account_id)
+    if acc is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return {
+        "account_id": account_id,
+        "niches": [n.model_dump() for n in acc.niches],
+    }
+
+
+@router.post("/accounts/{account_id}/niches/sighting")
+def record_niche_sighting(account_id: str, body: NicheSightingBody):
+    """Register a niche sighting: create it at 0, or bump its score by +1 (cap 5)."""
+    try:
+        change = niche_service.record_niche_sighting(account_id, body.niche, repo=repo)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Account not found") from None
+    return {"account_id": account_id, "change": change.__dict__}
+
+
+@router.post("/accounts/{account_id}/niches/adjust")
+def adjust_niche(account_id: str, body: NicheAdjustBody):
+    """Apply an arbitrary score delta to an existing niche (caps at 5, deletes below -2)."""
+    try:
+        change = niche_service.adjust_niche_score(account_id, body.niche, body.delta, repo=repo)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Account not found") from None
+    return {"account_id": account_id, "change": change.__dict__}

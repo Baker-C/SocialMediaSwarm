@@ -1,0 +1,7 @@
+# TEMPORARY: pause the half-hourly posting scheduler while the per-tick metrics
+# fan-out (496 X API calls/tick) is being fixed. Delete this file to resume.
+services:
+  backend:
+    environment:
+      RUN_SCHEDULER: "false"
+      INTERVAL_POSTING_ENABLED: "false"

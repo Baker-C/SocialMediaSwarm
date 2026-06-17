@@ -11,7 +11,7 @@ const jsonResponse = (body: unknown) =>
 
 const sampleAccount = {
   account_id: 'demo',
-  niche: 'Test niche',
+  category: 'Test niche',
   twitter_handle: '@demo',
   status: 'active',
   followers: 42,
@@ -67,7 +67,7 @@ afterEach(() => {
 
 test('renders application title', async () => {
   render(<App />);
-  expect(screen.getByRole('heading', { name: /Social Media Ops/i })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /Solomon's Swarm/i })).toBeInTheDocument();
   await waitFor(() => {
     expect(screen.queryByText(/Loading API data/i)).not.toBeInTheDocument();
   });
@@ -76,7 +76,7 @@ test('renders application title', async () => {
 test('shows active account count on overview tab', async () => {
   render(<App />);
   await waitFor(() => {
-    const overview = screen.getByLabelText('Fleet KPIs');
+    const overview = screen.getByLabelText('Swarm KPIs');
     expect(within(overview).getByText('3')).toBeInTheDocument();
   });
   expect(screen.getByText(/Active accounts/i)).toBeInTheDocument();

@@ -30,17 +30,12 @@ def normalize_account_document(raw: dict) -> dict:
     profile = dict(d.get("profile") or {})
     posting = dict(d.get("posting") or {})
 
-    profile.setdefault("niche", d.get("niche") or d.get("account_id") or "")
     profile.setdefault("twitter_handle", d.get("twitter_handle") or "")
     profile.setdefault("status", d.get("status") or "active")
     profile.setdefault("followers", int(d.get("followers") or 0))
     profile.setdefault("posts_total", int(d.get("posts_total") or 0))
     profile.setdefault("registered_at", d.get("registered_at"))
     profile.setdefault("followers_when_registered", d.get("followers_when_registered"))
-    sq = profile.get("search_queries")
-    if sq is None:
-        sq = d.get("search_queries")
-    profile["search_queries"] = list(sq or [])
 
     # Soul: prefer an existing nested soul; else migrate from legacy `voice`; else from flat keys.
     if d.get("soul"):
@@ -49,6 +44,17 @@ def normalize_account_document(raw: dict) -> dict:
         soul = _soul_from_legacy(dict(d["voice"]))   # legacy nested voice object
     else:
         soul = _soul_from_legacy(d)                   # very old flat document
+
+    # category and niches live in the soul; fold any legacy profile-level values in.
+    if not soul.get("category"):
+        soul["category"] = (
+            profile.get("category") or profile.get("niche") or d.get("category")
+            or d.get("niche") or d.get("account_id") or ""
+        )
+    if not soul.get("niches"):
+        soul["niches"] = list(profile.get("niches") or d.get("niches") or [])
+    for moved in ("category", "niche", "niches"):
+        profile.pop(moved, None)
 
     slot = posting.get("last_interval_slot")
     if slot is None:
@@ -86,7 +92,7 @@ def account_to_document(account: AccountDocument) -> dict:
     profile = d.setdefault("profile", {})
     soul = d.setdefault("soul", {})
     if not soul.get("posting_prompt"):         # seed posting_prompt (was voice.system_prompt)
-        soul["posting_prompt"] = default_system_prompt(profile.get("niche") or account.account_id)
+        soul["posting_prompt"] = default_system_prompt(soul.get("category") or account.account_id)
     # NOTE: no negative_semantics backfill — contrast_patterns default via the model's factory.
     return d
 
@@ -134,7 +140,7 @@ class AccountRepository:
         self,
         account_id: str,
         *,
-        niche: str | None = None,
+        category: str | None = None,
         twitter_handle: str | None = None,
         status: str | None = None,
     ) -> AccountDocument:
@@ -144,20 +150,20 @@ class AccountRepository:
             acc = AccountDocument(
                 account_id=account_id,
                 profile=AccountProfile(
-                    niche=niche or account_id,
                     twitter_handle=twitter_handle or "",
                     status=status or "active",
                     registered_at=now,
                     followers_when_registered=0,
                 ),
-                soul=default_soul(niche or account_id),   # full default soul
+                soul=default_soul(category or account_id),   # category + full default soul
                 posting=AccountPostingState(),
             )
         else:
             data = existing.model_dump()
             profile = data.setdefault("profile", {})
-            if niche is not None:
-                profile["niche"] = niche
+            soul = data.setdefault("soul", {})
+            if category is not None:
+                soul["category"] = category
             if twitter_handle is not None:
                 profile["twitter_handle"] = twitter_handle
             if status is not None:

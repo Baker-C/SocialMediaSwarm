@@ -88,6 +88,31 @@ class TrackedPostRepository:
                 ids.append(tid)
         return ids
 
+    def live_rows_for_polling(self, account_id: str, *, since: str | None = None) -> list[dict]:
+        """Newest-first rows worth polling: not deleted, optionally within ``since``."""
+        rows = self._query_account_rows(account_id)
+        out: list[dict] = []
+        for r in rows:
+            if r.get("is_deleted"):
+                continue
+            if since and str(r.get("posted_at") or "") < since:
+                continue
+            out.append(r)
+        return out
+
+    def mark_deleted(self, account_id: str, tweet_id: str) -> None:
+        """Flag a tracked post as gone from X so it is never polled again."""
+        doc_id = TrackedPostDocument.document_id(account_id, tweet_id)
+        raw = self.client.get_document(doc_id)
+        if raw is None:
+            return
+        data = {k: v for k, v in raw.items() if not str(k).startswith("@")}
+        if data.get("is_deleted"):
+            return
+        data["is_deleted"] = True
+        data["last_fetched_at"] = datetime.now(timezone.utc).isoformat()
+        self.client.put_document(doc_id, data, collection=TRACKED_COLLECTION)
+
     def totals_for_account(self, account_id: str) -> tuple[int, int, int, int]:
         """Sum engagement metrics across the account's TrackedPosts.
 

@@ -1,0 +1,117 @@
+/*
+ * Solomon's Seal sigil — animated occult brand mark.
+ * Colour is driven by the brand accent; geometry scales with the SVG.
+ */
+
+.sigil {
+  --sigil-accent: hsl(var(--accent-orange));
+  --sigil-ink: hsl(0 0% 100%);
+  color: var(--sigil-accent);
+  overflow: visible;
+}
+
+.sigil-halo {
+  fill: hsl(var(--accent-orange) / 0.06);
+  stroke: none;
+}
+
+.sigil-ring,
+.sigil-inner-ring {
+  stroke: hsl(var(--accent-orange) / 0.55);
+  stroke-width: 1.25;
+}
+
+.sigil-ring-dashed {
+  stroke: hsl(var(--accent-orange) / 0.4);
+  stroke-width: 1;
+  stroke-dasharray: 2 8;
+}
+
+.sigil-tick {
+  stroke: hsl(var(--accent-orange) / 0.7);
+  stroke-width: 1.25;
+}
+
+.sigil-tri {
+  stroke: var(--sigil-accent);
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  fill: hsl(var(--accent-orange) / 0.04);
+  filter: drop-shadow(0 0 6px hsl(var(--accent-orange) / 0.35));
+}
+
+.sigil-node {
+  fill: var(--sigil-ink);
+  filter: drop-shadow(0 0 4px hsl(var(--accent-orange) / 0.8));
+}
+
+.sigil-core-glow {
+  fill: hsl(var(--accent-orange) / 0.35);
+}
+
+.sigil-core {
+  fill: var(--sigil-ink);
+  filter: drop-shadow(0 0 8px hsl(var(--accent-orange) / 0.9));
+}
+
+/* --- rotation anchors: every spinning group turns about the SVG centre --- */
+.sigil-spin-slow,
+.sigil-spin-rev,
+.sigil-breathe,
+.sigil-pulse {
+  transform-box: view-box;
+  transform-origin: 120px 120px;
+}
+
+/* --- motion --- */
+.sigil--animated .sigil-spin-slow {
+  animation: sigil-spin 48s linear infinite;
+}
+.sigil--animated .sigil-spin-rev {
+  animation: sigil-spin 32s linear infinite reverse;
+}
+.sigil--animated .sigil-breathe {
+  animation: sigil-breathe 7s ease-in-out infinite;
+}
+.sigil--animated .sigil-pulse {
+  animation: sigil-pulse 3.4s ease-in-out infinite;
+}
+
+@keyframes sigil-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes sigil-breathe {
+  0%,
+  100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.015);
+  }
+}
+
+@keyframes sigil-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sigil--animated .sigil-spin-slow,
+  .sigil--animated .sigil-spin-rev,
+  .sigil--animated .sigil-breathe,
+  .sigil--animated .sigil-pulse {
+    animation: none;
+  }
+}
