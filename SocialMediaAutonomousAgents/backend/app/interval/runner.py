@@ -395,6 +395,8 @@ def _run_account_pipeline(ctx: TickContext, account: AccountDocument, *, run_id:
             account=account,
             tick_ctx=ctx,
             guardian=ctx.guardian,
+            twitter=deps.twitter,            # CC-7: == tick_ctx.twitter (required ActLive handle)
+            post_registry=deps.post_registry,  # CC-7: == tick_ctx.post_registry
             run_id=run_id,
             pipeline_hash=spec.version_hash,
             copied_exclude=copied_reference_exclude_set(account),

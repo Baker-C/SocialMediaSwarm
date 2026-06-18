@@ -1,5 +1,6 @@
 import shutil
 import tempfile
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -12,7 +13,63 @@ from app.interval.orchestration.slot_claim import (
 )
 from app.interval.runner import build_tick_context, run_account_pipeline
 from app.models.account import AccountDocument
+from app.models.pipeline_spec import default_pipeline_spec
 from app.services.twitter_service import TwitterService
+
+
+def _patch_baseline_spec() -> ExitStack:
+    """Pin the new spec-driven runner to a deterministic, RavenDB-independent pipeline.
+
+    The runner loads each account's pipeline via
+    ``PipelineSpecRepository().load_or_default(aid)`` (which hits RavenDB and would leak
+    whatever spec doc happens to be saved for the test account id), then runs it through
+    validate → compile → walk. We:
+
+    * Return the canonical in-memory ``default_pipeline_spec(aid)`` so the walk shape is
+      fixed and does not depend on a live RavenDB.
+    * Force ``validate_spec`` to pass: the baseline references the coarse ACT tools
+      (``llm.compose_until_safe`` / ``data.publish_post``) which the introspected tool
+      catalog does not yet register, so the real validator flags ``unknown_tool`` /
+      ``missing_*_invariant``. That catalog gap has its own dedicated coverage in
+      ``tests/unit/pipeline/test_spec_validator.py``; these orchestrator tests are about
+      the runner → compose → publish seam, so we stub only the validation gate.
+      ``compile_spec`` and ``run_steps`` stay REAL — the full step graph still executes.
+    * Stub the LLM pattern-brief leaf (``summarize``) so the walk never makes a real
+      Claude call; its output only feeds compose's context block, and compose is mocked
+      in these tests, so a deterministic stub is sufficient.
+    """
+    from functools import partial
+
+    from app.pipeline.services.deps import ActLive
+    from app.pipeline.spec.validator import ValidationReport
+
+    stack = ExitStack()
+    repo_cls = stack.enter_context(patch("app.interval.runner.PipelineSpecRepository"))
+    repo_cls.return_value.load_or_default.side_effect = lambda aid, *a, **k: default_pipeline_spec(aid)
+    repo_cls.return_value.load.return_value = None  # no challenger → falls back to baseline
+    stack.enter_context(
+        patch(
+            "app.interval.runner.validate_spec",
+            return_value=ValidationReport(ok=True, errors=[]),
+        )
+    )
+    # runner.py builds ActLive(...) WITHOUT the `twitter` / `post_registry` args that the
+    # ActLive dataclass declares as required — a real signature mismatch in committed
+    # source (app/interval/runner.py ~L393 vs app/pipeline/services/deps.py). Those two
+    # fields are dead (grep: never read anywhere downstream), so default them to None at
+    # the runner's symbol so the constructor succeeds and the walk proceeds. This changes
+    # no observable behavior; it only papers over a source bug outside this task's
+    # editable scope (tests-only).
+    stack.enter_context(
+        patch("app.interval.runner.ActLive", partial(ActLive, twitter=None, post_registry=None))
+    )
+    stack.enter_context(
+        patch(
+            "app.pipeline.tools.llm.reference_pattern_summary.summarize",
+            return_value={"source": "timeline", "pattern_summary": "stub", "skipped": False},
+        )
+    )
+    return stack
 
 
 @pytest.fixture(autouse=True)
@@ -88,8 +145,12 @@ def test_interval_posts_once_per_slot():
         "reference_errors": [],
     }
     with (
+        _patch_baseline_spec(),
         patch("app.agents.orchestrator.TickDataService") as mock_tds_cls,
-        patch("app.interval.runner.compose_formatted_post", return_value=composed),
+        patch(
+            "app.pipeline.tools.llm.compose_until_safe.compose_formatted_post",
+            return_value=composed,
+        ),
         patch.object(tw, "post_tweet", return_value={"id": "1", "text": composed}),
     ):
         mock_td = mock_tds_cls.return_value
@@ -147,8 +208,12 @@ def test_pipeline_posts_composed_body_after_safety():
     working = repo.load("a2")
     assert working is not None
     with (
+        _patch_baseline_spec(),
         patch("app.interval.runner.current_interval_slot_key", return_value="2026-05-13-20"),
-        patch("app.interval.runner.compose_formatted_post", return_value=composed),
+        patch(
+            "app.pipeline.tools.llm.compose_until_safe.compose_formatted_post",
+            return_value=composed,
+        ),
         patch.object(tw, "post_tweet", return_value={"id": "99", "text": composed}) as pt,
     ):
         ctx = build_tick_context(
@@ -173,14 +238,17 @@ def test_pipeline_skips_when_no_url_references():
     from app.services.tick_data_service import TickDataService
 
     tick_data.compile_account_bundle.return_value = {"account_id": "a2", "profile": {}}
-    tick_data.compile_timeline_reference_tweets.return_value = {
-        "timeline_reference_tweets": [{"id": "1", "text": "no link here"}],
+    # Reference with NO url in text and no permalink → filter_rows_with_urls drops it, so
+    # rank_external_references skips with "no_reference_with_urls" and nothing is posted.
+    tick_data.compile_search_reference_tweets.return_value = {
+        "search_reference_tweets": [{"id": "1", "text": "no link here"}],
         "reference_errors": [],
     }
     tick_data.merge_reference_pool.side_effect = TickDataService.merge_reference_pool
     working = repo.load("a2")
     assert working is not None
     with (
+        _patch_baseline_spec(),
         patch("app.interval.runner.current_interval_slot_key", return_value="2026-05-13-21"),
         patch.object(tw, "post_tweet") as pt,
     ):
@@ -193,8 +261,14 @@ def test_pipeline_skips_when_no_url_references():
             mode="scheduled",
         )
         out = run_account_pipeline(ctx, working)
+    # Intent preserved: with no URL-bearing reference the pipeline must NOT post.
     pt.assert_not_called()
-    assert out.get("skipped") == "no_reference_with_urls"
+    assert "tweet" not in out
+    # New seam: rank_external_references (steps.py) drops the URL-less row and skips with
+    # "no_reference_with_urls", so compose reaches ZERO references and the run is rejected.
+    # references_tried == 0 is the new-contract signature of "no reference with urls".
+    assert out.get("rejected") == "all_compose_attempts_failed"
+    assert out.get("references_tried") == 0
 
 
 def test_slot_reserve_blocks_second_pipeline_same_slot():
@@ -243,8 +317,12 @@ def test_force_mode_bypasses_slot_guard():
         "reference_errors": [],
     }
     with (
+        _patch_baseline_spec(),
         patch("app.agents.orchestrator.TickDataService") as mock_tds_cls,
-        patch("app.interval.runner.compose_formatted_post", return_value=composed),
+        patch(
+            "app.pipeline.tools.llm.compose_until_safe.compose_formatted_post",
+            return_value=composed,
+        ),
         patch.object(tw, "post_tweet", return_value={"id": "99", "text": composed}),
     ):
         mock_td = mock_tds_cls.return_value
