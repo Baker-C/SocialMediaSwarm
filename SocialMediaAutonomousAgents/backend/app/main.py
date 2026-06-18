@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from app.api.routes import accounts, analytics, oauth, posts, dashboard, health, force_post, pipeline_runs, auth
+from app.api.routes import accounts, analytics, oauth, posts, dashboard, health, force_post, pipeline_runs, auth, comments
 from app.api.routes.auth import require_auth
 from app.core.config import settings
 from app.infrastructure.nats_client import get_nats_client
@@ -183,4 +183,5 @@ app.include_router(analytics.router, prefix="/api", tags=["analytics"], dependen
 app.include_router(force_post.router, prefix="/api", tags=["force-post"], dependencies=_auth)
 app.include_router(pipeline_runs.router, prefix="/api", tags=["pipeline-runs"], dependencies=_auth)
 app.include_router(posts.router, prefix="/api", tags=["posts"], dependencies=_auth)
+app.include_router(comments.router, prefix="/api", tags=["comments"], dependencies=_auth)
 app.include_router(dashboard.router, prefix="/api", tags=["dashboard"], dependencies=_auth)

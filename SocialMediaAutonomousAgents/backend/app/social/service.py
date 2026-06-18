@@ -104,6 +104,28 @@ class SocialMediaService:
             exclude_retweets=exclude_retweets,
         )
 
+    def get_post_replies(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        post_id: str,
+        *,
+        max_results: int = 50,
+    ) -> list[dict]:
+        return self._client(platform, creds).get_post_replies(
+            post_id,
+            max_results=max_results,
+        )
+
+    def reply_to_tweet(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        post_id: str,
+        text: str,
+    ) -> CreatedPost:
+        return self._client(platform, creds).reply_to_tweet(post_id, text)
+
 
 _social_service: SocialMediaService | None = None
 

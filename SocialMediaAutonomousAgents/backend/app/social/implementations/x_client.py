@@ -562,3 +562,71 @@ class XTwitterClient:
         if not tid:
             raise SocialPlatformError("Missing tweet id in create_tweet response", vendor="x")
         return CreatedPost(id=tid, text=text)
+
+    def get_post_replies(
+        self,
+        post_id: str,
+        *,
+        max_results: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Fetch replies to a specific post. Returns reference rows with ``source=conversation``."""
+        pid = (post_id or "").strip()
+        if not pid:
+            return []
+        ua = self._user_auth
+        try:
+            parent_resp = self._execute_with_backoff(
+                lambda: self._fetch_own_tweet(pid, user_auth=ua)
+            )
+            if not parent_resp or not parent_resp.data:
+                raise SocialPlatformError(f"Parent tweet not found: {pid}", vendor="x")
+            parent = parent_resp.data
+            conv_id = getattr(parent, "conversation_id", None) or (
+                parent.get("conversation_id") if isinstance(parent, dict) else None
+            )
+            if not conv_id:
+                return []
+            cap = max(10, min(int(max_results), 100))
+            search_query = f"conversation_id:{conv_id}"
+            resp = self._execute_with_backoff(
+                lambda: self._fetch_reference_tweets(
+                    lambda **kw: self._v2.search_recent_tweets(
+                        search_query, max_results=cap, **kw
+                    ),
+                    user_auth=ua,
+                )
+            )
+            rows = self._tweets_from_response(resp, source="conversation", extra={"parent_tweet_id": pid})
+            return rows
+        except SocialPlatformError:
+            raise
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+
+    def reply_to_tweet(
+        self,
+        post_id: str,
+        text: str,
+    ) -> CreatedPost:
+        """Publish a reply to a specific tweet."""
+        pid = (post_id or "").strip()
+        if not pid:
+            raise SocialPlatformError("post_id is required to reply", vendor="x")
+        reply_text = (text or "").strip()
+        if not reply_text:
+            raise SocialPlatformError("Reply text cannot be empty", vendor="x")
+        ua = self._user_auth
+        resp = self._execute_with_backoff(
+            lambda: self._v2.create_tweet(
+                text=reply_text,
+                in_reply_to_tweet_id=pid,
+                user_auth=ua,
+            )
+        )
+        if not resp or not resp.data:
+            raise SocialPlatformError("Empty response from create_tweet (reply)", vendor="x")
+        d = resp.data
+        tid = str(getattr(d, "id", "") or (d.get("id") if isinstance(d, dict) else "") or "")
+        if not tid:
+            raise SocialPlatformError("Missing tweet id in create_tweet (reply) response", vendor="x")
+        return CreatedPost(id=tid, text=reply_text)
