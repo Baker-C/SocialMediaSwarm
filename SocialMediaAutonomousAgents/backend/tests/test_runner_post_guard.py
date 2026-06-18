@@ -36,10 +36,20 @@ def test_run_account_pipeline_releases_guards_on_exception() -> None:
     reservation.account = acc
     reservation.previous_slot = None
 
+    # The reference-phase function the old imperative runner called no longer exists; the
+    # runner now loads the account's spec and walks it inside the same try/finally. Make
+    # the very first step of that body — the spec load — raise, so the spec walk never
+    # starts and the RuntimeError propagates out of the try. The behavioral assertion is
+    # unchanged: whatever blows up inside the pipeline body, the finally must release the
+    # post guards exactly once.
+    spec_repo = MagicMock()
+    spec_repo.load_or_default.side_effect = RuntimeError("boom")
+    spec_repo.load.side_effect = RuntimeError("boom")
+
     with (
         patch("app.interval.runner.try_begin_post", return_value=(acc, None)),
         patch("app.interval.runner.try_reserve_interval_slot", return_value=(reservation, None)),
-        patch("app.interval.runner.run_reference_phase", side_effect=RuntimeError("boom")),
+        patch("app.interval.runner.PipelineSpecRepository", return_value=spec_repo),
         patch("app.interval.runner.release_post_pipeline_guards") as release_guards,
     ):
         with pytest.raises(RuntimeError, match="boom"):
