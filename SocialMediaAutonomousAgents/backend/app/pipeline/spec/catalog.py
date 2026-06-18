@@ -10,7 +10,7 @@ from typing import Any, Callable
 from app.models.tool_catalog import ConfigOrigin, ToolCatalogDocument, ToolParameter, config_type
 from app.pipeline.tools.data import account_profile, own_posts_fetch, publish_post, search_fetch
 from app.pipeline.tools.deterministic import reference_rank
-from app.pipeline.tools.llm import compose_timeline_post, compose_until_safe, reference_pattern_summary
+from app.pipeline.tools.llm import compose_until_safe, reference_pattern_summary
 
 # Optional imports for doc 12 reply tools (imported with guard for pre-doc-12):
 try:
@@ -27,7 +27,6 @@ _TOOL_MODULES = (
     own_posts_fetch,
     reference_rank,
     reference_pattern_summary,
-    compose_timeline_post,
     compose_until_safe,
     publish_post,
 ) + _REPLY_TOOLS
@@ -189,7 +188,6 @@ _TOOL_RUN: dict[str, Callable | None] = {
     "data.own_posts_fetch": steps.fetch_own_post_history,
     "deterministic.reference_rank": None,  # shared by 2+ steps → resolved per-step by compiler
     "llm.reference_pattern_summary": None,  # shared by 2 steps → likewise
-    "llm.compose_timeline_post": None,  # informational only; never spec-wired (§4.3a)
     # doc 06 ACT-tail tools (the seed/runbook wires these by tool_id):
     "llm.compose_until_safe": steps.compose_step,  # writes SAFETY_VERDICT (R7 invariant)
     "data.publish_post": steps.publish_step,       # terminal; writes PUBLISHED_POST (R6 invariant)

@@ -16,11 +16,11 @@ from app.pipeline.spec.catalog import (
 class TestToolCatalogIntrospection:
     """Test that the six SENSE tools are correctly introspected."""
 
-    def test_build_tool_catalog_returns_eleven_tools(self) -> None:
-        """The catalog must contain exactly eleven tools: the SENSE tools, the two ACT-tail
+    def test_build_tool_catalog_returns_ten_tools(self) -> None:
+        """The catalog must contain exactly ten tools: the SENSE tools, the two ACT-tail
         tools (compose_until_safe + publish_post, doc 06), and the three reply tools (doc 12)."""
         catalog = build_tool_catalog()
-        assert len(catalog) == 11
+        assert len(catalog) == 10
         tool_ids = [t.tool_id for t in catalog]
         expected = [
             "data.account_profile",
@@ -28,7 +28,6 @@ class TestToolCatalogIntrospection:
             "data.own_posts_fetch",
             "deterministic.reference_rank",
             "llm.reference_pattern_summary",
-            "llm.compose_timeline_post",
             "llm.compose_until_safe",
             "data.publish_post",
             "data.mentions_fetch",
@@ -46,7 +45,7 @@ class TestToolCatalogIntrospection:
         assert tool is not None
         assert tool.tool_id == "data.account_profile"
         assert catalog.all() is not None
-        assert len(catalog.all()) == 11
+        assert len(catalog.all()) == 10
 
     def test_get_tool_convenience_function(self) -> None:
         """get_tool(tool_id) returns the same result as catalog.get(tool_id)."""
@@ -175,42 +174,6 @@ class TestToolCatalogIntrospection:
         assert len(tool.proposable_params) == 1
         assert tool.proposable_params[0].name == "max_results_per_query"
 
-    def test_compose_timeline_post_no_output_model(self) -> None:
-        """compose_timeline_post has no OUTPUT_MODEL and no writes (legacy leaf, info-only)."""
-        catalog = get_tool_catalog()
-        tool = catalog.get("llm.compose_timeline_post")
-        assert tool is not None
-        assert tool.output_model is None
-        assert tool.writes is None
-        assert tool.reads is None
-
-    def test_compose_timeline_post_legacy_soul_fields(self) -> None:
-        """compose_timeline_post: the four soul fields are literal (legacy-leaf-only)."""
-        catalog = get_tool_catalog()
-        tool = catalog.get("llm.compose_timeline_post")
-        assert tool is not None
-
-        soul_fields = {
-            "account_posting_prompt",
-            "account_personality",
-            "contrast_patterns",
-            "punctuation_rules",
-        }
-        for param in tool.parameters:
-            if param.name in soul_fields:
-                assert param.config_origin == "literal", f"{param.name} should be literal"
-
-        # Verify they appear in proposable_params
-        proposable_names = {p.name for p in tool.proposable_params}
-        assert soul_fields <= proposable_names
-
-    def test_no_injected_params_on_compose_timeline_post(self) -> None:
-        """compose_timeline_post takes no injected deps."""
-        catalog = get_tool_catalog()
-        tool = catalog.get("llm.compose_timeline_post")
-        assert tool is not None
-        assert len(tool.injected_params) == 0
-
     def test_reference_pattern_summary_dynamic_writes(self) -> None:
         """reference_pattern_summary has dynamic writes due to store_key resolution."""
         catalog = get_tool_catalog()
@@ -220,8 +183,8 @@ class TestToolCatalogIntrospection:
         assert tool.reads is None
 
     def test_all_literal_params_are_correct_set(self) -> None:
-        """Guard: only top_n, max_results_per_query, the four soul fields, and the
-        reply mentions max_results are literal (proposable)."""
+        """Guard: only top_n, max_results_per_query, and the reply mentions
+        max_results are literal (proposable)."""
         catalog = get_tool_catalog()
         all_literal = set()
         for tool in catalog.all():
@@ -231,17 +194,13 @@ class TestToolCatalogIntrospection:
         expected_literal = {
             ("deterministic.reference_rank", "top_n"),
             ("data.search_fetch", "max_results_per_query"),
-            ("llm.compose_timeline_post", "account_posting_prompt"),
-            ("llm.compose_timeline_post", "account_personality"),
-            ("llm.compose_timeline_post", "contrast_patterns"),
-            ("llm.compose_timeline_post", "punctuation_rules"),
             ("data.mentions_fetch", "max_results"),
         }
         assert all_literal == expected_literal
 
     def test_all_config_schema_entries(self) -> None:
         """config_schema should be empty except for reference_rank, search_fetch,
-        compose_timeline_post, and the reply mentions_fetch."""
+        and the reply mentions_fetch."""
         catalog = get_tool_catalog()
 
         # reference_rank: top_n
@@ -252,10 +211,6 @@ class TestToolCatalogIntrospection:
         search = catalog.get("data.search_fetch")
         assert len(search.config_schema) == 1  # type: ignore
 
-        # compose_timeline_post: 4 soul fields
-        compose = catalog.get("llm.compose_timeline_post")
-        assert len(compose.config_schema) == 4  # type: ignore
-
         # mentions_fetch: max_results (doc 12 reply family)
         mentions = catalog.get("data.mentions_fetch")
         assert len(mentions.config_schema) == 1  # type: ignore
@@ -265,7 +220,6 @@ class TestToolCatalogIntrospection:
             if tool.tool_id not in {
                 "deterministic.reference_rank",
                 "data.search_fetch",
-                "llm.compose_timeline_post",
                 "data.mentions_fetch",
             }:
                 assert len(tool.config_schema) == 0
@@ -338,9 +292,6 @@ class TestToolRunMapping:
         # Shared tools should return None (compiler resolves per-step)
         assert catalog.run_for("deterministic.reference_rank") is None
         assert catalog.run_for("llm.reference_pattern_summary") is None
-
-        # Legacy informational tool should return None
-        assert catalog.run_for("llm.compose_timeline_post") is None
 
         # Unknown tool should return None
         assert catalog.run_for("nope") is None
