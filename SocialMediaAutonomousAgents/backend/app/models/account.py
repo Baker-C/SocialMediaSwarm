@@ -192,6 +192,42 @@ class AccountPostingState(BaseModel):
     copied_reference_tweet_ids: list[str] = Field(default_factory=list)
 
 
+ProvisioningStatus = Literal[
+    "draft",            # persona approved, account row written, not yet provisioning
+    "in_progress",      # agent is driving signup
+    "awaiting_captcha", # agent paused; operator must solve FunCaptcha in the live window
+    "x_account_created",# signup complete, account exists on X
+    "dev_setup",        # developer console / pay-per-use billing in progress
+    "complete",         # dev keys captured + stored
+    "failed",
+    "cancelled",
+]
+
+
+class ProvisioningImages(BaseModel):
+    avatar_asset_id: str | None = None   # -> MediaAssetRepository.get(asset_id)
+    header_asset_id: str | None = None
+
+
+class AccountProvisioning(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    # identity chosen during persona design (mirrors what gets typed into X)
+    display_name: str = ""
+    bio: str = ""
+    images: ProvisioningImages = Field(default_factory=ProvisioningImages)
+    # live state
+    status: ProvisioningStatus = "draft"
+    current_page: str = ""          # PageState the agent last reported (free-text mirror)
+    step_log: list[str] = Field(default_factory=list)   # human-readable breadcrumb
+    error_message: str | None = None
+    attempt_count: int = 0
+    # outcome (non-secret identifiers only; keys/password/cookies live in AccountSecrets)
+    x_user_id: str = ""
+    dev_app_id: str = ""
+    started_at: str | None = None
+    completed_at: str | None = None
+
+
 class AccountDocument(BaseModel):
     """Full account row in RavenDB. Document id: accounts/{account_id}."""
 
@@ -200,6 +236,7 @@ class AccountDocument(BaseModel):
     # soul replaces the old `voice` object as the single writing-identity source.
     soul: AccountSoul = Field(default_factory=AccountSoul)
     posting: AccountPostingState = Field(default_factory=AccountPostingState)
+    provisioning: AccountProvisioning = Field(default_factory=AccountProvisioning)
 
     @model_validator(mode="before")
     @classmethod
@@ -441,6 +478,15 @@ class AccountDocument(BaseModel):
     @copied_reference_tweet_ids.setter
     def copied_reference_tweet_ids(self, value: list[str]) -> None:
         self.posting.copied_reference_tweet_ids = value
+
+    # ── Provisioning accessor ──
+    @property
+    def provisioning_status(self) -> str:
+        return self.provisioning.status
+
+    @provisioning_status.setter
+    def provisioning_status(self, value: str) -> None:
+        self.provisioning.status = value  # type: ignore[assignment]
 
     @staticmethod
     def document_id(account_id: str) -> str:

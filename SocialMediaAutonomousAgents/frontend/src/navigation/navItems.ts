@@ -6,6 +6,14 @@ export type AccountSubNavItem = {
   end?: boolean;
 };
 
+export type TopNavItem = {
+  path: string;
+  label: string;
+};
+
+// Top-level (non-account) nav entries rendered by the Sidebar.
+export const TOP_NAV: TopNavItem[] = [{ path: '/provision', label: 'New Account' }];
+
 export const ACCOUNT_SUB_NAV: AccountSubNavItem[] = [
   { segment: '', label: 'HQ', end: true },
   { segment: 'posts', label: 'Posts' },

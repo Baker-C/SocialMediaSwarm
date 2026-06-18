@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AccountHqPage } from '../features/account/AccountHqPage';
 import { AccountLayout } from '../features/account/AccountLayout';
 import { AccountSettingsPage } from '../features/account/AccountSettingsPage';
+import { AccountProvisioningPage } from '../features/account-provisioning/AccountProvisioningPage';
 import { AgentBuilderPage } from '../features/builder/AgentBuilderPage';
 import { FleetOverviewPage } from '../features/fleet/FleetOverviewPage';
 import { PipelineOpsPage } from '../features/pipeline/PipelineOpsPage';
@@ -20,6 +21,7 @@ export const router = createBrowserRouter(
       element: <AppLayout />,
       children: [
         { index: true, element: <FleetOverviewPage /> },
+        { path: 'provision', element: <AccountProvisioningPage /> },
         {
           path: 'accounts/:accountId',
           element: <AccountLayout />,
