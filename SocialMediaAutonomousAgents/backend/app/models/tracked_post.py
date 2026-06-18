@@ -23,6 +23,9 @@ class PostCreationMetrics(BaseModel):
     voice_version_seq: int | None = None
     voice_version_label: str | None = None
     source_reference_metrics_at_pick: dict | None = None
+    # ── NEW: attribution join (the ONE missing link) ──
+    run_id: str | None = None          # joins this post to its PipelineRunDocument (pipelineruns/{run_id})
+    pipeline_hash: str | None = None   # the active PipelineSpecDocument.version_hash at post time (doc 04)
 
 
 class TrackedPostDocument(BaseModel):
