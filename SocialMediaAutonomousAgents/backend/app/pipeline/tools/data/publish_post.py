@@ -18,7 +18,7 @@ TOOL_ID = "data.publish_post"
 TOOL_KIND = "data"
 TOOL_SOURCE = "x_api"
 TOOL_PURPOSE = "Publish the approved post to X (idempotent) and finalize account/registry state"
-TOOL_READS = (ArtifactKey.COMPOSED_POST, ArtifactKey.SAFETY_VERDICT)
+TOOL_READS = (ArtifactKey.COMPOSED_POST, ArtifactKey.SAFETY_VERDICT, ArtifactKey.ACCOUNT_BUNDLE)
 TOOL_WRITES = (ArtifactKey.PUBLISHED_POST,)
 
 # Process-local idempotency ledger: (run_id, account_id) → tweet_id already posted.

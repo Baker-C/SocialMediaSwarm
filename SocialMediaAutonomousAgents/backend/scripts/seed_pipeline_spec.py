@@ -54,7 +54,8 @@ ACT_TAIL_SPECS: list[StepSpec] = [
             "timeline_analysis",
             "own_posts_analysis",
             "timeline_ranked",
-        ],  # CC-7: 3-read tuple — compose reads TIMELINE_RANKED to build ranked_refs internally; MUST match doc 06 TOOL_READS / doc 07 §2.3
+            "timeline_references",
+        ],  # CC-7: compose reads TIMELINE_RANKED to build ranked_refs internally + TIMELINE_REFERENCES for the reference pool; MUST match doc 06 TOOL_READS / doc 07 §2.3
         writes=["composed_post", "safety_verdict"],  # ArtifactKey.COMPOSED_POST / SAFETY_VERDICT
         config={},  # coarse ACT tool exposes NO proposable config (doc 06 §5.1)
         purpose="Compose with guardian feedback + reference fallback until safe",
@@ -62,7 +63,7 @@ ACT_TAIL_SPECS: list[StepSpec] = [
     StepSpec(
         id="publish_post",
         tool_id="data.publish_post",
-        reads=["composed_post", "safety_verdict"],  # ArtifactKey.COMPOSED_POST / SAFETY_VERDICT
+        reads=["composed_post", "safety_verdict", "account_bundle"],  # ArtifactKey.COMPOSED_POST / SAFETY_VERDICT / ACCOUNT_BUNDLE (followers_at_post)
         writes=["published_post"],  # ArtifactKey.PUBLISHED_POST (terminal — R6)
         config={},
         purpose="Publish to X (idempotent) and finalize state",
