@@ -11,6 +11,7 @@ export const ACCOUNT_SUB_NAV: AccountSubNavItem[] = [
   { segment: 'posts', label: 'Posts' },
   { segment: 'references', label: 'References' },
   { segment: 'pipeline', label: 'Pipeline' },
+  { segment: 'builder', label: 'Builder' },
   { segment: 'voice', label: 'Voice' },
   { segment: 'settings', label: 'Settings' },
 ];

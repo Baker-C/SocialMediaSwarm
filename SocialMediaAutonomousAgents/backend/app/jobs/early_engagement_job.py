@@ -13,6 +13,7 @@ from app.services.pipeline_outcome_repository import PipelineOutcomeRepository
 from app.services.post_metric_snapshot_repository import PostMetricSnapshotRepository
 from app.services.post_registry import TrackedPostRepository
 from app.services.twitter_service import TwitterService
+from app.services.outcome_ledger_repository import OutcomeLedgerRepository
 
 
 def run_early_engagement_job() -> dict:
@@ -21,6 +22,7 @@ def run_early_engagement_job() -> dict:
     tw = TwitterService(repo)
     snapshots = PostMetricSnapshotRepository()
     outcomes = PipelineOutcomeRepository()
+    ledger = OutcomeLedgerRepository()
     cutoff = (
         datetime.now(timezone.utc) - timedelta(hours=max(1, int(settings.early_engagement_window_hours)))
     ).isoformat()
@@ -60,6 +62,7 @@ def run_early_engagement_job() -> dict:
                 }
                 m["engagement_velocity"] = compute_velocity(prev.model_dump() if prev else None, curr_snapshot)
                 trepo.update_metrics(acc.account_id, tid, m)
+                ledger.update_outcome(acc.account_id, tid, m)
                 snapshots.save(
                     PostMetricSnapshotDocument(
                         account_id=acc.account_id,

@@ -261,3 +261,77 @@ def brief_own_posts(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
     )
     brief_raw = ctx.get(ArtifactKey.OWN_POSTS_ANALYSIS.value) or summary.payload
     return StepResult(ok=True, payload={"own_posts_analysis": brief_raw})
+
+
+def compose_step(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
+    from app.pipeline.tools.llm import compose_until_safe
+    return compose_until_safe.run(ctx, deps)
+
+
+def publish_step(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
+    from app.pipeline.tools.data import publish_post
+    return publish_post.run(ctx, deps)
+
+
+# ── Reply pipeline wrappers (doc 12) ──
+
+
+def fetch_mentions(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
+    """Spread the injected `twitter` dep + the literal `max_results` config into mentions_fetch."""
+    from app.pipeline.tools.data import mentions_fetch
+
+    cfg = ctx.data.get("_step_config:data.mentions_fetch", {})
+    return mentions_fetch.run(
+        ctx, twitter=deps.twitter, max_results=cfg.get("max_results")
+    )
+
+
+def rank_mentions(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
+    """Rank the MENTIONS pool. Reuses deterministic.reference_rank; supplies the WIRED
+    store_key + rows + replied-exclude."""
+    from app.pipeline.tools.deterministic import reference_rank
+
+    mentions_raw = ctx.get(ArtifactKey.MENTIONS.value) or {}
+    payload = mentions_raw if isinstance(mentions_raw, dict) else {}
+    rows = list(payload.get("mentions") or [])
+    if not rows:
+        ctx.set_artifact(ArtifactKey.MENTIONS_RANKED, {"ranked": [], "winner": None})
+        return StepResult(ok=True, skipped=True, skip_reason="no_mentions")
+    cfg = ctx.data.get("_step_config:deterministic.reference_rank", {})
+    return reference_rank.run(
+        ctx,
+        rows=rows,
+        top_n=int(cfg.get("top_n", 10)),
+        exclude_ids=_replied_mention_exclude_set(ctx.account_id, deps),
+        store_key=ArtifactKey.MENTIONS_RANKED.value,
+    )
+
+
+def _replied_mention_exclude_set(account_id: str, deps: PostRunDeps) -> frozenset[str]:
+    """Return the set of mention tweet ids this account has already replied to."""
+    if not deps.post_registry:
+        return frozenset()
+    try:
+        rows = deps.post_registry.list_for_account(account_id)
+        # Collect source_reference_tweet_ids from reply posts
+        replied_ids = set()
+        for row in rows:
+            metrics = getattr(row, "creation_metrics", None)
+            if metrics and hasattr(metrics, "source_reference_tweet_id"):
+                if metrics.source_reference_tweet_id:
+                    replied_ids.add(metrics.source_reference_tweet_id)
+        return frozenset(replied_ids)
+    except Exception:
+        return frozenset()
+
+
+def reply_compose_step(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
+    from app.pipeline.tools.llm import reply_compose
+
+    return reply_compose.run(ctx, deps)
+
+
+def reply_publish_step(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
+    from app.pipeline.tools.data import reply_publish
+
+    return reply_publish.run(ctx, deps)

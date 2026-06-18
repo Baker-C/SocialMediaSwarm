@@ -15,6 +15,7 @@ class AccountMetricsDocument(BaseModel):
     positive_delta_avg_engagement: float | None = None
     non_positive_delta_avg_engagement: float | None = None
     follower_delta_engagement_gap: float | None = None
+    avg_post_reward: float | None = None
 
     @staticmethod
     def document_id(account_id: str) -> str:

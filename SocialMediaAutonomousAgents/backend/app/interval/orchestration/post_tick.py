@@ -16,6 +16,7 @@ from app.models.account import AccountDocument
 from app.models.tracked_post import PostCreationMetrics
 from app.services.copied_references import record_copied_reference
 from app.services.pipeline_outcome_repository import PipelineOutcomeRepository
+from app.services.outcome_ledger_repository import OutcomeLedgerRepository
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,14 @@ def finalize_post(
                 ctx.now_iso,
                 creation_metrics=creation_metrics,
                 followers_at_post=followers_at_post,
+            )
+            # ── NEW: open the attribution row for this post (reward filled later by jobs) ──
+            OutcomeLedgerRepository().stamp(
+                account_id=account.account_id,
+                post_id=account.last_post_id,
+                run_id=creation_metrics.run_id if creation_metrics else None,
+                soul_hash=creation_metrics.voice_version_hash if creation_metrics else None,
+                pipeline_hash=creation_metrics.pipeline_hash if creation_metrics else None,
             )
             m = ctx.twitter.get_tweet_metrics(account.account_id, account.last_post_id)
             imp = m.get("impression_count")

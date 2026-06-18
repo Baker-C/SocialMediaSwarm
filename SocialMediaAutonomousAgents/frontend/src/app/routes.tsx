@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AccountHqPage } from '../features/account/AccountHqPage';
 import { AccountLayout } from '../features/account/AccountLayout';
 import { AccountSettingsPage } from '../features/account/AccountSettingsPage';
+import { AgentBuilderPage } from '../features/builder/AgentBuilderPage';
 import { FleetOverviewPage } from '../features/fleet/FleetOverviewPage';
 import { PipelineOpsPage } from '../features/pipeline/PipelineOpsPage';
 import { PostDetailPage } from '../features/posts/PostDetailPage';
@@ -28,6 +29,7 @@ export const router = createBrowserRouter(
             { path: 'posts/:tweetId', element: <PostDetailPage /> },
             { path: 'references', element: <ReferencesLabPage /> },
             { path: 'pipeline', element: <PipelineOpsPage /> },
+            { path: 'builder', element: <AgentBuilderPage /> },
             { path: 'voice', element: <VoiceExperimentsPage /> },
             { path: 'settings', element: <AccountSettingsPage /> },
           ],

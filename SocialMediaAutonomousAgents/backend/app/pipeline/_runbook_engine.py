@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 import traceback
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from app.pipeline.events.capture import capture_artifacts
 from app.pipeline.events.dispatcher import (
@@ -14,14 +14,19 @@ from app.pipeline.events.dispatcher import (
     emit_step_skipped,
     emit_step_started,
 )
+from app.pipeline.events.step_trace import record_step_trace
+from app.pipeline.events.types import _now_iso
 from app.pipeline.services.deps import PostRunDeps
 from app.pipeline.types.context import TickRunContext
-from app.pipeline.types.flow import FlatStep, Step, flatten_steps
+from app.pipeline.types.flow import FlatStep, Step, StepFn, flatten_steps
 from app.pipeline.types.tool import StepResult
 from app.services.pipeline_outcome_repository import PipelineOutcomeRepository
 from app.services.pipeline_progress import progress_active, progress_done, progress_error
 
 logger = logging.getLogger(__name__)
+
+# A leaf wrapper sees the about-to-run step and returns a (possibly) wrapped run fn.
+StepWrapper = Callable[[FlatStep, StepFn], StepFn]
 
 
 class RunbookResult:
@@ -43,6 +48,8 @@ def _run_step_with_progress(
     flat: FlatStep,
     ctx: TickRunContext,
     deps: PostRunDeps,
+    *,
+    wrappers: Sequence[StepWrapper] = (),
 ) -> tuple[StepResult, dict]:
     step = flat.step
     progress_active(
@@ -61,20 +68,24 @@ def _run_step_with_progress(
         inputs=inputs,
     )
     started = time.monotonic()
+    started_iso = _now_iso()
+
+    # Apply wrappers to the step function (outermost wrapper runs first)
+    run_fn = step.run
+    for wrap in wrappers:
+        run_fn = wrap(flat, run_fn)
+
     try:
-        result = step.run(ctx, deps)
+        result = run_fn(ctx, deps)
     except Exception as exc:
         logger.exception("runbook step %s failed", flat.id)
         progress_error(flat.id, "step_exception", scope="runbook")
+        err = {"type": type(exc).__name__, "message": str(exc), "traceback": traceback.format_exc()}
         emit_step_failed(
             flat.id,
             scope="runbook",
             parent_id=flat.parent_id,
-            error={
-                "type": type(exc).__name__,
-                "message": str(exc),
-                "traceback": traceback.format_exc(),
-            },
+            error=err,
             duration_ms=int((time.monotonic() - started) * 1000),
         )
         entry = {
@@ -85,6 +96,10 @@ def _run_step_with_progress(
             "writes": [w.value for w in step.writes],
             "parent_id": flat.parent_id,
         }
+        record_step_trace(flat=flat, ctx=ctx, result=StepResult(ok=False, errors=[str(exc)]),
+                          status="error", skip_reason=None, error=err,
+                          started_at=started_iso, ended_at=_now_iso(),
+                          duration_ms=int((time.monotonic() - started) * 1000))
         return StepResult(ok=False, errors=[str(exc)]), entry
 
     if not isinstance(result, StepResult):
@@ -145,6 +160,10 @@ def _run_step_with_progress(
             duration_ms=duration_ms,
         )
 
+    status = "skipped" if result.skipped else ("ok" if result.ok else "error")
+    record_step_trace(flat=flat, ctx=ctx, result=result, status=status,
+                      skip_reason=result.skip_reason, error=None,
+                      started_at=started_iso, ended_at=_now_iso(), duration_ms=duration_ms)
     return result, entry
 
 
@@ -154,6 +173,7 @@ def run_steps(
     deps: PostRunDeps,
     *,
     stop_on_fail: bool = True,
+    wrappers: Sequence[StepWrapper] = (),
 ) -> RunbookResult:
     log: list[dict] = []
     outcomes = PipelineOutcomeRepository()
@@ -161,7 +181,7 @@ def run_steps(
 
     for flat in flat_steps:
         step = flat.step
-        result, entry = _run_step_with_progress(flat, ctx, deps)
+        result, entry = _run_step_with_progress(flat, ctx, deps, wrappers=wrappers)
         log.append(entry)
 
         if not result.ok and not result.skipped and "error" in entry:

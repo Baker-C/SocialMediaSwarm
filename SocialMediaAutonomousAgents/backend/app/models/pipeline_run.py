@@ -6,6 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.models.step_output import StepLink
+
 
 class StepError(BaseModel):
     type: str = ""
@@ -41,6 +43,7 @@ class PipelineRunDocument(BaseModel):
     duration_ms: int | None = None
     step_count: int = 0
     steps: list[PipelineStepRecord] = Field(default_factory=list)
+    step_links: list[StepLink] = Field(default_factory=list)  # NEW: ordered links to StepOutputDocument
     summary: dict[str, Any] = Field(default_factory=dict)
 
     @staticmethod
