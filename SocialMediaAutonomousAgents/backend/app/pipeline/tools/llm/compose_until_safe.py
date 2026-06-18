@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 TOOL_ID = "llm.compose_until_safe"
 TOOL_KIND = "llm"
 TOOL_PURPOSE = "Compose a post, regenerating with guardian feedback and falling back across references until one passes safety"
-TOOL_READS = (ArtifactKey.TIMELINE_ANALYSIS, ArtifactKey.OWN_POSTS_ANALYSIS, ArtifactKey.TIMELINE_RANKED)
+TOOL_READS = (ArtifactKey.TIMELINE_ANALYSIS, ArtifactKey.OWN_POSTS_ANALYSIS, ArtifactKey.TIMELINE_RANKED, ArtifactKey.TIMELINE_REFERENCES)
 TOOL_WRITES = (ArtifactKey.COMPOSED_POST, ArtifactKey.SAFETY_VERDICT)
 
 

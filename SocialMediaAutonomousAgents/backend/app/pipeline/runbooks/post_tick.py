@@ -85,14 +85,14 @@ POST_TICK_REFERENCE_STEPS: tuple[Step, ...] = (
     Step(
         "compose_until_safe",
         steps.compose_step,
-        reads=(ArtifactKey.TIMELINE_ANALYSIS, ArtifactKey.OWN_POSTS_ANALYSIS, ArtifactKey.TIMELINE_RANKED),
+        reads=(ArtifactKey.TIMELINE_ANALYSIS, ArtifactKey.OWN_POSTS_ANALYSIS, ArtifactKey.TIMELINE_RANKED, ArtifactKey.TIMELINE_REFERENCES),
         writes=(ArtifactKey.COMPOSED_POST, ArtifactKey.SAFETY_VERDICT),
         purpose="Compose with guardian feedback + reference fallback until safe",
     ),
     Step(
         "publish_post",
         steps.publish_step,
-        reads=(ArtifactKey.COMPOSED_POST, ArtifactKey.SAFETY_VERDICT),
+        reads=(ArtifactKey.COMPOSED_POST, ArtifactKey.SAFETY_VERDICT, ArtifactKey.ACCOUNT_BUNDLE),
         writes=(ArtifactKey.PUBLISHED_POST,),
         purpose="Publish to X (idempotent) and finalize state",
     ),
