@@ -27,6 +27,7 @@ type AccountSection =
   | 'post-detail'
   | 'references'
   | 'pipeline'
+  | 'builder'
   | 'voice'
   | 'settings';
 
@@ -43,6 +44,9 @@ function resolveAccountSection(pathname: string, accountId: string): AccountSect
   }
   if (pathname.endsWith('/pipeline')) {
     return 'pipeline';
+  }
+  if (pathname.endsWith('/builder')) {
+    return 'builder';
   }
   if (pathname.endsWith('/voice')) {
     return 'voice';
@@ -79,6 +83,11 @@ function sectionHeader(
       return {
         title: 'Pipeline Ops',
         subtitle: 'Outcomes, skips, and phase health',
+      };
+    case 'builder':
+      return {
+        title: 'Agent Builder',
+        subtitle: 'Edit pipeline spec and wire tools with Claude',
       };
     case 'voice':
       return {

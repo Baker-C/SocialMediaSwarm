@@ -14,6 +14,7 @@ import {
   PIPELINE_FLOW,
   type FlowNodeDef,
   type FlowRow,
+  type FlowSection,
 } from '../../lib/pipeline/flowGraph';
 import type { FlowNodeState, FlowNodeStatus } from '../../types/pipelineProgress';
 
@@ -21,6 +22,7 @@ type PipelineFlowDiagramProps = {
   nodeState: FlowNodeState;
   running: boolean;
   error: string | null;
+  sections?: FlowSection[];
 };
 
 function statusOf(nodeState: FlowNodeState, id: string): FlowNodeStatus {
@@ -73,7 +75,8 @@ function Row({ row, nodeState }: { row: FlowRow; nodeState: FlowNodeState }) {
   );
 }
 
-export function PipelineFlowDiagram({ nodeState, running, error }: PipelineFlowDiagramProps) {
+export function PipelineFlowDiagram({ nodeState, running, error, sections }: PipelineFlowDiagramProps) {
+  const flowSections = sections ?? PIPELINE_FLOW;
   return (
     <div className="pipeline-flow" role="region" aria-label="Pipeline flow diagram">
       <div className="pipeline-flow__meta">
@@ -92,7 +95,7 @@ export function PipelineFlowDiagram({ nodeState, running, error }: PipelineFlowD
       </div>
 
       <div className="pflow">
-        {PIPELINE_FLOW.map((section, sIdx) => (
+        {flowSections.map((section, sIdx) => (
           <Fragment key={section.id}>
             {sIdx > 0 ? <Arrow /> : null}
             <section
