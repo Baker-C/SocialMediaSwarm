@@ -1,8 +1,10 @@
 """Tests for spec rewrite and self-improvement."""
 
+from unittest.mock import patch
+
 import pytest
 
-from app.models.pipeline_spec import PipelineSpecDocument
+from app.models.pipeline_spec import PipelineSpecDocument, StepSpec
 from app.models.tool_catalog import ToolCatalogDocument, ToolParameter
 from app.pipeline.spec.validator import ValidationReport
 from app.services.pipeline_spec_repository import PipelineSpecRepository
@@ -55,7 +57,6 @@ class TestProposeAndStageChallenger:
 
     def test_challenger_staged_when_different(self):
         """A valid, distinct proposal is staged with parent_hash and status=challenger."""
-        # Create a champion spec with a simple step tree
         champion = PipelineSpecDocument(
             account_id="test_account",
             steps=[],
@@ -67,52 +68,32 @@ class TestProposeAndStageChallenger:
         repo = FakePipelineSpecRepository()
         repo.save(champion)
 
-        # Mock the validate_spec to always return OK
-        import app.pipeline.spec.validator as validator_module
+        def mock_propose(champ, catalog):
+            proposal = PipelineSpecDocument.model_validate(champ.model_dump())
+            proposal.steps = [StepSpec(id="modified", tool_id="data.account_profile")]
+            return proposal
 
-        original_validate = validator_module.validate_spec
+        hash_counter = [0]
 
-        def mock_validate(spec, catalog):
-            return ValidationReport(errors=[])
+        def mock_compute(spec):
+            hash_counter[0] += 1
+            return f"hash_{hash_counter[0]}"
 
-        validator_module.validate_spec = mock_validate
+        # Patch where the names are USED (spec_rewrite_service imports them by value),
+        # NOT where they are defined — patching the validator module is a no-op here.
+        with (
+            patch("app.services.spec_rewrite_service.validate_spec",
+                  return_value=ValidationReport(ok=True, errors=[])),
+            patch("app.services.spec_rewrite_service.compute_pipeline_hash", side_effect=mock_compute),
+            patch("app.services.spec_rewrite_service._propose_spec", side_effect=mock_propose),
+        ):
+            result = propose_and_stage_challenger("test_account", repo=repo)
 
-        try:
-            # Mock the compute_pipeline_hash to ensure the proposal differs
-            import app.services.spec_rewrite_service as rewrite_module
-
-            original_compute = rewrite_module.compute_pipeline_hash
-            hash_counter = [0]
-
-            def mock_compute(spec):
-                hash_counter[0] += 1
-                return f"hash_{hash_counter[0]}"
-
-            rewrite_module.compute_pipeline_hash = mock_compute
-
-            # Mock _propose_spec to return a different spec
-            original_propose = rewrite_module._propose_spec
-
-            def mock_propose(champ, catalog):
-                proposal = PipelineSpecDocument.model_validate(champ.model_dump())
-                proposal.steps = [{"kind": "step", "id": "modified"}]
-                return proposal
-
-            rewrite_module._propose_spec = mock_propose
-
-            try:
-                result = propose_and_stage_challenger("test_account", repo=repo)
-                assert result is not None
-                assert result.status == "challenger"
-                assert result.parent_hash == "v1_hash"
-                assert result.version_hash is None  # force fresh version on save
-                assert len(repo.get_save_calls()) == 2  # champion + staged challenger
-
-            finally:
-                rewrite_module._propose_spec = original_propose
-                rewrite_module.compute_pipeline_hash = original_compute
-        finally:
-            validator_module.validate_spec = original_validate
+        assert result is not None
+        assert result.status == "challenger"
+        assert result.parent_hash == "v1_hash"
+        assert result.version_hash is None  # force fresh version on save
+        assert len(repo.get_save_calls()) == 2  # champion + staged challenger
 
     def test_challenger_not_staged_when_invalid(self):
         """An invalid proposal is rejected; nothing is staged."""
@@ -163,7 +144,7 @@ class TestProposeAndStageChallenger:
         """A proposal identical to champion is rejected; nothing is staged."""
         champion = PipelineSpecDocument(
             account_id="test_account",
-            steps=[{"kind": "step", "id": "same"}],
+            steps=[StepSpec(id="same", tool_id="data.account_profile")],
             status="champion",
             version_hash="same_hash",
         )
@@ -171,45 +152,22 @@ class TestProposeAndStageChallenger:
         repo = FakePipelineSpecRepository()
         repo.save(champion)
 
-        import app.pipeline.spec.validator as validator_module
+        def mock_propose(champ, catalog):
+            return PipelineSpecDocument.model_validate(champ.model_dump())
 
-        original_validate = validator_module.validate_spec
+        # Both champion and proposal hash to the same value → identity guard returns
+        # None before validate_spec is ever reached.
+        with (
+            patch("app.services.spec_rewrite_service.validate_spec",
+                  return_value=ValidationReport(ok=True, errors=[])),
+            patch("app.services.spec_rewrite_service.compute_pipeline_hash", return_value="same_hash"),
+            patch("app.services.spec_rewrite_service._propose_spec", side_effect=mock_propose),
+        ):
+            result = propose_and_stage_challenger("test_account", repo=repo)
 
-        def mock_validate(spec, catalog):
-            return ValidationReport(errors=[])
-
-        validator_module.validate_spec = mock_validate
-
-        try:
-            import app.services.spec_rewrite_service as rewrite_module
-
-            original_propose = rewrite_module._propose_spec
-
-            # Return the same spec (byte-for-byte)
-            def mock_propose(champ, catalog):
-                return PipelineSpecDocument.model_validate(champ.model_dump())
-
-            rewrite_module._propose_spec = mock_propose
-
-            original_compute = rewrite_module.compute_pipeline_hash
-
-            # Both champion and proposal hash to the same value
-            def mock_compute(spec):
-                return "same_hash"
-
-            rewrite_module.compute_pipeline_hash = mock_compute
-
-            try:
-                result = propose_and_stage_challenger("test_account", repo=repo)
-                assert result is None
-                # No challenger staged (identity guard)
-                assert len(repo.get_save_calls()) == 1
-
-            finally:
-                rewrite_module.compute_pipeline_hash = original_compute
-                rewrite_module._propose_spec = original_propose
-        finally:
-            validator_module.validate_spec = original_validate
+        assert result is None
+        # No challenger staged (identity guard)
+        assert len(repo.get_save_calls()) == 1
 
     def test_challenger_inherits_parent_hash(self):
         """Staged challenger's parent_hash is the champion's version_hash."""
@@ -223,43 +181,24 @@ class TestProposeAndStageChallenger:
         repo = FakePipelineSpecRepository()
         repo.save(champion)
 
-        import app.pipeline.spec.validator as validator_module
+        def mock_propose(champ, catalog):
+            p = PipelineSpecDocument.model_validate(champ.model_dump())
+            p.steps = [StepSpec(id="different", tool_id="data.account_profile")]
+            return p
 
-        original_validate = validator_module.validate_spec
+        counter = [0]
 
-        def mock_validate(spec, catalog):
-            return ValidationReport(errors=[])
+        def mock_compute(spec):
+            counter[0] += 1
+            return f"hash_{counter[0]}"
 
-        validator_module.validate_spec = mock_validate
+        with (
+            patch("app.services.spec_rewrite_service.validate_spec",
+                  return_value=ValidationReport(ok=True, errors=[])),
+            patch("app.services.spec_rewrite_service.compute_pipeline_hash", side_effect=mock_compute),
+            patch("app.services.spec_rewrite_service._propose_spec", side_effect=mock_propose),
+        ):
+            result = propose_and_stage_challenger("test_account", repo=repo)
 
-        try:
-            import app.services.spec_rewrite_service as rewrite_module
-
-            original_propose = rewrite_module._propose_spec
-
-            def mock_propose(champ, catalog):
-                p = PipelineSpecDocument.model_validate(champ.model_dump())
-                p.steps = [{"kind": "different"}]  # make it different
-                return p
-
-            rewrite_module._propose_spec = mock_propose
-
-            original_compute = rewrite_module.compute_pipeline_hash
-            counter = [0]
-
-            def mock_compute(spec):
-                counter[0] += 1
-                return f"hash_{counter[0]}"
-
-            rewrite_module.compute_pipeline_hash = mock_compute
-
-            try:
-                result = propose_and_stage_challenger("test_account", repo=repo)
-                assert result is not None
-                assert result.parent_hash == "parent_v1"
-
-            finally:
-                rewrite_module.compute_pipeline_hash = original_compute
-                rewrite_module._propose_spec = original_propose
-        finally:
-            validator_module.validate_spec = original_validate
+        assert result is not None
+        assert result.parent_hash == "parent_v1"

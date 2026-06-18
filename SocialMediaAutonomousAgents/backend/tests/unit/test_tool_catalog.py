@@ -16,10 +16,11 @@ from app.pipeline.spec.catalog import (
 class TestToolCatalogIntrospection:
     """Test that the six SENSE tools are correctly introspected."""
 
-    def test_build_tool_catalog_returns_six_tools(self) -> None:
-        """The catalog must contain exactly six tools, no more, no less."""
+    def test_build_tool_catalog_returns_eleven_tools(self) -> None:
+        """The catalog must contain exactly eleven tools: the SENSE tools, the two ACT-tail
+        tools (compose_until_safe + publish_post, doc 06), and the three reply tools (doc 12)."""
         catalog = build_tool_catalog()
-        assert len(catalog) == 6
+        assert len(catalog) == 11
         tool_ids = [t.tool_id for t in catalog]
         expected = [
             "data.account_profile",
@@ -28,6 +29,11 @@ class TestToolCatalogIntrospection:
             "deterministic.reference_rank",
             "llm.reference_pattern_summary",
             "llm.compose_timeline_post",
+            "llm.compose_until_safe",
+            "data.publish_post",
+            "data.mentions_fetch",
+            "llm.reply_compose",
+            "data.reply_publish",
         ]
         assert tool_ids == expected
 
@@ -40,7 +46,7 @@ class TestToolCatalogIntrospection:
         assert tool is not None
         assert tool.tool_id == "data.account_profile"
         assert catalog.all() is not None
-        assert len(catalog.all()) == 6
+        assert len(catalog.all()) == 11
 
     def test_get_tool_convenience_function(self) -> None:
         """get_tool(tool_id) returns the same result as catalog.get(tool_id)."""
@@ -214,7 +220,8 @@ class TestToolCatalogIntrospection:
         assert tool.reads is None
 
     def test_all_literal_params_are_correct_set(self) -> None:
-        """Guard: only top_n, max_results_per_query, and four soul fields are literal."""
+        """Guard: only top_n, max_results_per_query, the four soul fields, and the
+        reply mentions max_results are literal (proposable)."""
         catalog = get_tool_catalog()
         all_literal = set()
         for tool in catalog.all():
@@ -228,11 +235,13 @@ class TestToolCatalogIntrospection:
             ("llm.compose_timeline_post", "account_personality"),
             ("llm.compose_timeline_post", "contrast_patterns"),
             ("llm.compose_timeline_post", "punctuation_rules"),
+            ("data.mentions_fetch", "max_results"),
         }
         assert all_literal == expected_literal
 
     def test_all_config_schema_entries(self) -> None:
-        """config_schema should be empty except for reference_rank, search_fetch, compose_timeline_post."""
+        """config_schema should be empty except for reference_rank, search_fetch,
+        compose_timeline_post, and the reply mentions_fetch."""
         catalog = get_tool_catalog()
 
         # reference_rank: top_n
@@ -247,12 +256,17 @@ class TestToolCatalogIntrospection:
         compose = catalog.get("llm.compose_timeline_post")
         assert len(compose.config_schema) == 4  # type: ignore
 
+        # mentions_fetch: max_results (doc 12 reply family)
+        mentions = catalog.get("data.mentions_fetch")
+        assert len(mentions.config_schema) == 1  # type: ignore
+
         # All others: empty
         for tool in catalog.all():
             if tool.tool_id not in {
                 "deterministic.reference_rank",
                 "data.search_fetch",
                 "llm.compose_timeline_post",
+                "data.mentions_fetch",
             }:
                 assert len(tool.config_schema) == 0
 
