@@ -129,6 +129,39 @@ class Settings(BaseSettings):
     fal_poll_interval_seconds: float = 3.0
     # Local media store: where generated/imported media bytes are saved on this machine.
     media_store_dir: str = "media_store"
+    # --- Account provisioning ---
+    provisioning_agent_token: str = ""          # shared secret the local agent presents
+    provisioning_agent_enabled: bool = False
+    # pay-per-use card (single operator card; PCI risk accepted for throwaway use)
+    provisioning_card_number: str = ""
+    provisioning_card_exp: str = ""             # MM/YY
+    provisioning_card_cvv: str = ""
+    provisioning_card_name: str = ""
+    # --- Disposable identity ---
+    disposable_email_domain: str = ""           # owned domain for catch-all addresses
+    disposable_email_api_base: str = ""         # mailbox read API (worker/imap-bridge/mail.tm)
+    disposable_email_api_key: str = ""
+    disposable_phone_api_base: str = ""         # SIM OTP provider
+    disposable_phone_api_key: str = ""
+    disposable_phone_country: str = ""          # optional default
+
+    @property
+    def provisioning_card(self) -> dict | None:
+        """The operator card as a dict when all fields are set, else None."""
+        fields = (
+            self.provisioning_card_number,
+            self.provisioning_card_exp,
+            self.provisioning_card_cvv,
+            self.provisioning_card_name,
+        )
+        if not all(f.strip() for f in fields):
+            return None
+        return {
+            "number": self.provisioning_card_number,
+            "exp": self.provisioning_card_exp,
+            "cvv": self.provisioning_card_cvv,
+            "name": self.provisioning_card_name,
+        }
 
 
 settings = Settings()

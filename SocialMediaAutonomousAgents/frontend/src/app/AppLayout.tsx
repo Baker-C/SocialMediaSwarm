@@ -11,6 +11,9 @@ import { OAuthRedirectHandler } from './OAuthRedirectHandler';
 
 function pageTitle(pathname: string, accountId?: string): string {
   if (!accountId) {
+    if (pathname.endsWith('/provision')) {
+      return 'NEW ACCOUNT';
+    }
     return 'OVERVIEW';
   }
   const id = accountId.toUpperCase();
