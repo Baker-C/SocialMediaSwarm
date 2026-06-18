@@ -17,10 +17,11 @@ def test_fetch_search_references_skipped_when_no_niches() -> None:
     repo = MagicMock()
     acc = MagicMock()
     acc.niches = []
+    acc.category = ""  # no category fallback either → genuinely no search topics
     repo.load.return_value = acc
     deps = PostRunDeps(tick_data=MagicMock(), repo=repo, post_registry=MagicMock())
     result = steps.fetch_search_references(ctx, deps)
-    assert result.skipped and result.skip_reason == "no_niches"
+    assert result.skipped and result.skip_reason == "no_search_topics"
 
 
 def test_fetch_search_references_one_call_per_niche_capped() -> None:
