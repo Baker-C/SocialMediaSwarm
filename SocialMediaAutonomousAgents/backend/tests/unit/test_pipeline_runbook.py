@@ -41,8 +41,10 @@ def test_runbook_top_level_step_ids() -> None:
 def test_runbook_reference_analysis_with_mocked_deps() -> None:
     tick_data = MagicMock()
     tick_data.compile_account_bundle.return_value = {"account_id": "acct1", "profile": {"id": "99"}}
-    tick_data.compile_timeline_reference_tweets.return_value = {
-        "timeline_reference_tweets": [
+    # The SENSE runbook sources external references from recent-SEARCH (not the timeline);
+    # mock that method with a URL-bearing tweet so it survives ranking into timeline_analysis.
+    tick_data.compile_search_reference_tweets.return_value = {
+        "search_reference_tweets": [
             {
                 "id": "t1",
                 "text": "story https://example.com/a",
@@ -59,9 +61,16 @@ def test_runbook_reference_analysis_with_mocked_deps() -> None:
     post_registry.list_for_account.return_value = []
     post_registry.list_tweet_ids.return_value = []
 
+    # Account with no niches but a category → search queries fall back to ["News"].
+    repo = MagicMock()
+    acc = MagicMock()
+    acc.niches = []
+    acc.category = "News"
+    repo.load.return_value = acc
+
     deps = PostRunDeps(
         tick_data=tick_data,
-        repo=MagicMock(),
+        repo=repo,
         post_registry=post_registry,
     )
 
