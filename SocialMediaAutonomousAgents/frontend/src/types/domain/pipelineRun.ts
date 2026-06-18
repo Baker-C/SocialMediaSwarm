@@ -1,4 +1,5 @@
 // Materialized pipeline-run projection (mirrors backend app/models/pipeline_run.py).
+import type { StepLink } from './stepOutput';
 
 export type StepArtifact = {
   artifact: string;
@@ -43,4 +44,5 @@ export type PipelineRun = {
   step_count: number;
   steps: PipelineStepRecord[];
   summary?: Record<string, unknown>;
+  step_links?: StepLink[];   // doc 08: ordered links to StepOutputDocument; empty when NATS-only
 };

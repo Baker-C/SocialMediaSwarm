@@ -9,9 +9,12 @@ from app.pipeline.types.artifacts import (
     ARTIFACTS,
     AccountBundle,
     ArtifactKey,
+    ComposedPost,
     OwnPostsPayload,
+    PublishedPost,
     RankedReferencesPayload,
     ReferencePatternBrief,
+    SafetyVerdict,
     SearchReferencesPayload,
     TimelineReferencesPayload,
 )
@@ -69,6 +72,40 @@ BRIEF_FIXTURE = {
     "features": {"top_n": 1},
 }
 
+COMPOSED_POST_FIXTURE = {
+    "body": "Test composed post",
+    "reference_index": 0,
+    "references_tried": 1,
+    "regeneration_round": 0,
+    "source_reference_tweet_id": "123",
+    "chosen_embed_url": "https://example.com",
+    "source_reference_metrics_at_pick": {"tweet_id": "123", "popularity_score": 5.0},
+    "tweets_pulled": 50,
+    "tweets_pulled_new": 25,
+    "tweets_pulled_duplicates": 25,
+}
+
+SAFETY_VERDICT_FIXTURE = {
+    "approved": True,
+    "last_reject": None,
+    "references_tried": 1,
+    "regeneration_round": 0,
+}
+
+PUBLISHED_POST_FIXTURE = {
+    "account_id": "acct1",
+    "posted": True,
+    "tweet_id": "9876543210",
+    "regeneration_round": 0,
+    "idempotency_key": "run123:acct1",
+    "note": None,
+    "result": {
+        "account_id": "acct1",
+        "tweet": {"id": "9876543210", "text": "Posted"},
+        "regeneration_round": 0,
+    },
+}
+
 
 @pytest.mark.parametrize(
     "key,fixture",
@@ -81,6 +118,9 @@ BRIEF_FIXTURE = {
         (ArtifactKey.OWN_POSTS_RANKED, RANKED_FIXTURE),
         (ArtifactKey.TIMELINE_ANALYSIS, BRIEF_FIXTURE),
         (ArtifactKey.OWN_POSTS_ANALYSIS, {**BRIEF_FIXTURE, "source": "own_posts"}),
+        (ArtifactKey.COMPOSED_POST, COMPOSED_POST_FIXTURE),
+        (ArtifactKey.SAFETY_VERDICT, SAFETY_VERDICT_FIXTURE),
+        (ArtifactKey.PUBLISHED_POST, PUBLISHED_POST_FIXTURE),
     ],
 )
 def test_artifact_fixture_validates(key: ArtifactKey, fixture: dict) -> None:
@@ -127,3 +167,41 @@ def test_ranked_empty_winner() -> None:
 def test_own_posts_payload() -> None:
     payload = OwnPostsPayload.model_validate(OWN_POSTS_FIXTURE)
     assert payload.account_id == "acct1"
+
+
+def test_composed_post_body_required() -> None:
+    with pytest.raises(ValidationError):
+        ComposedPost.model_validate({})
+
+
+def test_safety_verdict_approved_required() -> None:
+    with pytest.raises(ValidationError):
+        SafetyVerdict.model_validate({})
+
+
+def test_published_post_account_id_required() -> None:
+    with pytest.raises(ValidationError):
+        PublishedPost.model_validate({})
+
+
+def test_composed_post_with_metrics() -> None:
+    post = ComposedPost.model_validate(COMPOSED_POST_FIXTURE)
+    assert post.body == "Test composed post"
+    assert post.reference_index == 0
+    assert post.tweets_pulled == 50
+    assert post.source_reference_metrics_at_pick["popularity_score"] == 5.0
+
+
+def test_safety_verdict_rejected_shape() -> None:
+    verdict = SafetyVerdict.model_validate(
+        {"approved": False, "last_reject": "safety_rejected", "references_tried": 3}
+    )
+    assert verdict.approved is False
+    assert verdict.last_reject == "safety_rejected"
+
+
+def test_published_post_with_full_result() -> None:
+    post = PublishedPost.model_validate(PUBLISHED_POST_FIXTURE)
+    assert post.account_id == "acct1"
+    assert post.posted is True
+    assert "tweet" in post.result

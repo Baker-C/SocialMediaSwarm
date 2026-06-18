@@ -6,6 +6,7 @@ from app.services.pipeline_outcome_repository import PipelineOutcomeRepository
 from app.services.post_registry import TrackedPostRepository
 from app.infrastructure.ravendb_http import get_ravendb_client
 from app.services.account_repository import AccountRepository
+from app.reward.reward_function import account_avg_reward
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ def run_metrics_job() -> dict:
             and isinstance(r.get("follower_delta"), int)
             and r.get("follower_delta") <= 0
         ]
+        avg_reward = account_avg_reward(rows)
         doc = AccountMetricsDocument(
             account_id=acc.account_id,
             computed_at=datetime.now(timezone.utc).isoformat(),
@@ -47,6 +49,7 @@ def run_metrics_job() -> dict:
             positive_delta_avg_engagement=_avg(pos_eng),
             non_positive_delta_avg_engagement=_avg(non_pos_eng),
             follower_delta_engagement_gap=_gap(_avg(pos_eng), _avg(non_pos_eng)),
+            avg_post_reward=avg_reward,
         )
         client.put_document(
             AccountMetricsDocument.document_id(acc.account_id),

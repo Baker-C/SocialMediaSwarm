@@ -18,6 +18,7 @@ class TickRunContext:
     slot: str
     mode: TickMode = "scheduled"
     niche: str = ""
+    run_id: str = ""
     data: dict[str, Any] = field(default_factory=dict)
 
     def set(self, key: str, value: Any) -> None:

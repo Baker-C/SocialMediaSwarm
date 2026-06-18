@@ -22,6 +22,16 @@ class ArtifactKey(StrEnum):
     OWN_POSTS_RANKED = "own_posts_ranked"
     TIMELINE_ANALYSIS = "timeline_analysis"
     OWN_POSTS_ANALYSIS = "own_posts_analysis"
+    # ACT tail artifacts (doc 06)
+    COMPOSED_POST = "composed_post"
+    SAFETY_VERDICT = "safety_verdict"
+    PUBLISHED_POST = "published_post"
+    # Reply pipeline artifacts (doc 12)
+    MENTIONS = "mentions"
+    MENTIONS_RANKED = "mentions_ranked"
+    REPLY_DRAFT = "reply_draft"
+    REPLY_VERDICT = "reply_verdict"
+    REPLY_RESULT = "reply_result"
 
 
 class ReferenceTweetRow(BaseModel):
@@ -116,6 +126,113 @@ class ReferencePatternBrief(BaseModel):
     selected_winner_id: str | None = None
 
 
+# ── ACT tail artifacts (doc 06) ──
+
+
+class ComposedPost(BaseModel):
+    """The selected post body and the provenance of the compose loop that produced it.
+
+    This is the SERIALIZABLE view. The live winner GatheredTweet and the resolved
+    chosen_embed_url object travel via deps.live (not here) so we never force a
+    non-serializable through model_dump.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    body: str
+    # Outer-loop bookkeeping (mirrors runner.py:304-365 today)
+    reference_index: int = 0          # which ranked ref won (0-based)
+    references_tried: int = 0
+    regeneration_round: int = 0       # inner-loop round of the accepted body
+    source_reference_tweet_id: str | None = None
+    chosen_embed_url: str | None = None
+    # Source-pick metrics snapshot (mirrors runner.py:402-411)
+    source_reference_metrics_at_pick: dict[str, Any] | None = None
+    # Compose-cost bookkeeping for the creation metrics
+    tweets_pulled: int = 0
+    tweets_pulled_new: int = 0
+    tweets_pulled_duplicates: int = 0
+
+
+class SafetyVerdict(BaseModel):
+    """Final guardian outcome of the compose loop.
+
+    approved=True  → a body passed guardian.evaluate(); compose_until_safe wrote COMPOSED_POST.
+    approved=False → every reference/round was rejected; last_reject is the terminal reason
+                     and COMPOSED_POST is absent. publish_post will skip.
+    """
+
+    approved: bool
+    last_reject: str | None = None
+    references_tried: int = 0          # the rejected legacy return needs this (runner.py:373)
+    regeneration_round: int = 0        # round of the accepted body (0 when rejected)
+
+
+class PublishedPost(BaseModel):
+    """Result of the X publish + finalize. Carries the FULL finalize_post() dict under
+    `result` so the runner can reconstruct the exact legacy return shape (including the
+    full `tweet` object), plus flat convenience fields for the trace/dashboard."""
+
+    model_config = ConfigDict(extra="allow")
+
+    account_id: str
+    posted: bool = False
+    tweet_id: str | None = None
+    skipped_reason: str | None = None          # set when SAFETY_VERDICT.approved is False
+    regeneration_round: int | None = None
+    idempotency_key: str | None = None          # see §5.2
+    note: str | None = None
+    # The COMPLETE finalize_post(...) return dict ({account_id, tweet, regeneration_round,
+    # note?, creation_metrics?}) — verbatim, untruncated. The runner's _result_from_run (07)
+    # returns THIS as the legacy result so `'tweet' in out` and the full tweet object survive.
+    result: dict[str, Any] = Field(default_factory=dict)
+
+
+# ── Reply pipeline artifacts (doc 12) ──
+
+
+class MentionsPayload(BaseModel):
+    """Recent mentions of the account for reply candidacy."""
+
+    model_config = ConfigDict(extra="allow")
+
+    account_id: str
+    mentions: list[dict[str, Any]] = Field(default_factory=list)  # tweet-row dicts (rankable)
+
+
+class ReplyDraft(BaseModel):
+    """Composed reply body + target mention."""
+
+    model_config = ConfigDict(extra="allow")
+
+    body: str
+    in_reply_to_tweet_id: str
+    target_author_handle: str | None = None
+    regeneration_round: int = 0
+
+
+class ReplyVerdict(BaseModel):
+    """Reply|skip decision + guardian outcome."""
+
+    decision: Literal["reply", "skip"]
+    approved: bool = False
+    in_reply_to_tweet_id: str | None = None
+    reason: str | None = None
+
+
+class ReplyResult(BaseModel):
+    """X reply publish + finalize result."""
+
+    model_config = ConfigDict(extra="allow")
+
+    account_id: str
+    tweet_id: str | None = None
+    in_reply_to_tweet_id: str | None = None
+    posted: bool = False
+    skipped_reason: str | None = None
+    note: str | None = None
+
+
 @dataclass(frozen=True)
 class ArtifactDef:
     key: ArtifactKey
@@ -172,6 +289,55 @@ ARTIFACTS: dict[ArtifactKey, ArtifactDef] = {
         ReferencePatternBrief,
         "Own-post voice and success pattern brief",
         "steps.brief_own_posts",
+    ),
+    ArtifactKey.COMPOSED_POST: ArtifactDef(
+        ArtifactKey.COMPOSED_POST,
+        ComposedPost,
+        "Selected post body + compose-loop provenance",
+        "steps.compose_step",
+    ),
+    ArtifactKey.SAFETY_VERDICT: ArtifactDef(
+        ArtifactKey.SAFETY_VERDICT,
+        SafetyVerdict,
+        "Final guardian verdict of the compose loop",
+        "steps.compose_step",
+    ),
+    ArtifactKey.PUBLISHED_POST: ArtifactDef(
+        ArtifactKey.PUBLISHED_POST,
+        PublishedPost,
+        "X publish + finalize result",
+        "steps.publish_step",
+    ),
+    # Reply pipeline (doc 12)
+    ArtifactKey.MENTIONS: ArtifactDef(
+        ArtifactKey.MENTIONS,
+        MentionsPayload,
+        "Recent mentions of the account for reply candidacy",
+        "steps.fetch_mentions",
+    ),
+    ArtifactKey.MENTIONS_RANKED: ArtifactDef(
+        ArtifactKey.MENTIONS_RANKED,
+        RankedReferencesPayload,
+        "Top mentions ranked by engagement",
+        "steps.rank_mentions",
+    ),
+    ArtifactKey.REPLY_DRAFT: ArtifactDef(
+        ArtifactKey.REPLY_DRAFT,
+        ReplyDraft,
+        "Composed reply body + target mention",
+        "steps.reply_compose_step",
+    ),
+    ArtifactKey.REPLY_VERDICT: ArtifactDef(
+        ArtifactKey.REPLY_VERDICT,
+        ReplyVerdict,
+        "Reply|skip decision + guardian outcome",
+        "steps.reply_compose_step",
+    ),
+    ArtifactKey.REPLY_RESULT: ArtifactDef(
+        ArtifactKey.REPLY_RESULT,
+        ReplyResult,
+        "X reply publish + finalize result",
+        "steps.reply_publish_step",
     ),
 }
 

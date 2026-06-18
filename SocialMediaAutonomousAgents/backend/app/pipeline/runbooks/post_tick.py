@@ -82,4 +82,18 @@ POST_TICK_REFERENCE_STEPS: tuple[Step, ...] = (
         id="summarize_for_compose",
         purpose="Produce compose context briefs for external and own posts",
     ),
+    Step(
+        "compose_until_safe",
+        steps.compose_step,
+        reads=(ArtifactKey.TIMELINE_ANALYSIS, ArtifactKey.OWN_POSTS_ANALYSIS, ArtifactKey.TIMELINE_RANKED),
+        writes=(ArtifactKey.COMPOSED_POST, ArtifactKey.SAFETY_VERDICT),
+        purpose="Compose with guardian feedback + reference fallback until safe",
+    ),
+    Step(
+        "publish_post",
+        steps.publish_step,
+        reads=(ArtifactKey.COMPOSED_POST, ArtifactKey.SAFETY_VERDICT),
+        writes=(ArtifactKey.PUBLISHED_POST,),
+        purpose="Publish to X (idempotent) and finalize state",
+    ),
 )

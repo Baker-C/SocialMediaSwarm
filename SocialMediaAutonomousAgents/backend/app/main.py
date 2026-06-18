@@ -10,7 +10,10 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from app.api.routes import accounts, analytics, oauth, posts, dashboard, health, force_post, pipeline_runs, auth
+from app.api.routes import (
+    accounts, analytics, oauth, posts, dashboard, health, force_post,
+    pipeline_runs, pipeline_spec, auth, agent_builder,
+)
 from app.api.routes.auth import require_auth
 from app.core.config import settings
 from app.infrastructure.nats_client import get_nats_client
@@ -19,6 +22,7 @@ from app.pipeline.events.projection_consumer import ProjectionConsumer
 from app.jobs.engagement_job import run_engagement_job
 from app.jobs.early_engagement_job import run_early_engagement_job
 from app.jobs.interval_job import run_interval_job
+from app.jobs.learn_job import run_learn_job
 from app.jobs.metrics_job import run_metrics_job
 from app.jobs.oauth2_refresh_job import run_oauth2_refresh_job
 
@@ -84,6 +88,16 @@ def _build_scheduler() -> AsyncIOScheduler:
         coalesce=True,
         max_instances=1,
     )
+    if settings.learn_enabled:
+        sched.add_job(
+            run_learn_job,
+            CronTrigger(minute="20", timezone=tz),
+            id="learn_batch",
+            replace_existing=True,
+            misfire_grace_time=misfire,
+            coalesce=True,
+            max_instances=1,
+        )
     if settings.oauth2_refresh_enabled:
         sched.add_job(
             run_oauth2_refresh_job,
@@ -181,6 +195,8 @@ _auth = [Depends(require_auth)]
 app.include_router(accounts.router, prefix="/api", tags=["accounts"], dependencies=_auth)
 app.include_router(analytics.router, prefix="/api", tags=["analytics"], dependencies=_auth)
 app.include_router(force_post.router, prefix="/api", tags=["force-post"], dependencies=_auth)
+app.include_router(agent_builder.router, prefix="/api", tags=["agent-builder"], dependencies=_auth)
 app.include_router(pipeline_runs.router, prefix="/api", tags=["pipeline-runs"], dependencies=_auth)
+app.include_router(pipeline_spec.router, prefix="/api", tags=["pipeline-spec"], dependencies=_auth)
 app.include_router(posts.router, prefix="/api", tags=["posts"], dependencies=_auth)
 app.include_router(dashboard.router, prefix="/api", tags=["dashboard"], dependencies=_auth)

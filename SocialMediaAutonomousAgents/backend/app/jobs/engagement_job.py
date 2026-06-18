@@ -9,6 +9,7 @@ from app.services.post_metric_snapshot_repository import PostMetricSnapshotRepos
 from app.services.account_repository import AccountRepository
 from app.services.post_registry import TrackedPostRepository
 from app.services.twitter_service import TwitterService
+from app.services.outcome_ledger_repository import OutcomeLedgerRepository
 from app.metrics.derived import compute_rates
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,7 @@ def run_engagement_job() -> dict:
     tw = TwitterService(repo)
     snapshots = PostMetricSnapshotRepository()
     outcomes = PipelineOutcomeRepository()
+    ledger = OutcomeLedgerRepository()
     cutoff = (
         datetime.now(timezone.utc) - timedelta(hours=max(1, int(settings.metrics_poll_window_hours)))
     ).isoformat()
@@ -56,6 +58,7 @@ def run_engagement_job() -> dict:
                 m["follower_delta"] = account_follower_delta(acc)
                 m.update(compute_rates(m))
                 trepo.update_metrics(aid, tid, m)
+                ledger.update_outcome(aid, tid, m)
                 rate = m.get("engagement_rate")
                 reply_rate = m.get("reply_rate")
                 like_rate = m.get("like_rate")

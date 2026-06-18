@@ -96,6 +96,22 @@ class Settings(BaseSettings):
     pipeline_events_max_age_days: int = 30
     # Snapshot full (truncated) artifact bodies in step inputs/outputs; metadata is always captured
     pipeline_capture_payloads: bool = True
+    # Per-run hard cost ceiling (USD). 0.0 disables enforcement (the > 0 guard in CostMeter.check_before).
+    pipeline_cost_ceiling_usd: float = 3.00
+    # Blended LLM price in USD per 1K total tokens — the ONLY price in the system (CC-9; no hardcoded
+    # model price). _tokens_to_usd (claude_client.py) multiplies total tokens by this. Tune per model/plan.
+    cost_per_1k_tokens_usd: float = 0.009
+    # ── Interpreter LEARN / champion-challenger ──
+    learn_enabled: bool = True  # master switch for the learn_batch job
+    learn_auto_rollback_enabled: bool = True  # the ONE automatic action; off => recommend only
+    learn_auto_promote_enabled: bool = False  # DEFAULT manual promote; on => job promotes on "improved"
+    learn_propose_challenger_enabled: bool = True  # stage a challenger when none exists
+    learn_promote_min_window: int = 10  # min SCORED posts per arm before A/B comparison
+    learn_promote_min_improvement: float = 0.02  # challenger must beat champion by this avg reward
+    learn_rollback_min_window: int = 10  # min SCORED posts per arm before rollback
+    learn_rollback_hard_drop: float = 0.05  # parent must beat current champion by this to roll back
+    learn_use_builder_llm: bool = False  # off => deterministic knob-tweak proposer (§5.2)
+    challenger_slot_every: int = 4  # run the challenger on 1-in-N posting slots
 
 
 settings = Settings()

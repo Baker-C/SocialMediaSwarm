@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
 import re
@@ -10,6 +11,11 @@ from typing import Any
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Per-run accumulated LLM cost in USD. The cost wrapper (cost_meter) reads + resets it.
+_run_llm_cost_usd: contextvars.ContextVar[float] = contextvars.ContextVar(
+    "_run_llm_cost_usd", default=0.0
+)
 
 _JSON_FENCE = re.compile(r"```(?:json)?\s*([\s\S]*?)```", re.IGNORECASE)
 
@@ -66,6 +72,8 @@ class ClaudeClient:
             system=system,
             messages=[{"role": "user", "content": user}],
         )
+        # Record token usage into per-run accumulator
+        _record_usage(getattr(msg, "usage", None))
         parts: list[str] = []
         for block in msg.content:
             if hasattr(block, "text"):
@@ -96,3 +104,45 @@ def get_claude_client() -> ClaudeClient:
     if _claude is None:
         _claude = ClaudeClient()
     return _claude
+
+
+def _tokens_to_usd(input_tokens: int, output_tokens: int) -> float:
+    """Convert tokens to USD via the ONE configurable blended rate.
+
+    Args:
+        input_tokens: Number of input tokens.
+        output_tokens: Number of output tokens.
+
+    Returns:
+        Cost in USD using settings.cost_per_1k_tokens_usd as the blended rate.
+    """
+    total = (input_tokens or 0) + (output_tokens or 0)
+    return total / 1000.0 * settings.cost_per_1k_tokens_usd
+
+
+def _record_usage(usage: Any) -> None:
+    """Record token usage into the per-run accumulator.
+
+    Args:
+        usage: The SDK response.usage object with input_tokens and output_tokens.
+    """
+    if usage is None:
+        return
+    cost = _tokens_to_usd(
+        getattr(usage, "input_tokens", 0),
+        getattr(usage, "output_tokens", 0),
+    )
+    _run_llm_cost_usd.set(_run_llm_cost_usd.get() + cost)
+
+
+def drain_run_llm_cost_usd() -> float:
+    """Read and zero the accumulated LLM cost since the last drain.
+
+    Called by the cost wrapper in the engine to tally per-leaf spend.
+
+    Returns:
+        The accumulated cost in USD since the last drain.
+    """
+    v = _run_llm_cost_usd.get()
+    _run_llm_cost_usd.set(0.0)
+    return v

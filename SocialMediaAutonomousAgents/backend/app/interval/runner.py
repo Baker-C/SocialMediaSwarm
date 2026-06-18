@@ -8,31 +8,23 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from app.interval.compose_timeline_post import compose_formatted_post
+from app.core.cost_meter import CostMeter
+from app.core.config import settings
+from app.infrastructure.claude_client import drain_run_llm_cost_usd
 from app.interval.context import TickContext
-from app.interval.orchestration.post_tick import finalize_post, phase3_global_persist, phase4_backup_noop
-from app.interval.orchestration.pre_tick import phase1_global_setup, should_skip_account
 from app.interval.orchestration.post_guard import release_post_pipeline_guards, try_begin_post
 from app.interval.orchestration.slot_claim import (
     reload_account,
     try_reserve_interval_slot,
 )
+from app.interval.orchestration.pre_tick import phase1_global_setup, should_skip_account
+from app.interval.orchestration.post_tick import finalize_post, phase3_global_persist, phase4_backup_noop
 from app.interval.pipeline_trace import trace_step
+from app.interval.run_deps import post_run_deps_from_tick
 from app.interval.schemas import TickInput, TickMode
-from app.agents.safety_guardian import is_niche_mismatch_reject
-from app.interval.reference_context import format_reference_context_for_compose
-from app.interval.reference_phase import run_reference_phase
-from app.interval.tweet_topic_preanalysis import (
-    GatheredTweet,
-    apply_preanalysis_to_account_bundle,
-    preanalysis_from_winner,
-)
-from app.services.copied_references import copied_reference_exclude_set, record_copied_reference
-from app.models.tracked_post import PostCreationMetrics
 from app.models.account import AccountDocument
-from app.core.config import settings
-from app.services.account_repository import AccountRepository, current_interval_slot_key
-from app.services.pipeline_progress import progress_active, progress_done, progress_error
+from app.models.tracked_post import PostCreationMetrics
+from app.pipeline._runbook_engine import run_steps
 from app.pipeline.events.dispatcher import (
     emit_run_completed,
     emit_run_started,
@@ -42,8 +34,20 @@ from app.pipeline.events.dispatcher import (
     run_events,
 )
 from app.pipeline.events.sinks import NatsPublishSink
-from app.metrics.derived import extract_entities, extract_text_features
+from app.pipeline.events.step_trace import StepTraceSink, set_trace_sink, reset_trace_sink
+from app.pipeline.events.types import _now_iso
+from app.pipeline.runbook import start
+from app.pipeline.services.deps import ActLive, PostRunDeps
+from app.pipeline.types.artifacts import ArtifactKey
+from app.services.account_repository import AccountRepository, current_interval_slot_key
+from app.services.copied_references import copied_reference_exclude_set
 from app.services.pipeline_outcome_repository import PipelineOutcomeRepository
+from app.services.pipeline_progress import progress_active, progress_done, progress_error
+from app.services.pipeline_spec_repository import PipelineSpecRepository
+from app.models.pipeline_spec import PipelineSpecDocument
+from app.pipeline.spec.validator import validate_spec
+from app.pipeline.spec.compiler import compile_spec
+from app.pipeline.spec.catalog import get_tool_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +59,31 @@ __all__ = [
     "run_account_pipeline",
     "run_interval_tick",
 ]
+
+
+def _slot_spec_status(slot: str, mode: TickMode) -> str:
+    """Run the challenger on 1-in-N slots so a staged variant accrues its own
+    attribution rows; the rest run the champion. Pure function of the slot string
+    + a fixed cron job — NOT a per-agent scheduler. Forced (manual) ticks always
+    run the champion: a human force-post must not silently land on a variant."""
+    if mode != "scheduled":
+        return "champion"
+    every = max(2, int(settings.challenger_slot_every))
+    bucket = int(slot.replace("-", ""))  # deterministic integer index from the slot
+    return "challenger" if (bucket % every == 0) else "champion"
+
+
+def _load_spec_for_status(
+    account_id: str, status: str, repo: PipelineSpecRepository
+) -> PipelineSpecDocument:
+    """Champion slot → the live champion (or seeded baseline). Challenger slot →
+    the staged challenger if one exists, else fall back to champion-or-baseline.
+    Uses ONLY doc 04's repo API (load / load_or_default); no new repo method."""
+    if status == "challenger":
+        challenger = repo.load(account_id, "challenger")  # None when unstaged
+        if challenger is not None:
+            return challenger
+    return repo.load_or_default(account_id)  # champion or baseline
 
 
 def build_tick_context(
@@ -72,6 +101,7 @@ def build_tick_context(
     forced_run_id: str | None = None,
 ) -> TickContext:
     slot = current_interval_slot_key()
+    spec_status = _slot_spec_status(slot, mode)  # NEW — single clock read, no drift
     now_iso = datetime.now(timezone.utc).isoformat()
     regen_rounds = (
         max_regeneration_rounds
@@ -87,6 +117,7 @@ def build_tick_context(
         slot=slot,
         now_iso=now_iso,
         mode=mode,
+        spec_status=spec_status,  # NEW — derived from slot
         force_account_ids=force_account_ids,
         max_candidates=max_candidates,
         max_regeneration_rounds=regen_rounds,
@@ -100,6 +131,7 @@ def build_tick_context(
         {
             "slot": slot,
             "mode": mode,
+            "spec_status": spec_status,
             "force_account_ids": list(force_account_ids) if force_account_ids else None,
             "max_candidates": max_candidates,
             "max_regeneration_rounds": regen_rounds,
@@ -140,27 +172,134 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
     """Public entry: wraps the per-account pipeline in an event-sourced run."""
     run_id = ctx.forced_run_id or uuid4().hex
     started = time.monotonic()
+    started_iso = _now_iso()
+    trace = StepTraceSink(
+        run_id=run_id, account_id=account.account_id, slot=ctx.slot,
+        mode=ctx.mode, niche=account.category or "", started_at=started_iso,
+    )
+    token = set_trace_sink(trace)
     with run_events(
         run_id=run_id,
         account_id=account.account_id,
         slot=ctx.slot,
         mode=ctx.mode,
-        sinks=[NatsPublishSink()],
+        sinks=[NatsPublishSink(), trace],
     ):
         emit_run_started(niche=account.category or "")
         status = "error"
         try:
-            out = _run_account_pipeline(ctx, account)
+            out = _run_account_pipeline(ctx, account, run_id=run_id)
             status = _run_status_from_out(out)
             return out
         finally:
+            duration_ms = int((time.monotonic() - started) * 1000)
             emit_run_completed(
-                status=status, duration_ms=int((time.monotonic() - started) * 1000)
+                status=status, duration_ms=duration_ms
             )
+            trace.finalize(status=status, duration_ms=duration_ms, ended_at=_now_iso())
+            reset_trace_sink(token)
 
 
-def _run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str, Any]:
-    followers_at_post: int | None = None
+def engine_invariants(*, meter: CostMeter) -> tuple:
+    """Build the engine-injected invariant wrappers (cost ceiling + guardian assertion).
+
+    Args:
+        meter: The CostMeter for this run.
+
+    Returns:
+        A tuple of StepWrapper functions to inject into run_steps.
+    """
+
+    def cost_wrapper(flat, run_fn):
+        def _run(ctx, deps):
+            meter.check_before(flat.id)  # raises CostCeilingExceeded if over budget
+            res = run_fn(ctx, deps)
+            meter.record_after(flat.id, drain_run_llm_cost_usd())  # tally this leaf's LLM spend
+            return res
+
+        return _run
+
+    def guardian_wrapper(flat, run_fn):
+        def _run(ctx, deps):
+            res = run_fn(ctx, deps)
+            if flat.id == "compose_until_safe" and not ctx.has_artifact(ArtifactKey.SAFETY_VERDICT):
+                raise RuntimeError("guardian invariant violated: compose wrote no SAFETY_VERDICT")
+            return res
+
+        return _run
+
+    return (cost_wrapper, guardian_wrapper)
+
+
+def _first_failure_reason(result) -> str:
+    """Extract the first skip/error reason from a RunbookResult.
+
+    Args:
+        result: A RunbookResult from run_steps.
+
+    Returns:
+        The skip_reason or error message from the first failed step, or a default.
+    """
+    for entry in result.steps:
+        if entry.get("skipped"):
+            return entry.get("skip_reason") or "reference_phase_failed"
+        if not entry.get("ok"):
+            return entry.get("error") or entry.get("skip_reason") or "reference_phase_failed"
+    return "reference_phase_failed"
+
+
+def _result_from_run(
+    ctx: TickContext, account: AccountDocument, run_ctx, result, spec, outcomes
+) -> dict[str, Any]:
+    """Map terminal artifacts back to the legacy runner return dict.
+
+    Args:
+        ctx: The TickContext.
+        account: The AccountDocument.
+        run_ctx: The TickRunContext after the spec walk.
+        result: The RunbookResult from run_steps.
+        spec: The loaded PipelineSpecDocument.
+        outcomes: The PipelineOutcomeRepository.
+
+    Returns:
+        A dict in the legacy shape: skipped/rejected/error/success.
+    """
+    aid = account.account_id
+
+    # A SENSE step skipped (e.g., no reference with URLs) → skipped run.
+    if not result.ok:
+        reason = _first_failure_reason(result)
+        out = {"account_id": aid, "skipped": reason}
+        outcomes.append(account_id=aid, phase="runner", status="skipped", reason=reason)
+        return out
+
+    verdict = run_ctx.get_artifact(ArtifactKey.SAFETY_VERDICT)
+    if verdict is None or not verdict.approved:
+        reason = (verdict.last_reject if verdict else None) or "all_compose_attempts_failed"
+        out = {
+            "account_id": aid,
+            "rejected": reason,
+            "references_tried": verdict.references_tried if verdict else 0,
+        }
+        outcomes.append(account_id=aid, phase="runner", status="rejected", reason=reason)
+        return out
+
+    published = run_ctx.get_artifact(ArtifactKey.PUBLISHED_POST)
+    if published is None or not published.posted:
+        reason = (published.skipped_reason if published else None) or "publish_missing"
+        out = {"account_id": aid, "error": reason}
+        outcomes.append(account_id=aid, phase="runner", status="error", reason=reason)
+        return out
+
+    # CC-4: return the FULL finalize_post dict carried on PublishedPost.result verbatim.
+    # It already has the legacy shape {account_id, tweet:<full tw_result>, regeneration_round,
+    # note?, creation_metrics?}, so the COMPLETE `tweet` object survives.
+    out = dict(published.result)
+    outcomes.append(account_id=aid, phase="runner", status="ok")
+    return out
+
+
+def _run_account_pipeline(ctx: TickContext, account: AccountDocument, *, run_id: str) -> dict[str, Any]:
     aid = account.account_id
     outcomes = PipelineOutcomeRepository()
     trace_step(
@@ -170,6 +309,7 @@ def _run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[st
         handoff_to="reload_account",
     )
 
+    # === Guards (verbatim from today, lines 173–218) ===
     _orch_active("load_account")
     fresh = reload_account(ctx, aid)
     if fresh is None:
@@ -221,224 +361,57 @@ def _run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[st
             aid,
             "slot_reserved",
             {"slot": ctx.slot, "previous_slot": reservation.previous_slot},
-            handoff_to="run_reference_phase",
+            handoff_to="spec_load_validate_compile",
         )
 
-        copied_exclude = copied_reference_exclude_set(account)
-        ref = run_reference_phase(ctx, account, copied_exclude=copied_exclude)
-        if not ref.ok:
-            out = {"account_id": aid, "skipped": ref.skip_reason or "reference_phase_failed"}
-            outcomes.append(
-                account_id=aid,
-                phase="runner",
-                status="skipped",
-                reason=ref.skip_reason or "reference_phase_failed",
-            )
-            trace_step(aid, "pre_tick_skip", out, handoff_to="(end)")
-            return out
-
-        bundle_account = ref.bundle_account
-        refs_payload = ref.refs_payload
-        reference_pool = ref.reference_pool
-        ranked_refs = ref.ranked_refs
-        reference_context_block = format_reference_context_for_compose(
-            ref.timeline_analysis,
-            ref.own_posts_analysis,
-        )
-
-        prof = bundle_account.get("profile") or {}
-        fc = prof.get("followers_count")
-        if isinstance(fc, int):
-            account.followers = fc
-            followers_at_post = fc
-
-        trace_step(aid, "2a_account_bundle", bundle_account, handoff_to="2a_timeline_references")
-        trace_step(aid, "2a_timeline_references", refs_payload, handoff_to="2a_reference_pool")
-        trace_step(
-            aid,
-            "2a_reference_pool_urls_only",
-            {"count": len(reference_pool)},
-            handoff_to="timeline_analysis",
-        )
-        trace_step(
-            aid,
-            "timeline_analysis",
-            ref.timeline_analysis,
-            handoff_to="own_posts_analysis",
-        )
-        trace_step(
-            aid,
-            "own_posts_analysis",
-            ref.own_posts_analysis,
-            handoff_to="2a_reference_ranked",
-        )
-        trace_step(
-            aid,
-            "2a_reference_ranked",
-            {
-                "count": len(ranked_refs),
-                "top_ids": [t.tweet_id for t in ranked_refs[:5]],
-                "copied_reference_count": len(copied_exclude),
-            },
-            handoff_to="compose_post",
-        )
-
-        tick_input = TickInput(
-            account_id=account.account_id,
-            niche=account.category,
-            slot=ctx.slot,
-            mode=ctx.mode,
-            account_personality=(account.personality or "").strip(),
-            max_candidates=ctx.max_candidates,
-        )
-        trace_step(aid, "tick_input", tick_input, handoff_to="compose_and_safety")
-
-        last_reject: str | None = None
-        selected_body: str | None = None
-        selected_round: int | None = None
-        winner: GatheredTweet | None = None
-        topic_preanalysis = None
-        references_tried = 0
-        _orch_active("compose")
-
-        for ref_idx, candidate in enumerate(ranked_refs):
-            winner = candidate
-            topic_preanalysis = preanalysis_from_winner(winner)
-            references_tried += 1
-            bundle_account = apply_preanalysis_to_account_bundle(bundle_account, topic_preanalysis)
-            trace_step(
-                aid,
-                f"reference_attempt_{ref_idx}",
-                {
-                    "tweet_id": winner.tweet_id,
-                    "popularity_score": winner.popularity_score,
-                    "chosen_embed_url": topic_preanalysis.chosen_embed_url,
-                },
-                handoff_to="compose_and_safety",
-            )
-
-            candidate_reject: str | None = None
-            for reg_round in range(ctx.max_regeneration_rounds):
-                body = compose_formatted_post(
-                    winner,
-                    account.category,
-                    account_posting_prompt=(account.posting_prompt or "").strip(),
-                    account_personality=(account.personality or "").strip(),
-                    contrast_patterns=list(account.contrast_patterns or []),
-                    punctuation_rules=list(account.punctuation_rules or []),
-                    reference_context_block=reference_context_block,
-                    regeneration_round=reg_round,
-                    safety_reject_reason=candidate_reject if reg_round > 0 else None,
-                )
-                trace_step(
-                    aid,
-                    f"compose_r{ref_idx}_round_{reg_round}",
-                    {"body": body, "chosen_embed_url": topic_preanalysis.chosen_embed_url},
-                    handoff_to="safety_filter",
-                )
-                _orch_active("safety")
-                approved, reject = ctx.guardian.evaluate(body, niche=account.category)
-                trace_step(
-                    aid,
-                    f"safety_r{ref_idx}_round_{reg_round}",
-                    {"approved": approved, "reject": reject, "body": body},
-                    handoff_to="post_tick" if approved else f"regenerate_round_{reg_round + 1}",
-                )
-                if approved:
-                    _orch_done("safety")
-                    selected_body = body
-                    selected_round = reg_round
-                    break
-                _orch_done("safety")
-                candidate_reject = reject or "safety_rejected"
-                if is_niche_mismatch_reject(candidate_reject):
-                    logger.info(
-                        "reference_attempt niche_mismatch account=%s tweet_id=%s — trying next source",
-                        aid,
-                        winner.tweet_id,
-                    )
-                    last_reject = candidate_reject
-                    break
-
-            if selected_body is not None:
-                break
-            last_reject = candidate_reject or last_reject
-
-        if selected_body is None or winner is None or topic_preanalysis is None:
-            _orch_error("compose", last_reject or "all_compose_attempts_failed")
+        # === Load + validate + compile the account's pipeline ONCE ===
+        spec = _load_spec_for_status(aid, ctx.spec_status, PipelineSpecRepository())
+        catalog = get_tool_catalog()
+        report = validate_spec(spec, catalog)
+        if not report.ok:
+            codes = report.codes()
             out = {
-                "account_id": account.account_id,
-                "rejected": last_reject or "all_compose_attempts_failed",
-                "references_tried": references_tried,
+                "account_id": aid,
+                "error": f"invalid_spec:{codes[0] if codes else 'unknown'}",
             }
             outcomes.append(
                 account_id=aid,
                 phase="runner",
-                status="rejected",
-                reason=last_reject or "all_compose_attempts_failed",
-                details={"references_tried": references_tried},
+                status="error",
+                reason="invalid_spec",
+                details={"errors": [e.model_dump() for e in report.errors]},
             )
-            trace_step(aid, "pipeline_rejected", out, handoff_to="(end)")
+            trace_step(aid, "spec_error", out, handoff_to="(end)")
             return out
-        _orch_done("compose")
 
-        trace_step(
-            aid,
-            "post_tick_input",
-            {
-                "polished_body": selected_body,
-                "regeneration_round": selected_round,
-                "chosen_embed_url": topic_preanalysis.chosen_embed_url,
-                "source_reference_tweet_id": topic_preanalysis.selected_tweet_ids[0]
-                if topic_preanalysis.selected_tweet_ids
-                else None,
-            },
-            handoff_to="finalize_post",
+        graph = compile_spec(spec, catalog=catalog)
+
+        # === One context for the WHOLE graph ===
+        run_ctx = start(aid, niche=account.category, mode=ctx.mode, slot=ctx.slot)
+        run_ctx.run_id = run_id  # the wrapper's minted id, == current_run_id()
+
+        deps = post_run_deps_from_tick(ctx)
+        deps.live = ActLive(
+            account=account,
+            tick_ctx=ctx,
+            guardian=ctx.guardian,
+            run_id=run_id,
+            pipeline_hash=spec.version_hash,
+            copied_exclude=copied_reference_exclude_set(account),
+            max_regeneration_rounds=ctx.max_regeneration_rounds,
+            bypass_post_cooldown=ctx.bypass_post_cooldown,
         )
 
-        pull_stats = refs_payload.get("pulled_tweet_stats") if isinstance(refs_payload.get("pulled_tweet_stats"), dict) else {}
-        source_id = topic_preanalysis.selected_tweet_ids[0] if topic_preanalysis.selected_tweet_ids else None
-        source_metrics_at_pick = None
-        if winner is not None:
-            source_metrics_at_pick = {
-                "tweet_id": winner.tweet_id,
-                "popularity_score": winner.popularity_score,
-                "author_followers_count": winner.metrics.get("author_followers_count"),
-                "quote_count": winner.metrics.get("quote_count"),
-                "impression_count": winner.metrics.get("impression_count"),
-                "text_features": extract_text_features(winner.text),
-                "entity_tags": extract_entities(winner.metrics),
-            }
-        creation_metrics = PostCreationMetrics(
-            candidates_created=1,
-            tweets_pulled=len(reference_pool),
-            tweets_pulled_new=int(pull_stats.get("new_count") or 0),
-            tweets_pulled_duplicates=int(pull_stats.get("duplicate_count") or 0),
-            regeneration_round=selected_round if selected_round is not None else 0,
-            source_reference_tweet_id=source_id,
-            chosen_embed_url=topic_preanalysis.chosen_embed_url,
-            voice_version_hash=account.voice_version_hash,
-            voice_version_seq=account.voice_version_seq,
-            voice_version_label=account.voice_version_label,
-            source_reference_metrics_at_pick=source_metrics_at_pick,
+        # === Walk SENSE + ACT in one synchronous pass ===
+        meter = CostMeter(run_id=run_id, ceiling_usd=settings.pipeline_cost_ceiling_usd)
+        result = run_steps(
+            graph,
+            run_ctx,
+            deps,
+            wrappers=engine_invariants(meter=meter),
         )
-        _orch_active("publish")
-        result = finalize_post(
-            ctx,
-            account,
-            selected_body,
-            regeneration_round=selected_round,
-            earlier_reject=last_reject,
-            creation_metrics=creation_metrics,
-            source_reference_tweet_id=source_id,
-            followers_at_post=followers_at_post,
-        )
-        _orch_done("publish")
-        _orch_active("complete")
-        _orch_done("complete")
-        trace_step(aid, "post_tick_result", result, handoff_to="(end)")
-        outcomes.append(account_id=aid, phase="runner", status="ok")
-        return result
+
+        return _result_from_run(ctx, account, run_ctx, result, spec, outcomes)
     finally:
         release_post_pipeline_guards(ctx, aid)
 
