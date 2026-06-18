@@ -17,9 +17,11 @@ from fastapi.responses import StreamingResponse
 from app.infrastructure.nats_client import get_nats_client
 from app.pipeline.events.projection import build_run_document
 from app.services.pipeline_run_repository import PipelineRunRepository
+from app.services.step_output_repository import StepOutputRepository   # doc 08 §5
 
 router = APIRouter()
 repo = PipelineRunRepository()
+step_repo = StepOutputRepository()
 
 
 @router.get("/pipeline/runs")
@@ -52,6 +54,16 @@ async def get_run(run_id: str) -> dict[str, Any]:
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
     return run.model_dump()
+
+
+@router.get("/pipeline/runs/{run_id}/steps/{step_id}")
+async def get_step_output(run_id: str, step_id: str) -> dict[str, Any]:
+    """The FULL, untruncated StepOutputDocument for one step (doc 08 §4). 404 if absent.
+    The dotted step_id carries no slash, so a single path segment is safe (doc 08 §5)."""
+    doc = await asyncio.to_thread(step_repo.get, run_id, step_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Step output not found")
+    return doc.model_dump()
 
 
 @router.get("/pipeline/runs/{run_id}/events")
