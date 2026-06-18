@@ -104,6 +104,110 @@ class SocialMediaService:
             exclude_retweets=exclude_retweets,
         )
 
+    def like_tweet(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        tweet_id: str,
+    ) -> dict:
+        return self._client(platform, creds).like_tweet(tweet_id)
+
+    def unlike_tweet(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        tweet_id: str,
+    ) -> dict:
+        return self._client(platform, creds).unlike_tweet(tweet_id)
+
+    def get_tweet_likers(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        tweet_id: str,
+        *,
+        max_results: int = 100,
+    ) -> list[dict]:
+        return self._client(platform, creds).get_tweet_likers(tweet_id, max_results=max_results)
+
+    def retweet(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        tweet_id: str,
+    ) -> dict:
+        return self._client(platform, creds).retweet(tweet_id)
+
+    def undo_retweet(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        tweet_id: str,
+    ) -> dict:
+        return self._client(platform, creds).undo_retweet(tweet_id)
+
+    def get_tweet_retweeters(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        tweet_id: str,
+        *,
+        max_results: int = 100,
+    ) -> list[dict]:
+        return self._client(platform, creds).get_tweet_retweeters(tweet_id, max_results=max_results)
+
+    def follow_user(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        user_id: str,
+    ) -> dict:
+        return self._client(platform, creds).follow_user(user_id)
+
+    def unfollow_user(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        user_id: str,
+    ) -> dict:
+        return self._client(platform, creds).unfollow_user(user_id)
+
+    def create_quote_tweet(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        quoted_tweet_id: str,
+        text: str,
+    ) -> CreatedPost:
+        return self._client(platform, creds).create_quote_tweet(quoted_tweet_id, text)
+
+    def get_quote_tweets(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        tweet_id: str,
+        *,
+        max_results: int = 100,
+    ) -> list[dict]:
+        return self._client(platform, creds).get_quote_tweets(tweet_id, max_results=max_results)
+
+    def search_all_tweets(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        query: str,
+        *,
+        max_results: int = 100,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> list[dict]:
+        return self._client(platform, creds).search_all_tweets(
+            query,
+            max_results=max_results,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
 
 _social_service: SocialMediaService | None = None
 

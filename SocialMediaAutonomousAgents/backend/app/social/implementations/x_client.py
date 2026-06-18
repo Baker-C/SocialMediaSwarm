@@ -562,3 +562,264 @@ class XTwitterClient:
         if not tid:
             raise SocialPlatformError("Missing tweet id in create_tweet response", vendor="x")
         return CreatedPost(id=tid, text=text)
+
+    def like_tweet(self, tweet_id: str) -> dict:
+        """Like a tweet via v2/me/likes."""
+        ua = self._user_auth
+        tid = str(tweet_id).strip()
+        if not tid:
+            raise SocialPlatformError("tweet_id is required", vendor="x")
+        try:
+            resp = self._execute_with_backoff(
+                lambda: self._v2.like(tweet_id=tid, user_auth=ua)
+            )
+            data = getattr(resp, "data", {}) if resp else {}
+            if isinstance(data, dict):
+                return {"success": data.get("liked", False), "liked": data.get("liked", False)}
+            return {"success": True, "liked": True}
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+
+    def unlike_tweet(self, tweet_id: str) -> dict:
+        """Unlike a previously liked tweet via DELETE /2/me/likes/{id}."""
+        ua = self._user_auth
+        tid = str(tweet_id).strip()
+        if not tid:
+            raise SocialPlatformError("tweet_id is required", vendor="x")
+        try:
+            resp = self._execute_with_backoff(
+                lambda: self._v2.unlike(tweet_id=tid, user_auth=ua)
+            )
+            data = getattr(resp, "data", {}) if resp else {}
+            if isinstance(data, dict):
+                return {"success": data.get("liked", False) is False, "liked": data.get("liked", False)}
+            return {"success": True, "liked": False}
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+
+    def get_tweet_likers(
+        self,
+        tweet_id: str,
+        *,
+        max_results: int = 100,
+    ) -> list[dict]:
+        """Get users who liked a tweet via /2/tweets/{id}/liked_by."""
+        ua = self._user_auth
+        tid = str(tweet_id).strip()
+        if not tid:
+            raise SocialPlatformError("tweet_id is required", vendor="x")
+        cap = max(1, min(int(max_results), 100))
+        user_fields = ["created_at", "description", "public_metrics", "profile_image_url", "verified", "name"]
+        try:
+            resp = self._execute_with_backoff(
+                lambda: self._v2.get_liking_users(
+                    id=tid,
+                    max_results=cap,
+                    user_fields=user_fields,
+                    user_auth=ua,
+                )
+            )
+            rows: list[dict[str, Any]] = []
+            if resp and resp.data:
+                for user in resp.data:
+                    if user is None:
+                        continue
+                    uid = _id_str(getattr(user, "id", None))
+                    if not uid:
+                        continue
+                    pm = getattr(user, "public_metrics", None)
+                    rows.append({
+                        "id": uid,
+                        "username": getattr(user, "username", ""),
+                        "name": getattr(user, "name", None),
+                        "followers_count": _metric(pm, "followers_count"),
+                    })
+            return rows
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+
+    def retweet(self, tweet_id: str) -> dict:
+        """Retweet a tweet via POST /2/me/retweets."""
+        ua = self._user_auth
+        tid = str(tweet_id).strip()
+        if not tid:
+            raise SocialPlatformError("tweet_id is required", vendor="x")
+        try:
+            resp = self._execute_with_backoff(
+                lambda: self._v2.retweet(tweet_id=tid, user_auth=ua)
+            )
+            data = getattr(resp, "data", {}) if resp else {}
+            if isinstance(data, dict):
+                return {"success": data.get("retweeted", False), "retweeted": data.get("retweeted", False)}
+            return {"success": True, "retweeted": True}
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+
+    def undo_retweet(self, tweet_id: str) -> dict:
+        """Undo a retweet via DELETE /2/me/retweets/{id}."""
+        ua = self._user_auth
+        tid = str(tweet_id).strip()
+        if not tid:
+            raise SocialPlatformError("tweet_id is required", vendor="x")
+        try:
+            resp = self._execute_with_backoff(
+                lambda: self._v2.unretweet(tweet_id=tid, user_auth=ua)
+            )
+            data = getattr(resp, "data", {}) if resp else {}
+            if isinstance(data, dict):
+                return {"success": data.get("retweeted", False) is False, "retweeted": data.get("retweeted", False)}
+            return {"success": True, "retweeted": False}
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+
+    def get_tweet_retweeters(
+        self,
+        tweet_id: str,
+        *,
+        max_results: int = 100,
+    ) -> list[dict]:
+        """Get users who retweeted a tweet via /2/tweets/{id}/retweeted_by."""
+        ua = self._user_auth
+        tid = str(tweet_id).strip()
+        if not tid:
+            raise SocialPlatformError("tweet_id is required", vendor="x")
+        cap = max(1, min(int(max_results), 100))
+        user_fields = ["created_at", "description", "public_metrics", "profile_image_url", "verified", "name"]
+        try:
+            resp = self._execute_with_backoff(
+                lambda: self._v2.get_retweeted_by(
+                    id=tid,
+                    max_results=cap,
+                    user_fields=user_fields,
+                    user_auth=ua,
+                )
+            )
+            rows: list[dict[str, Any]] = []
+            if resp and resp.data:
+                for user in resp.data:
+                    if user is None:
+                        continue
+                    uid = _id_str(getattr(user, "id", None))
+                    if not uid:
+                        continue
+                    pm = getattr(user, "public_metrics", None)
+                    rows.append({
+                        "id": uid,
+                        "username": getattr(user, "username", ""),
+                        "name": getattr(user, "name", None),
+                        "followers_count": _metric(pm, "followers_count"),
+                    })
+            return rows
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+
+    def follow_user(self, user_id: str) -> dict:
+        """Follow a user via POST /2/me/following."""
+        ua = self._user_auth
+        uid = str(user_id).strip()
+        if not uid:
+            raise SocialPlatformError("user_id is required", vendor="x")
+        try:
+            resp = self._execute_with_backoff(
+                lambda: self._v2.follow_user(target_user_id=uid, user_auth=ua)
+            )
+            data = getattr(resp, "data", {}) if resp else {}
+            if isinstance(data, dict):
+                return {"success": data.get("following", False), "following": data.get("following", False)}
+            return {"success": True, "following": True}
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+
+    def unfollow_user(self, user_id: str) -> dict:
+        """Unfollow a user via DELETE /2/me/following/{id}."""
+        ua = self._user_auth
+        uid = str(user_id).strip()
+        if not uid:
+            raise SocialPlatformError("user_id is required", vendor="x")
+        try:
+            resp = self._execute_with_backoff(
+                lambda: self._v2.unfollow_user(target_user_id=uid, user_auth=ua)
+            )
+            data = getattr(resp, "data", {}) if resp else {}
+            if isinstance(data, dict):
+                return {"success": data.get("following", False) is False, "following": data.get("following", False)}
+            return {"success": True, "following": False}
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+
+    def create_quote_tweet(self, quoted_tweet_id: str, text: str) -> CreatedPost:
+        """Create a quote tweet via POST /2/tweets with quote_tweet_id."""
+        ua = self._user_auth
+        qtid = str(quoted_tweet_id).strip()
+        if not qtid:
+            raise SocialPlatformError("quoted_tweet_id is required", vendor="x")
+        txt = (text or "").strip()
+        if not txt:
+            raise SocialPlatformError("text is required for quote tweet", vendor="x")
+        try:
+            resp = self._execute_with_backoff(
+                lambda: self._v2.create_tweet(text=txt, quote_tweet_id=qtid, user_auth=ua)
+            )
+            if not resp or not resp.data:
+                raise SocialPlatformError("Empty response from create_quote_tweet", vendor="x")
+            d = resp.data
+            tid = str(getattr(d, "id", "") or (d.get("id") if isinstance(d, dict) else "") or "")
+            if not tid:
+                raise SocialPlatformError("Missing tweet id in create_quote_tweet response", vendor="x")
+            return CreatedPost(id=tid, text=text)
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+
+    def get_quote_tweets(
+        self,
+        tweet_id: str,
+        *,
+        max_results: int = 100,
+    ) -> list[dict]:
+        """Get quote tweets for a tweet via search with filter."""
+        ua = self._user_auth
+        tid = str(tweet_id).strip()
+        if not tid:
+            raise SocialPlatformError("tweet_id is required", vendor="x")
+        cap = max(10, min(int(max_results), 100))
+        query = f"quote_of:{tid}"
+        try:
+            resp = self._execute_with_backoff(
+                lambda: self._fetch_reference_tweets(
+                    lambda **kw: self._v2.search_recent_tweets(query, max_results=cap, **kw),
+                    user_auth=ua,
+                )
+            )
+            return self._tweets_from_response(resp, source="quote_tweets")
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+
+    def search_all_tweets(
+        self,
+        query: str,
+        *,
+        max_results: int = 100,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> list[dict]:
+        """Full-archive search via /2/tweets/search/all (requires academic/enterprise access)."""
+        ua = self._user_auth
+        q = (query or "").strip()
+        if not q:
+            return []
+        cap = max(10, min(int(max_results), 100))
+        kwargs: dict[str, Any] = {"max_results": cap}
+        if start_time:
+            kwargs["start_time"] = start_time
+        if end_time:
+            kwargs["end_time"] = end_time
+        try:
+            resp = self._execute_with_backoff(
+                lambda: self._fetch_reference_tweets(
+                    lambda **kw: self._v2.search_all_tweets(q, **kw, **kwargs),
+                    user_auth=ua,
+                )
+            )
+            return self._tweets_from_response(resp, source="search_all")
+        except Exception as exc:
+            raise self._wrap(exc) from exc
