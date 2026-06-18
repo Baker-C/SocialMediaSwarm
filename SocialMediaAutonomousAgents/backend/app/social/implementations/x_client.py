@@ -13,6 +13,7 @@ import tweepy
 from app.social.credentials import XOAuth2UserCredentials, XCredentials
 from app.social.dtos import AccountData, CreatedPost, PostData, TrendItem, TrendsResult
 from app.social.exceptions import SocialPlatformError
+from app.social.implementations.x_media_upload import upload_media
 from app.social.reference_rows import post_data_to_reference_row
 from app.social.tweet_enrichment import apply_enrichment_to_post_data, enrich_tweet
 
@@ -552,9 +553,17 @@ class XTwitterClient:
         missing = [i for i in ids if i not in found_ids]
         return found, missing
 
-    def create_post(self, text: str) -> CreatedPost:
+    def upload_media(self, data: bytes, mime: str, *, kind: str = "image") -> str:
+        """Upload media bytes; return a media_id for create_post(media_ids=[...])."""
+        return upload_media(self._creds.access_token, data, mime, kind=kind)
+
+    def create_post(self, text: str, *, media_ids: list[str] | None = None) -> CreatedPost:
         ua = self._user_auth
-        resp = self._execute_with_backoff(lambda: self._v2.create_tweet(text=text, user_auth=ua))
+        ids = [str(m) for m in (media_ids or []) if str(m).strip()]
+        kwargs: dict = {"text": text, "user_auth": ua}
+        if ids:
+            kwargs["media_ids"] = ids
+        resp = self._execute_with_backoff(lambda: self._v2.create_tweet(**kwargs))
         if not resp or not resp.data:
             raise SocialPlatformError("Empty response from create_tweet", vendor="x")
         d = resp.data

@@ -154,6 +154,35 @@ class TwitterService:
         )
         return {"id": created.id, "text": created.text or text}
 
+    def post_tweet_with_media(
+        self,
+        account_id: str,
+        text: str,
+        media: list[tuple[bytes, str, str]],
+    ) -> dict:
+        """Upload each (bytes, mime, kind) then post with the resulting media_ids.
+
+        Alternative media-attached posting path; the text-only ``post_tweet`` is
+        unchanged. Requires the account's X app to include the ``media.write`` scope.
+        """
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        media_ids = [
+            self._call_with_auth_retry(
+                acc,
+                lambda c, d=data, m=mime, k=kind: self._social.upload_media(
+                    SocialPlatform.X, c, d, m, kind=k
+                ),
+            )
+            for data, mime, kind in media
+        ]
+        created = self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.create_post(SocialPlatform.X, c, text, media_ids=media_ids),
+        )
+        return {"id": created.id, "text": created.text or text, "media_ids": media_ids}
+
     def get_tweet_metrics(self, account_id: str, tweet_id: str) -> dict:
         acc = self._repo.load(account_id)
         if acc is None:

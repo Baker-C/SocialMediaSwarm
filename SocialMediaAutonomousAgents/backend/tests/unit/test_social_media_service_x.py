@@ -79,7 +79,7 @@ def test_create_post_delegates(mock_client_cls: MagicMock, svc: SocialMediaServi
     mock_client_cls.return_value = mock_client
 
     out = svc.create_post(SocialPlatform.X, _creds(), "hi")
-    mock_client.create_post.assert_called_once_with("hi")
+    mock_client.create_post.assert_called_once_with("hi", media_ids=None)
     assert out.id == "1"
 
 
