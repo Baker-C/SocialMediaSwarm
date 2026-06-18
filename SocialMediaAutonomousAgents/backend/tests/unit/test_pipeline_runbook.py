@@ -7,26 +7,18 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.pipeline import runbook
+from app.pipeline._runbook_engine import run_steps
 from app.pipeline.runbooks.post_tick import POST_TICK_REFERENCE_STEPS
 from app.pipeline.services.deps import PostRunDeps
-from app.pipeline.service import reset_pipeline
 from app.pipeline.types.flow import flatten_steps
-
-
-@pytest.fixture(autouse=True)
-def _fresh() -> None:
-    reset_pipeline()
-    yield
-    reset_pipeline()
 
 
 def test_runbook_step_names_are_readable() -> None:
     names = [f.id for f in flatten_steps(POST_TICK_REFERENCE_STEPS)]
     assert names == [
         "load_account_bundle",
-        "fetch_external_references.fetch_timeline_references",
-        "fetch_external_references.fetch_search_references",
-        "merge_external_references",
+        "fetch_search_references",
+        "collect_external_references",
         "fetch_own_post_history",
         "summarize_for_compose.analyze_external_references.rank_external_references",
         "summarize_for_compose.analyze_external_references.brief_external_references",
@@ -39,8 +31,8 @@ def test_runbook_top_level_step_ids() -> None:
     top_ids = [s.id for s in POST_TICK_REFERENCE_STEPS]
     assert top_ids == [
         "load_account_bundle",
-        "fetch_external_references",
-        "merge_external_references",
+        "fetch_search_references",
+        "collect_external_references",
         "fetch_own_post_history",
         "summarize_for_compose",
     ]
@@ -73,9 +65,10 @@ def test_runbook_reference_analysis_with_mocked_deps() -> None:
         post_registry=post_registry,
     )
 
+    ctx = runbook.start("acct1", niche="News")
     with patch("app.pipeline._runbook_engine.PipelineOutcomeRepository") as mock_outcomes:
         mock_outcomes.return_value.append = MagicMock()
-        result = runbook.reference_analysis("acct1", niche="News", deps=deps)
+        result = run_steps(POST_TICK_REFERENCE_STEPS, ctx, deps)
     assert result.ok
     assert result.ctx.get("timeline_analysis") is not None
     assert result.reference_context()["own_posts"]["skipped"] is True

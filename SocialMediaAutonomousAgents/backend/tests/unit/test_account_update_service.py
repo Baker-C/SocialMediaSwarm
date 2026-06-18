@@ -9,7 +9,7 @@ from app.services.account_update_service import AccountUpdateBody, account_edit_
 def _doc(**kwargs: object) -> AccountDocument:
     base: dict = {
         "account_id": "aid",
-        "niche": "niche",
+        "category": "category",
         "twitter_handle": "@h",
         "status": "active",
     }
@@ -32,8 +32,8 @@ def test_account_edit_view_has_no_encrypted_fields() -> None:
     assert isinstance(view["punctuation_rules"], list) and len(view["punctuation_rules"]) >= 1
 
 
-def test_apply_updates_niche() -> None:
-    acc = _doc(niche="old")
+def test_apply_updates_category() -> None:
+    acc = _doc(category="old")
     saved: list[AccountDocument] = []
 
     class R:
@@ -43,7 +43,7 @@ def test_apply_updates_niche() -> None:
         def save(self, a: AccountDocument) -> None:
             saved.append(a)
 
-    body = AccountUpdateBody(niche="brand-new")
+    body = AccountUpdateBody(category="brand-new")
     out = apply_account_update("aid", body, repo=R())
-    assert out.niche == "brand-new"
+    assert out.category == "brand-new"
     assert len(saved) == 1

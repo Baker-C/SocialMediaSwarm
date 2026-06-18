@@ -505,6 +505,53 @@ class XTwitterClient:
         self._enrich_post_data(post, resp.data, self._response_includes(resp))
         return post
 
+    def _fetch_own_tweets_batch(self, ids: list[str], *, user_auth: bool) -> Any:
+        """Batch get_tweets (≤100 ids) with non-public→public field fallback."""
+        extended_fields = [*_REFERENCE_TWEET_FIELDS, "non_public_metrics"]
+        try:
+            return self._v2.get_tweets(
+                ids=ids,
+                tweet_fields=extended_fields,
+                expansions=_REFERENCE_EXPANSIONS,
+                media_fields=_MEDIA_FIELDS,
+                user_auth=user_auth,
+            )
+        except Exception as exc:
+            msg = str(exc).lower()
+            if "403" not in msg and "400" not in msg and "forbidden" not in msg:
+                raise self._wrap(exc) from exc
+            logger.warning("batch tweets extended metrics unavailable; retrying public-only: %s", exc)
+            return self._v2.get_tweets(
+                ids=ids,
+                tweet_fields=_REFERENCE_TWEET_FIELDS,
+                expansions=_REFERENCE_EXPANSIONS,
+                media_fields=_MEDIA_FIELDS,
+                user_auth=user_auth,
+            )
+
+    def get_posts_data(self, post_ids: list[str]) -> tuple[list[PostData], list[str]]:
+        ids = [str(i).strip() for i in post_ids if str(i).strip()]
+        if not ids:
+            return [], []
+        ua = self._user_auth
+        found: list[PostData] = []
+        found_ids: set[str] = set()
+        for start in range(0, len(ids), 100):  # X get_tweets hard cap is 100 ids
+            chunk = ids[start : start + 100]
+            resp = self._execute_with_backoff(
+                lambda c=chunk: self._fetch_own_tweets_batch(c, user_auth=ua)
+            )
+            includes = self._response_includes(resp)
+            for t in getattr(resp, "data", None) or []:
+                if t is None:
+                    continue
+                post = self._tweet_object_to_post_data(t)
+                self._enrich_post_data(post, t, includes)
+                found.append(post)
+                found_ids.add(str(post.id))
+        missing = [i for i in ids if i not in found_ids]
+        return found, missing
+
     def create_post(self, text: str) -> CreatedPost:
         ua = self._user_auth
         resp = self._execute_with_backoff(lambda: self._v2.create_tweet(text=text, user_auth=ua))

@@ -47,7 +47,7 @@ export function AppLayout() {
   const mainTitle = pageTitle(location.pathname, accountId);
 
   return (
-    <div className="flex h-screen bg-black">
+    <div className="flex h-screen daemon-grid">
       <OAuthRedirectHandler />
       <Sidebar
         accounts={accounts}
@@ -59,7 +59,7 @@ export function AppLayout() {
         {/* Top Toolbar */}
         <header className="h-16 flex-shrink-0 bg-neutral-800 border-b border-neutral-700 flex items-center justify-between px-6 gap-4">
           <div className="text-sm text-neutral-400 tracking-wider truncate">
-            SOCIAL MEDIA OPS / <span className="text-orange-500">{mainTitle}</span>
+            SOLOMON'S SWARM / <span className="text-orange-500">{mainTitle}</span>
           </div>
           <div className="flex items-center gap-4 flex-shrink-0">
             <div className="text-xs text-neutral-500 hidden md:block">

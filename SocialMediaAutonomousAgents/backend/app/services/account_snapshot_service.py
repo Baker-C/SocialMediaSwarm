@@ -60,7 +60,7 @@ def create_account_snapshot(
     snapshot = AccountSnapshotDocument(
         account_id=acc.account_id,
         created_at=datetime.now(timezone.utc).isoformat(),
-        niche=acc.niche,
+        niche=acc.category,  # snapshot field name kept; sourced from category
         twitter_handle=acc.twitter_handle,
         followers=followers,
         following_count=following_count,

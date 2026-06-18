@@ -1,4 +1,4 @@
-"""Deterministic post-crew: publish, registry, account persist."""
+"""Deterministic post phase: publish, registry, account persist."""
 
 from __future__ import annotations
 

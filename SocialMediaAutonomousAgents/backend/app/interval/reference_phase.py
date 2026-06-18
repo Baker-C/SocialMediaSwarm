@@ -77,7 +77,7 @@ def run_reference_phase(
     """Run the pipeline reference runbook (profile → pools → dual analysis)."""
     run_ctx = start(
         account.account_id,
-        niche=account.niche,
+        niche=account.category,
         mode=tick_ctx.mode,
         slot=tick_ctx.slot,
     )

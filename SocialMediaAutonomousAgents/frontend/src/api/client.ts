@@ -1,3 +1,5 @@
+import { authHeaders, handleUnauthorized } from './auth';
+
 export function apiBaseUrl(): string {
   const fromEnv = process.env.REACT_APP_API_URL?.trim();
   if (fromEnv) {
@@ -35,7 +37,13 @@ export async function parseHttpError(res: Response): Promise<string> {
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const prefix = apiPrefix(apiBaseUrl());
-  const res = await fetch(`${prefix}${path}`, options);
+  const res = await fetch(`${prefix}${path}`, {
+    ...options,
+    headers: { ...authHeaders(), ...(options?.headers ?? {}) },
+  });
+  if (res.status === 401) {
+    handleUnauthorized();
+  }
   if (!res.ok) {
     throw new Error(await parseHttpError(res));
   }

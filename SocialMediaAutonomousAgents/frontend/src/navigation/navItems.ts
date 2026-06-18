@@ -21,7 +21,7 @@ export function buildAccountNavItems(accounts: AccountSummary[]) {
     .map((account) => ({
       accountId: account.account_id,
       label: account.account_id,
-      subtitle: account.niche?.trim() || undefined,
+      subtitle: account.category?.trim() || undefined,
     }));
 }
 

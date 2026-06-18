@@ -3,7 +3,6 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { normalizeTrackedPosts } from '../../analytics/normalize/trackedPost';
 import { filterPosts, postTableRows } from '../../analytics/selectors/filterPosts';
 import { postFiltersFromSearchParams } from '../../lib/urlFilters';
-import { downloadCsv, rowsToCsv } from '../../lib/csv';
 import { isStaleFetch } from '../../lib/format';
 import { FilterBar } from '../../components/filters/FilterBar';
 import { useTrackedPosts } from '../../hooks/queries/useTrackedPosts';
@@ -29,38 +28,8 @@ export function PostsExplorerPage() {
     return recent.some((p: TrackedPost) => isStaleFetch(p.last_fetched_at));
   }, [postsQuery.data]);
 
-  const exportCsv = () => {
-    const headers = [
-      'tweet_id',
-      'posted_at',
-      'impressions',
-      'engagement_rate',
-      'velocity',
-      'voice',
-      'regen_round',
-      'follower_delta',
-    ];
-    const data = rows.map((r) => ({
-      tweet_id: r.tweet_id,
-      posted_at: r.posted_at,
-      impressions: r.impression_count,
-      engagement_rate: r.engagement_rate,
-      velocity: r.engagement_velocity,
-      voice: r.creation_metrics?.voice_version_label,
-      regen_round: r.creation_metrics?.regeneration_round,
-      follower_delta: r.follower_delta,
-    }));
-    downloadCsv(`${accountId}-posts.csv`, rowsToCsv(headers, data));
-  };
-
   return (
     <div className="page-content">
-      <div className="page-header__actions page-content__toolbar">
-        <button type="button" className="btn btn--ghost" onClick={exportCsv} disabled={rows.length === 0}>
-          Export CSV
-        </button>
-      </div>
-
       {staleBanner ? (
         <div className="stale-banner" role="status">
           Some recent posts have stale metrics (last fetch &gt; 2h ago).

@@ -1,6 +1,5 @@
-from app.interval_crew.tools.take_snapshot_tool import make_take_snapshot_tool, take_snapshot
+from app.interval_crew.tools.take_snapshot_tool import take_snapshot
 
 __all__ = [
-    "make_take_snapshot_tool",
     "take_snapshot",
 ]

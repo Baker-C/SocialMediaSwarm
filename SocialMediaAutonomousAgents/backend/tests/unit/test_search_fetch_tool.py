@@ -30,4 +30,5 @@ def test_search_fetch_tool_sets_context() -> None:
         queries=["news lang:en"],
         slot="2026-06-08-10",
         authenticated_user_id="42",
+        max_results_per_query=None,
     )

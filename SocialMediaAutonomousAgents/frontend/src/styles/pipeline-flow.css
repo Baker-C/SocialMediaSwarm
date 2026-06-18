@@ -51,59 +51,73 @@
   color: #fca5a5;
 }
 
-.pipeline-flow__lanes {
+/* ── Faithful top-to-bottom DAG ─────────────────────────────────────────── */
+.pflow {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: center;
 }
 
-.pipeline-flow__lane {
-  border: 1px solid #404040;
-  border-radius: 6px;
-  background: #121212;
-  padding: 10px 12px;
+.pflow-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
 }
 
-.pipeline-flow__lane-title {
-  margin: 0 0 8px;
-  font-size: 0.68rem;
+.pflow-section--labelled {
+  border: 1px dashed #404040;
+  border-radius: 8px;
+  padding: 14px 12px 16px;
+  background: rgba(249, 115, 22, 0.02);
+}
+
+.pflow-section__label {
+  margin: 0 0 12px;
+  font-size: 0.62rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--lane-accent, #a3a3a3);
+  letter-spacing: 0.16em;
+  color: #737373;
 }
 
-.pipeline-flow__lane-body {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+/* connector between rows / sections */
+.pflow-arrow {
+  width: 1px;
+  height: 18px;
+  background: #404040;
+  position: relative;
+}
+.pflow-arrow::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #404040;
 }
 
-.pipeline-flow__node {
-  min-width: 140px;
-  max-width: 200px;
-  flex: 1 1 140px;
+.pflow-node {
+  width: 230px;
+  max-width: 100%;
   padding: 8px 10px;
   border-radius: 6px;
   border: 1px solid #404040;
   background: #171717;
+  position: relative;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.pipeline-flow__node--satellite {
-  min-width: 120px;
-  flex: 0 1 160px;
-  border-style: dashed;
-}
-
-.pipeline-flow__node-title {
+.pflow-node__title {
   display: block;
   font-size: 0.78rem;
   font-weight: 600;
   color: #d4d4d4;
 }
 
-.pipeline-flow__node-sub {
+.pflow-node__sub {
   display: block;
   margin-top: 2px;
   font-size: 0.68rem;
@@ -111,56 +125,118 @@
   line-height: 1.3;
 }
 
-.pipeline-flow__node--pending {
+/* external system call-out tag */
+.pflow-node__ext {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px dashed #404040;
+  color: #737373;
+}
+.pflow-node__ext--active {
+  border-color: rgba(249, 115, 22, 0.6);
+  color: #f97316;
+}
+
+.pflow-node--pending {
   opacity: 0.72;
 }
-
-.pipeline-flow__node--active {
-  border-color: var(--lane-accent, #f97316);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--lane-accent, #f97316) 35%, transparent);
+.pflow-node--active {
+  border-color: #f97316;
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
   animation: pipeline-flow-pulse 1.2s ease-in-out infinite;
 }
-
-.pipeline-flow__node--active .pipeline-flow__node-title {
+.pflow-node--active .pflow-node__title {
   color: #fff;
 }
-
-.pipeline-flow__node--done {
+.pflow-node--done {
   border-color: #22c55e;
 }
-
-.pipeline-flow__node--done .pipeline-flow__node-title {
+.pflow-node--done .pflow-node__title {
   color: #bbf7d0;
 }
-
-.pipeline-flow__node--error {
+.pflow-node--error {
   border-color: #ef4444;
   box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.35);
 }
-
-.pipeline-flow__node--error .pipeline-flow__node-title {
+.pflow-node--error .pflow-node__title {
   color: #fecaca;
 }
 
 @keyframes pipeline-flow-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--lane-accent, #f97316) 25%, transparent);
+    box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.25);
   }
   50% {
-    box-shadow: 0 0 10px color-mix(in srgb, var(--lane-accent, #f97316) 45%, transparent);
+    box-shadow: 0 0 10px rgba(249, 115, 22, 0.45);
   }
 }
 
-@media (min-width: 960px) {
-  .pipeline-flow__lanes {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
+/* ── Parallel block: branches side by side, honest about execution ──────── */
+.pflow-parallel {
+  width: 100%;
+  border: 1px solid #3b3b3b;
+  border-radius: 8px;
+  padding: 10px 12px 14px;
+  background: #121212;
+}
 
-  .pipeline-flow__lane--entry,
-  .pipeline-flow__lane--orchestrator {
-    grid-column: 1 / -1;
-  }
+.pflow-parallel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.pflow-parallel__badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.pflow-parallel__note {
+  font-size: 0.64rem;
+  color: #737373;
+}
+
+.pflow-parallel__branches {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px;
+}
+
+.pflow-branch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 8px 10px 10px;
+  border-left: 1px dashed #333;
+}
+.pflow-branch:first-child {
+  border-left: none;
+}
+
+.pflow-branch__label {
+  margin-bottom: 8px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8b8b8b;
 }

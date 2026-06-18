@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.models.account import (
     AccountDocument,
@@ -20,9 +20,11 @@ from app.services.voice_version_service import bump_voice_version_if_needed
 class AccountUpdateBody(BaseModel):
     """PATCH body: ``None`` / omitted fields leave existing document values unchanged."""
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
-    niche: str | None = Field(default=None, max_length=2000)
+    category: str | None = Field(
+        default=None, max_length=2000, validation_alias=AliasChoices("category", "niche")
+    )
     twitter_handle: str | None = Field(default=None, max_length=500)
     status: str | None = Field(default=None, max_length=64)
 
@@ -34,7 +36,6 @@ class AccountUpdateBody(BaseModel):
 
     followers: int | None = Field(default=None, ge=0)
     posts_total: int | None = Field(default=None, ge=0)
-    search_queries: list[str] | None = None
     voice_version_label: str | None = Field(default=None, max_length=120)
 
 
@@ -42,15 +43,16 @@ def account_edit_view(acc: AccountDocument, oauth: TwitterOAuth2Service | None =
     """Safe JSON for the dashboard edit form (no secrets). Returns the full soul."""
     oauth_svc = oauth or TwitterOAuth2Service()
     status = oauth_svc.connection_status(acc.account_id)
-    niche = acc.niche or ""
+    category = acc.category or ""
     mode = "oauth2" if status.connected else "none"
     return {
         "account_id": acc.account_id,
-        "niche": niche,
+        "category": category,
+        "niches": [n.model_dump() for n in acc.niches],
         "twitter_handle": acc.twitter_handle or "",
         "status": acc.status or "active",
         # ── Soul ──
-        "posting_prompt": (acc.posting_prompt or "").strip() or default_system_prompt(niche),
+        "posting_prompt": (acc.posting_prompt or "").strip() or default_system_prompt(category),
         "personality": (acc.personality or "").strip(),
         "contrast_patterns": [p.model_dump() for p in (acc.contrast_patterns or [])]
             or default_contrast_patterns(),
@@ -68,7 +70,6 @@ def account_edit_view(acc: AccountDocument, oauth: TwitterOAuth2Service | None =
         "credential_mode": mode,
         "oauth_connected": status.connected,
         "oauth_expires_at": status.expires_at,
-        "search_queries": list(acc.search_queries or []),
     }
 
 
@@ -86,9 +87,9 @@ def apply_account_update(account_id: str, body: AccountUpdateBody, repo: Account
     profile = data.setdefault("profile", {})
     soul = data.setdefault("soul", {})          # write into soul, not voice
 
-    if body.niche is not None:
-        profile["niche"] = body.niche.strip() or existing.niche or aid
-    niche = profile.get("niche") or existing.niche or aid
+    if body.category is not None:
+        soul["category"] = body.category.strip() or existing.category or aid
+    niche = soul.get("category") or existing.category or aid
 
     if body.twitter_handle is not None:
         profile["twitter_handle"] = body.twitter_handle.strip()
@@ -115,8 +116,6 @@ def apply_account_update(account_id: str, body: AccountUpdateBody, repo: Account
         profile["followers"] = body.followers
     if body.posts_total is not None:
         profile["posts_total"] = body.posts_total
-    if body.search_queries is not None:
-        profile["search_queries"] = [s.strip() for s in body.search_queries if s and str(s).strip()]
 
     previous_hash = existing.voice_version_hash
     acc = AccountDocument.model_validate(data)

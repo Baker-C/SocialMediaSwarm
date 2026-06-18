@@ -1,1 +1,1 @@
-"""CrewAI-style content runtime for the interval posting tick."""
+"""Shared helpers for the interval posting tick: prompt loading and snapshots."""

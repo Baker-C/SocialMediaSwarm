@@ -39,6 +39,25 @@ def build_search_query(trend_name: str) -> str:
     return f"{base} -is:retweet lang:en"
 
 
+_TREND_STOPWORDS = frozenset(
+    {
+        "and", "the", "for", "with", "from", "into", "out", "over", "amid", "now",
+        "new", "gets", "has", "its", "one", "thing", "tops", "asks", "says", "after",
+    }
+)
+
+
+def trend_topic_query(trend_name: str, *, max_terms: int = 3) -> str:
+    """Reduce a trend headline to a short keyword query (the salient terms).
+
+    X recent-search treats a quoted multi-word phrase as an exact match, so a full
+    trend headline matches almost nothing. The top content keywords (stopwords
+    dropped) co-occur in the live discussion and surface plenty of references.
+    """
+    kws = [k for k in trend_keywords(trend_name) if k not in _TREND_STOPWORDS]
+    return " ".join(kws[:max_terms])
+
+
 def tweet_matches_trend(text: str, trend_name: str) -> bool:
     """True if any trend keyword appears in tweet text."""
     keywords = trend_keywords(trend_name)

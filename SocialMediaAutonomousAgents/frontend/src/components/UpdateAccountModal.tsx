@@ -3,6 +3,7 @@ import {
   apiPrefix,
   parseHttpError,
 } from '../api/client';
+import { authHeaders } from '../api/auth';
 import {
   disconnectOAuth,
   fetchOAuthAuthorizeUrl,
@@ -22,7 +23,7 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
   const prefix = useMemo(() => apiPrefix(apiBase), [apiBase]);
   const [loadError, setLoadError] = useState('');
   const [payload, setPayload] = useState<AccountEditPayload | null>(null);
-  const [niche, setNiche] = useState('');
+  const [category, setCategory] = useState('');
   const [twitterHandle, setTwitterHandle] = useState('');
   const [status, setStatus] = useState('active');
   const [systemPrompt, setSystemPrompt] = useState('');
@@ -55,7 +56,9 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
     const load = async () => {
       setLoadError('');
       try {
-        const res = await fetch(`${prefix}/accounts/${encodeURIComponent(accountId)}/edit`);
+        const res = await fetch(`${prefix}/accounts/${encodeURIComponent(accountId)}/edit`, {
+          headers: { ...authHeaders() },
+        });
         if (!res.ok) {
           const msg = await parseHttpError(res);
           if (!cancelled) {
@@ -68,7 +71,7 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
           return;
         }
         setPayload(data);
-        setNiche(data.niche ?? '');
+        setCategory(data.category ?? '');
         setTwitterHandle(data.twitter_handle ?? '');
         setStatus(data.status || 'active');
         setSystemPrompt(data.posting_prompt ?? (data as { system_prompt?: string }).system_prompt ?? '');
@@ -134,7 +137,7 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
     setSaving(true);
     try {
       const body = {
-        niche,
+        category,
         twitter_handle: twitterHandle,
         status,
         posting_prompt: systemPrompt,
@@ -144,7 +147,7 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
       };
       const res = await fetch(`${prefix}/accounts/${encodeURIComponent(accountId)}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(body),
       });
       if (!res.ok) {
@@ -256,8 +259,8 @@ export function UpdateAccountModal({ apiBase, accountId, onClose, onSaved }: Upd
             </fieldset>
 
             <label className="modal-field">
-              <span>Niche</span>
-              <input value={niche} onChange={(ev) => setNiche(ev.target.value)} autoComplete="off" />
+              <span>Category</span>
+              <input value={category} onChange={(ev) => setCategory(ev.target.value)} autoComplete="off" />
             </label>
 
             <label className="modal-field">

@@ -11,7 +11,7 @@ from app.services.account_create_service import (
 
 
 def test_create_rejects_duplicate() -> None:
-    existing = AccountDocument(account_id="dup", niche="n", twitter_handle="", status="active")
+    existing = AccountDocument(account_id="dup", category="n", twitter_handle="", status="active")
 
     class R:
         def load(self, account_id: str) -> AccountDocument | None:
@@ -37,7 +37,7 @@ def test_create_profile_then_applies_fields(monkeypatch: pytest.MonkeyPatch) -> 
         def upsert_profile(self, account_id: str, **kwargs: object) -> AccountDocument:
             acc = AccountDocument(
                 account_id=account_id,
-                niche=str(kwargs.get("niche") or account_id),
+                category=str(kwargs.get("category") or account_id),
                 twitter_handle=str(kwargs.get("twitter_handle") or ""),
                 status="active",
             )
@@ -50,13 +50,13 @@ def test_create_profile_then_applies_fields(monkeypatch: pytest.MonkeyPatch) -> 
 
     body = AccountCreateBody(
         account_id="fresh",
-        niche="AI news",
+        category="AI news",
         twitter_handle="@fresh",
         personality="witty analyst",
         status="inactive",
     )
     out = apply_account_create(body, repo=R())
     assert out.account_id == "fresh"
-    assert out.niche == "AI news"
+    assert out.category == "AI news"
     assert out.personality == "witty analyst"
     assert out.status == "inactive"

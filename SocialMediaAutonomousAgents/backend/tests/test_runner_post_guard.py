@@ -16,7 +16,6 @@ def _ctx() -> TickContext:
     return TickContext(
         repo=MagicMock(),
         twitter=MagicMock(),
-        creator=MagicMock(),
         guardian=MagicMock(),
         tick_data=MagicMock(),
         post_registry=None,

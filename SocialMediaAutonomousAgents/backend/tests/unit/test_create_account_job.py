@@ -17,12 +17,12 @@ def test_upserts_profile_only() -> None:
     repo.upsert_profile.return_value = saved
     out = run_create_account_job(
         account_id="live",
-        niche="news",
+        category="news",
         twitter_handle="@live",
         repo=repo,
     )
     assert out is saved
     repo.upsert_profile.assert_called_once()
     kw = repo.upsert_profile.call_args[1]
-    assert kw["niche"] == "news"
+    assert kw["category"] == "news"
     assert kw["twitter_handle"] == "@live"

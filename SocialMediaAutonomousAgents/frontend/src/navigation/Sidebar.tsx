@@ -1,7 +1,9 @@
 import { NavLink, useLocation, useParams } from 'react-router-dom';
-import { ChevronRight, Monitor, Users } from 'lucide-react';
+import { ChevronRight, LogOut, Monitor, Users } from 'lucide-react';
 import type { AccountSummary } from '../types';
 import { Button } from '../components/ui/button';
+import { logout } from '../api/auth';
+import { Sigil } from '../components/brand/Sigil';
 import {
   ACCOUNT_SUB_NAV,
   accountSubNavPath,
@@ -31,11 +33,16 @@ export function Sidebar({ accounts, collapsed, onToggle }: SidebarProps) {
         collapsed ? 'w-16' : 'w-70'
       } flex-shrink-0 bg-neutral-900 border-r border-neutral-700 transition-all duration-300 h-full overflow-y-auto`}
     >
-      <div className="p-4">
+      <div className="p-4 flex flex-col min-h-full">
         <div className="flex items-center justify-between mb-8">
-          <div className={collapsed ? 'hidden' : 'block'}>
-            <h1 className="text-orange-500 font-bold text-lg tracking-wider">SOCIAL MEDIA OPS</h1>
-            <p className="text-neutral-500 text-xs">AUTONOMOUS AGENTS</p>
+          <div className={`flex items-center gap-3 min-w-0 ${collapsed ? 'hidden' : ''}`}>
+            <Sigil size={40} />
+            <div className="min-w-0">
+              <h1 className="text-orange-500 font-bold text-lg tracking-wider leading-tight">
+                SOLOMON&apos;S SWARM
+              </h1>
+              <p className="text-neutral-500 text-xs tracking-[0.16em]">AUTONOMOUS DAEMONS</p>
+            </div>
           </div>
           <Button
             variant="ghost"
@@ -126,8 +133,13 @@ export function Sidebar({ accounts, collapsed, onToggle }: SidebarProps) {
         {!collapsed && (
           <div className="mt-8 p-4 bg-neutral-800 border border-neutral-700 rounded">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-              <span className="text-xs text-white">SYSTEM ONLINE</span>
+              <span
+                className="status-dot animate-pulse"
+                data-status={activeCount > 0 ? 'online' : 'degraded'}
+              ></span>
+              <span className="text-xs text-white tracking-wider">
+                {activeCount > 0 ? 'SWARM ONLINE' : 'SWARM IDLE'}
+              </span>
             </div>
             <div className="text-xs text-neutral-500 space-y-0.5">
               <div>ACCOUNTS: {accounts.length} TRACKED</div>
@@ -135,6 +147,19 @@ export function Sidebar({ accounts, collapsed, onToggle }: SidebarProps) {
             </div>
           </div>
         )}
+
+        <button
+          type="button"
+          onClick={() => logout()}
+          aria-label="Sign out"
+          title="Sign out"
+          className={`mt-auto flex items-center gap-3 p-3 rounded transition-colors text-neutral-400 hover:text-white hover:bg-neutral-800 ${
+            collapsed ? 'justify-center' : ''
+          }`}
+        >
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          {!collapsed && <span className="text-sm font-medium tracking-wider">SIGN OUT</span>}
+        </button>
       </div>
     </aside>
   );

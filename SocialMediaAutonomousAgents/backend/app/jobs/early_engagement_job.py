@@ -21,27 +21,32 @@ def run_early_engagement_job() -> dict:
     tw = TwitterService(repo)
     snapshots = PostMetricSnapshotRepository()
     outcomes = PipelineOutcomeRepository()
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, int(settings.early_engagement_window_hours)))
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(hours=max(1, int(settings.early_engagement_window_hours)))
+    ).isoformat()
     checked = 0
     updated = 0
     for acc in repo.list_active():
-        rows = trepo.list_for_account(acc.account_id)
-        for row in rows:
-            posted_at = str(row.get("posted_at") or "")
-            if not posted_at:
-                continue
-            try:
-                posted_dt = datetime.fromisoformat(posted_at.replace("Z", "+00:00"))
-            except ValueError:
-                continue
-            if posted_dt < cutoff:
-                continue
-            tid = str(row.get("tweet_id") or "")
-            if not tid:
-                continue
+        poll_rows = trepo.live_rows_for_polling(acc.account_id, since=cutoff)
+        tweet_ids = [str(r.get("tweet_id")) for r in poll_rows if r.get("tweet_id")]
+        if not tweet_ids:
+            outcomes.append(account_id=acc.account_id, phase="early_engagement_job", status="ok")
+            continue
+        try:
+            metrics_by_id, missing = tw.get_posts_metrics(acc.account_id, tweet_ids)
+        except Exception as exc:
+            outcomes.append(
+                account_id=acc.account_id,
+                phase="early_engagement_job",
+                status="partial_or_failed",
+                reason=str(exc),
+            )
+            continue
+        for dead in missing:
+            trepo.mark_deleted(acc.account_id, dead)
+        for tid, m in metrics_by_id.items():
             checked += 1
             try:
-                m = tw.get_tweet_metrics(acc.account_id, tid)
                 m["follower_delta"] = account_follower_delta(acc)
                 rates = compute_rates(m)
                 m.update(rates)

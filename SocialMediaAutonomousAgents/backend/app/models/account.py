@@ -6,7 +6,9 @@ stored a flat layout or a `voice` object; `_lift_legacy_fields` migrates both in
 
 from typing import Literal  # correlation enum for ContrastPattern
 
-from pydantic import AliasChoices, BaseModel, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+
+from app.models.niche import Niche
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -104,6 +106,14 @@ class PunctuationRule(BaseModel):
 
 class AccountSoul(BaseModel):
     """The writing identity of an account: who it is and how its text is shaped."""
+    model_config = ConfigDict(populate_by_name=True)
+
+    # The account's persona / kind ("Global News Commentary", "Stock Trader", ...).
+    # Loads a legacy ``niche`` key for documents that predate the rename.
+    category: str = Field(default="", validation_alias=AliasChoices("category", "niche"))
+    # Popular niches: scored topics the account is observed to ride. See niche_service.
+    # Excluded from the voice version hash, so score changes never bump the version.
+    niches: list[Niche] = Field(default_factory=list)
     # Prose describing character, likes/dislikes, reactions to people/topics, tone quirks
     # (e.g. occasional lowercase sentence starts). This is the primary LLM steering text.
     personality: str = Field(default="")
@@ -119,11 +129,13 @@ class AccountSoul(BaseModel):
     voice_version_label: str | None = "v1"
 
 
-def default_soul(niche: str) -> AccountSoul:
-    """Fresh soul for a new account; posting_prompt is seeded from the niche."""
+def default_soul(category: str) -> AccountSoul:
+    """Fresh soul for a new account; posting_prompt is seeded from the category."""
     return AccountSoul(
+        category=category or "",
+        niches=[],
         personality="",
-        posting_prompt=default_system_prompt(niche),
+        posting_prompt=default_system_prompt(category),
         contrast_patterns=[ContrastPattern.model_validate(d) for d in default_contrast_patterns()],
         punctuation_rules=[PunctuationRule.model_validate(d) for d in default_punctuation_rules()],
     )
@@ -143,6 +155,8 @@ def _soul_from_legacy(src: dict) -> dict:
         if neg else default_contrast_patterns()
     )
     return {
+        "category": src.get("category") or src.get("niche") or "",
+        "niches": list(src.get("niches") or []),
         "personality": src.get("personality") or "",
         "posting_prompt": src.get("system_prompt") or src.get("posting_prompt") or "",
         "contrast_patterns": contrast,
@@ -154,7 +168,8 @@ def _soul_from_legacy(src: dict) -> dict:
 
 
 class AccountProfile(BaseModel):
-    niche: str
+    # category and niches moved to AccountSoul (the writing identity); legacy docs
+    # that stored them on the profile are folded into the soul on load.
     twitter_handle: str = ""
     status: str = "active"
     followers: int = 0
@@ -162,8 +177,6 @@ class AccountProfile(BaseModel):
     # Provenance / dashboard (optional for legacy documents)
     registered_at: str | None = None
     followers_when_registered: int | None = None
-    # Raw X recent-search queries for reference ingestion (see data.search_fetch)
-    search_queries: list[str] = Field(default_factory=list)
 
 
 class AccountPostingState(BaseModel):
@@ -201,9 +214,23 @@ class AccountDocument(BaseModel):
 
         # (A)/(B): already nested (has 'profile')
         if "profile" in value:
+            profile = value.get("profile") or {}
             if "soul" not in value or not value.get("soul"):
-                legacy_voice = value.get("voice") or {}
-                value["soul"] = _soul_from_legacy(legacy_voice)
+                soul = _soul_from_legacy(value.get("voice") or {})
+            else:
+                soul = dict(value["soul"])
+            # Older docs stored category/niches on the profile; fold them into soul.
+            if not soul.get("category"):
+                soul["category"] = (
+                    profile.get("category") or profile.get("niche") or value.get("niche") or ""
+                )
+            if not soul.get("niches"):
+                soul["niches"] = list(profile.get("niches") or [])
+            if isinstance(profile, dict):
+                for moved in ("category", "niche", "niches"):
+                    profile.pop(moved, None)
+            value["profile"] = profile
+            value["soul"] = soul
             value.pop("voice", None)  # drop deprecated object; soul is canonical
             return value
 
@@ -211,14 +238,12 @@ class AccountDocument(BaseModel):
         return {
             "account_id": value.get("account_id"),
             "profile": {
-                "niche": value.get("niche") or value.get("account_id") or "",
                 "twitter_handle": value.get("twitter_handle") or "",
                 "status": value.get("status") or "active",
                 "followers": value.get("followers") or 0,
                 "posts_total": value.get("posts_total") or 0,
                 "registered_at": value.get("registered_at"),
                 "followers_when_registered": value.get("followers_when_registered"),
-                "search_queries": list(value.get("search_queries") or []),
             },
             "soul": _soul_from_legacy(value),  # reads system_prompt/personality/negative_semantics if present
             "posting": {
@@ -231,14 +256,22 @@ class AccountDocument(BaseModel):
             },
         }
 
-    # ── Profile accessors (compatibility while call sites migrate) ──
+    # ── Soul accessors (category and niches live in the soul) ──
     @property
-    def niche(self) -> str:
-        return self.profile.niche
+    def category(self) -> str:
+        return self.soul.category
 
-    @niche.setter
-    def niche(self, value: str) -> None:
-        self.profile.niche = value
+    @category.setter
+    def category(self, value: str) -> None:
+        self.soul.category = value
+
+    @property
+    def niches(self) -> list[Niche]:
+        return self.soul.niches
+
+    @niches.setter
+    def niches(self, value: list[Niche]) -> None:
+        self.soul.niches = value
 
     @property
     def twitter_handle(self) -> str:
@@ -287,14 +320,6 @@ class AccountDocument(BaseModel):
     @followers_when_registered.setter
     def followers_when_registered(self, value: int | None) -> None:
         self.profile.followers_when_registered = value
-
-    @property
-    def search_queries(self) -> list[str]:
-        return self.profile.search_queries
-
-    @search_queries.setter
-    def search_queries(self, value: list[str]) -> None:
-        self.profile.search_queries = value
 
     # ── Soul accessors (kept to shield existing call sites; now back soul) ──
     @property

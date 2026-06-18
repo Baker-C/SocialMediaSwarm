@@ -25,7 +25,7 @@ export function AccountCard({ account, onUpdateClick, variant = 'card' }: Accoun
           <h2 className="account-card__title" id={`acct-${account.account_id}-title`}>
             {account.account_id}
           </h2>
-          <p className="account-card__niche">{account.niche}</p>
+          <p className="account-card__niche">{account.category}</p>
         </div>
         <span className={`account-card__status account-card__status--${account.status}`}>
           {account.status}

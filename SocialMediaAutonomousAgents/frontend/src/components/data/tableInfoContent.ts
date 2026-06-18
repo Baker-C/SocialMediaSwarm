@@ -185,7 +185,7 @@ export const TABLE_INFO: Record<TableInfoId, TableInfoContent> = {
       { name: 'Time', description: 'When the outcome was recorded.' },
       {
         name: 'Account',
-        description: 'Account id (fleet view only; hidden on single-account pipeline page).',
+        description: 'Account id (swarm view only; hidden on single-account pipeline page).',
       },
       { name: 'Phase', description: 'Which pipeline stage produced this outcome.' },
       { name: 'Status', description: 'Result: success, skip, reject, or other terminal state.' },
@@ -204,7 +204,7 @@ export const TABLE_INFO: Record<TableInfoId, TableInfoContent> = {
         items: [
           'Sort by time to trace recent failures.',
           'Filter mentally by phase and status to spot recurring skips.',
-          'Fleet view: scan the Account column for noisy accounts.',
+          'Swarm view: scan the Account column for noisy accounts.',
           'Cross-reference highlighted ops alerts and the skip-reason chart for patterns.',
         ],
       },
@@ -216,7 +216,7 @@ export const TABLE_INFO: Record<TableInfoId, TableInfoContent> = {
       'Cross-account ranking for operational comparison — engagement, growth, cadence, and OAuth connectivity.',
     columns: [
       { name: 'Account', description: 'Account id; links to account HQ.' },
-      { name: 'Niche', description: 'Content niche assigned to the account.' },
+      { name: 'Category', description: 'Account category / persona (e.g. Global News Commentary, Stock Trader).' },
       { name: 'Avg ER', description: 'Average engagement rate across tracked posts (when metrics exist).' },
       {
         name: 'Follower growth',
@@ -228,7 +228,7 @@ export const TABLE_INFO: Record<TableInfoId, TableInfoContent> = {
     analysis: [
       {
         kind: 'paragraph',
-        text: 'Rank accounts to compare performance and operational readiness across the fleet.',
+        text: 'Rank accounts to compare performance and operational readiness across the swarm.',
       },
       {
         kind: 'list',

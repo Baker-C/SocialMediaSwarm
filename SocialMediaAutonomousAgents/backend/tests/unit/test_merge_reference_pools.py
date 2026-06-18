@@ -15,15 +15,8 @@ def test_merge_reference_pool_rows_dedupes_by_id() -> None:
     assert merged[1]["text"] == "timeline2"
 
 
-def test_merge_external_references_step_updates_timeline_payload() -> None:
+def test_collect_external_references_builds_pool_from_search() -> None:
     ctx = TickRunContext(account_id="a1", slot="s1")
-    ctx.set(
-        "timeline_references",
-        {
-            "timeline_reference_tweets": [{"id": "t1", "text": "tl"}],
-            "reference_errors": [],
-        },
-    )
     ctx.set(
         "search_references",
         {
@@ -33,12 +26,11 @@ def test_merge_external_references_step_updates_timeline_payload() -> None:
         },
     )
 
-    result = steps.merge_external_references(ctx, None)  # type: ignore[arg-type]
+    result = steps.collect_external_references(ctx, None)  # type: ignore[arg-type]
 
     assert result.ok
     payload = ctx.get("timeline_references")
     assert payload["search_merged_count"] == 1
-    assert payload["timeline_only_count"] == 1
     assert payload["search_queries_run"] == ["news"]
-    assert len(payload["timeline_reference_tweets"]) == 2
+    assert [r["id"] for r in payload["timeline_reference_tweets"]] == ["s1"]
     assert "search:q:402" in payload["reference_errors"]

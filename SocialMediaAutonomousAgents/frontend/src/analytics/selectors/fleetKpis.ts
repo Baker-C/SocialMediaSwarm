@@ -13,7 +13,7 @@ export type FleetKpis = {
 
 export type LeaderboardRow = {
   accountId: string;
-  niche: string;
+  category: string;
   avgEr: number | null;
   followerGrowth: number | null;
   lastPostAge: string | null;
@@ -54,7 +54,7 @@ export function buildLeaderboard(
   return accounts
     .map((a) => ({
       accountId: a.account_id,
-      niche: a.niche,
+      category: a.category,
       avgEr: metricsByAccount[a.account_id]?.avg_engagement_rate ?? null,
       followerGrowth: a.follower_growth_vs_registered ?? null,
       lastPostAge: a.recent_post?.posted_at ?? null,

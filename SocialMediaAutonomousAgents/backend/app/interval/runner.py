@@ -1,4 +1,4 @@
-"""Interval tick entry: pre → crew → post."""
+"""Interval tick entry: pre → compose → post."""
 
 from __future__ import annotations
 
@@ -61,7 +61,6 @@ def build_tick_context(
     *,
     repo: AccountRepository,
     twitter: Any,
-    creator: Any,
     guardian: Any,
     tick_data: Any,
     post_registry: Any,
@@ -82,7 +81,6 @@ def build_tick_context(
     ctx = TickContext(
         repo=repo,
         twitter=twitter,
-        creator=creator,
         guardian=guardian,
         tick_data=tick_data,
         post_registry=post_registry,
@@ -149,7 +147,7 @@ def run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[str
         mode=ctx.mode,
         sinks=[NatsPublishSink()],
     ):
-        emit_run_started(niche=account.niche or "")
+        emit_run_started(niche=account.category or "")
         status = "error"
         try:
             out = _run_account_pipeline(ctx, account)
@@ -168,7 +166,7 @@ def _run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[st
     trace_step(
         aid,
         "pre_tick_input",
-        {"account_id": aid, "niche": account.niche, "slot": ctx.slot, "mode": ctx.mode},
+        {"account_id": aid, "niche": account.category, "slot": ctx.slot, "mode": ctx.mode},
         handoff_to="reload_account",
     )
 
@@ -287,7 +285,7 @@ def _run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[st
 
         tick_input = TickInput(
             account_id=account.account_id,
-            niche=account.niche,
+            niche=account.category,
             slot=ctx.slot,
             mode=ctx.mode,
             account_personality=(account.personality or "").strip(),
@@ -323,7 +321,7 @@ def _run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[st
             for reg_round in range(ctx.max_regeneration_rounds):
                 body = compose_formatted_post(
                     winner,
-                    account.niche,
+                    account.category,
                     account_posting_prompt=(account.posting_prompt or "").strip(),
                     account_personality=(account.personality or "").strip(),
                     contrast_patterns=list(account.contrast_patterns or []),
@@ -339,7 +337,7 @@ def _run_account_pipeline(ctx: TickContext, account: AccountDocument) -> dict[st
                     handoff_to="safety_filter",
                 )
                 _orch_active("safety")
-                approved, reject = ctx.guardian.evaluate(body, niche=account.niche)
+                approved, reject = ctx.guardian.evaluate(body, niche=account.category)
                 trace_step(
                     aid,
                     f"safety_r{ref_idx}_round_{reg_round}",

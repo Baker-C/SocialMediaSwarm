@@ -15,7 +15,7 @@ const leaderboardColumns: DataTableColumn<LeaderboardRow>[] = [
     ),
     sortValue: (r) => r.accountId,
   },
-  { id: 'niche', header: 'Niche', accessor: (r) => r.niche, sortValue: (r) => r.niche },
+  { id: 'category', header: 'Category', accessor: (r) => r.category, sortValue: (r) => r.category },
   {
     id: 'avgEr',
     header: 'Avg ER',

@@ -9,7 +9,6 @@ from app.interval.schemas import TickMode
 from app.models.account import AccountDocument
 
 if TYPE_CHECKING:
-    from app.agents.content_creator import ContentCreator
     from app.agents.safety_guardian import SafetyGuardian
     from app.services.account_repository import AccountRepository
     from app.services.post_registry import TrackedPostRepository
@@ -21,7 +20,6 @@ if TYPE_CHECKING:
 class TickContext:
     repo: AccountRepository
     twitter: TwitterService
-    creator: ContentCreator
     guardian: SafetyGuardian
     tick_data: TickDataService
     post_registry: TrackedPostRepository | None

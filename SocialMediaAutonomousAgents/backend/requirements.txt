@@ -10,5 +10,4 @@ apscheduler
 tweepy
 click
 anthropic
-crewai>=0.86.0
 nats-py

@@ -40,6 +40,10 @@ class SocialMediaClient(Protocol):
         """Single post by vendor id (tweet id on X)."""
         ...
 
+    def get_posts_data(self, post_ids: list[str]) -> tuple[list[PostData], list[str]]:
+        """Batch lookup. Returns ``(found_posts, missing_ids)`` for deleted/unknown ids."""
+        ...
+
     def create_post(self, text: str) -> CreatedPost:
         """Publish a short-form post (tweet on X)."""
         ...

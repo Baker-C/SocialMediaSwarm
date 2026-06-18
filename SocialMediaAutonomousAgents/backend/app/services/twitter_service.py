@@ -164,6 +164,21 @@ class TwitterService:
         )
         return post.model_dump()
 
+    def get_posts_metrics(
+        self, account_id: str, tweet_ids: list[str]
+    ) -> tuple[dict[str, dict], list[str]]:
+        """Batch metrics for many tweets. Returns ``({tweet_id: metrics}, missing_ids)``."""
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        from app.social.enums import SocialPlatform
+
+        found, missing = self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.get_posts_data(SocialPlatform.X, c, tweet_ids),
+        )
+        return {str(p.id): p.model_dump() for p in found}, missing
+
     def get_trends(
         self,
         account_id: str,

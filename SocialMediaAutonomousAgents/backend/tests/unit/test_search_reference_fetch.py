@@ -9,7 +9,7 @@ from app.services.tick_data_service import TickDataService
 
 def test_compile_search_reference_tweets_merges_queries_and_dedupes() -> None:
     twitter = MagicMock()
-    twitter.search_tweets.side_effect = [
+    twitter.search_tweets_for_trend.side_effect = [
         [
             {"id": "1", "text": "first", "like_count": 10},
             {"id": "2", "text": "second", "like_count": 5},
@@ -40,13 +40,13 @@ def test_compile_search_reference_tweets_merges_queries_and_dedupes() -> None:
     assert row2["source"] == "search_recent"
     assert row2["search_query"] == "q1"
     assert row2["matched_queries"] == ["q1", "q2"]
-    twitter.search_tweets.assert_any_call("acct", "q1", max_results=None)
-    twitter.search_tweets.assert_any_call("acct", "q2", max_results=None)
+    twitter.search_tweets_for_trend.assert_any_call("acct", "q1", max_results=None)
+    twitter.search_tweets_for_trend.assert_any_call("acct", "q2", max_results=None)
 
 
 def test_compile_search_reference_tweets_continues_after_query_error() -> None:
     twitter = MagicMock()
-    twitter.search_tweets.side_effect = [
+    twitter.search_tweets_for_trend.side_effect = [
         RuntimeError("402 Payment Required"),
         [{"id": "9", "text": "ok"}],
     ]
@@ -65,7 +65,7 @@ def test_compile_search_reference_tweets_continues_after_query_error() -> None:
 
 def test_compile_search_reference_tweets_filters_own_tweets() -> None:
     twitter = MagicMock()
-    twitter.search_tweets.return_value = [
+    twitter.search_tweets_for_trend.return_value = [
         {"id": "1", "text": "mine", "author_id": "99"},
         {"id": "2", "text": "theirs", "author_id": "42"},
     ]

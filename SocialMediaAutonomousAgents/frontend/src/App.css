@@ -1096,3 +1096,139 @@ pre {
   gap: 8px;
   padding: 0 20px 20px;
 }
+
+/* ---- Login gate ---- */
+/* --- Login hero: title · animated sigil · passphrase --- */
+.login-hero {
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+  padding: 48px 24px;
+  /* Layered, top-most first:
+     1) grid lines  2) linear wash: orange in the bottom-right corner → none at top-left */
+  background-color: #000;
+  background-image:
+    linear-gradient(hsl(var(--hairline) / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--hairline) / 0.05) 1px, transparent 1px),
+    linear-gradient(to top left, hsl(var(--accent-orange) / 0.2), transparent 60%);
+  background-size: 44px 44px, 44px 44px, 100% 100%;
+}
+
+/* Giant ghosted wordmark behind the stage. Geist Mono is monospace, so each
+   word is sized by its character count to span the full viewport width. */
+.login-hero-wordmark {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  user-select: none;
+}
+.login-word {
+  display: block;
+  width: 100vw;
+  text-align: center;
+  font-weight: 800;
+  line-height: 0.78;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  color: hsl(var(--accent-orange) / 0.05);
+}
+/* Both words span an identical width at every viewport size.
+   Geist Mono is monospace, so width = chars x font-size. Keep the products equal:
+   SOLOMON'S (9) x 17.5  ==  SWARM (5) x 31.5 */
+.login-word--solomon {
+  font-size: 17.5vw; /* 9 chars */
+}
+.login-word--swarm {
+  font-size: 31.5vw; /* 5 chars */
+}
+
+/* Foreground: sigil + passphrase float over the wordmark. */
+.login-hero-stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 36px;
+}
+.login-hero-sigil {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-hero-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+}
+.login-hero-field {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 1px solid hsl(var(--hairline));
+  border-radius: 8px;
+  background: hsl(var(--surface-panel) / 0.6);
+  backdrop-filter: blur(2px);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.login-hero-field:focus-within {
+  border-color: hsl(var(--accent-orange));
+  box-shadow: 0 0 0 3px hsl(var(--accent-orange) / 0.18);
+}
+.login-hero-field--error {
+  border-color: hsl(var(--status-offline));
+}
+.login-hero-input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  outline: none;
+}
+.login-hero-input::placeholder {
+  color: hsl(var(--ink-3));
+}
+.login-hero-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: hsl(var(--accent-orange));
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.login-hero-submit:not(:disabled):hover {
+  transform: translateX(2px);
+}
+.login-hero-submit:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.login-hero-error {
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: hsl(var(--status-offline));
+}

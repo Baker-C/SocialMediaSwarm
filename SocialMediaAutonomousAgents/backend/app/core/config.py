@@ -13,6 +13,16 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     environment: str = "development"
     encryption_key: str = ""
+    # Dashboard login gate. DASHBOARD_PASSWORD is the plaintext password checked at /api/auth/login.
+    # When empty, auth is disabled (all routes open) — set it before exposing the backend publicly.
+    dashboard_password: str = ""
+    # Secret used to sign session tokens. Falls back to encryption_key when empty.
+    dashboard_session_secret: str = ""
+    # How long a login stays valid on the user's device.
+    dashboard_session_days: int = 30
+    # Comma-separated browser origins allowed by CORS (e.g. https://your-app.vercel.app).
+    # localhost dev origins are always allowed in addition to these.
+    allowed_origins: str = ""
     scheduler_timezone: str = "UTC"
     # Automated posting paused from start hour (inclusive) to end hour (exclusive), e.g. 0–8 = midnight–8 AM
     post_quiet_hours_enabled: bool = True
@@ -69,15 +79,16 @@ class Settings(BaseSettings):
     trends_fallback_woeid: int = 1
     # Print/log JSON payloads between interval pipeline steps
     tick_pipeline_trace: bool = True
-    # External reference tweets (Stream A: search, Stream B: following timeline)
-    trend_tweet_search_enabled: bool = False
-    following_feed_enabled: bool = True
+    # External reference tweets (per-niche recent search; following-timeline pull removed)
     trend_search_max_results: int = 100
     following_timeline_max_results: int = 100
-    reference_tweet_cache_minutes: int = 45
     following_feed_filter_by_trend: bool = True
     early_engagement_poll_minutes: int = 15
     early_engagement_window_hours: int = 2
+    # Full engagement poll: only refresh posts newer than this (older posts' metrics
+    # are effectively final). Batched X lookups are capped at this many ids per call.
+    metrics_poll_window_hours: int = 168
+    metrics_lookup_batch_size: int = 100
     # NATS JetStream event log for pipeline run tracking (Option B / event-sourced)
     nats_enabled: bool = True
     nats_url: str = "nats://localhost:4222"

@@ -58,6 +58,14 @@ class SocialMediaService:
     ) -> PostData:
         return self._client(platform, creds).get_post_data(post_id)
 
+    def get_posts_data(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        post_ids: list[str],
+    ) -> tuple[list[PostData], list[str]]:
+        return self._client(platform, creds).get_posts_data(post_ids)
+
     def create_post(
         self,
         platform: SocialPlatform,

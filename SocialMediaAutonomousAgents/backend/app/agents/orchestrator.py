@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from app.agents.content_creator import ContentCreator
 from app.agents.safety_guardian import SafetyGuardian
 from app.interval.runner import build_tick_context, run_interval_tick
 from app.services.account_repository import AccountRepository
@@ -23,14 +22,12 @@ class Orchestrator:
         self,
         repo: AccountRepository | None = None,
         twitter: TwitterService | None = None,
-        creator: ContentCreator | None = None,
         guardian: SafetyGuardian | None = None,
         post_registry: Any = _MISSING_POST_REGISTRY,
         pulled_tweets: Any = _MISSING_PULLED_TWEETS,
     ) -> None:
         self.repo = repo or AccountRepository()
         self.twitter = twitter or TwitterService(self.repo)
-        self.creator = creator or ContentCreator()
         self.guardian = guardian or SafetyGuardian()
         if post_registry is _MISSING_POST_REGISTRY:
             self.post_registry: TrackedPostRepository | None = TrackedPostRepository()
@@ -63,7 +60,6 @@ class Orchestrator:
         ctx = build_tick_context(
             repo=self.repo,
             twitter=self.twitter,
-            creator=self.creator,
             guardian=self.guardian,
             tick_data=tick_data,
             post_registry=self.post_registry,

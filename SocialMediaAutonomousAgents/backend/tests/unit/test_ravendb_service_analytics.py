@@ -13,7 +13,6 @@ def test_account_public_includes_voice_and_reference_fields() -> None:
         account_id="acct1",
         niche="tech",
         status="active",
-        search_queries=["q1", "q2"],
         voice_version_label="v3",
         voice_version_seq=3,
         copied_reference_tweet_ids=["ref1", "ref2", "ref3"],
@@ -23,7 +22,6 @@ def test_account_public_includes_voice_and_reference_fields() -> None:
 
     assert pub["voice_version_label"] == "v3"
     assert pub["voice_version_seq"] == 3
-    assert pub["search_queries_count"] == 2
     assert pub["copied_reference_count"] == 3
 
 

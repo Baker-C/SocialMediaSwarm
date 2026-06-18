@@ -68,7 +68,7 @@ def test_interval_idempotency_same_slot():
 
 
 def test_interval_posts_once_per_slot():
-    acc = AccountDocument(account_id="a2", niche="Test")
+    acc = AccountDocument(account_id="a2", niche="Test", niches=[{"niche": "topic", "score": 1}])
     repo = FakeRepo([acc])
     tw = TwitterService(repo)
     guardian = MagicMock()
@@ -76,8 +76,8 @@ def test_interval_posts_once_per_slot():
     from app.services.tick_data_service import TickDataService
 
     composed = "Opinion take.\n\nFollow for updates\n\nhttps://x.com/i/status/100"
-    timeline_payload = {
-        "timeline_reference_tweets": [
+    search_payload = {
+        "search_reference_tweets": [
             {
                 "id": "100",
                 "text": "News https://example.com/a",
@@ -94,13 +94,12 @@ def test_interval_posts_once_per_slot():
     ):
         mock_td = mock_tds_cls.return_value
         mock_td.compile_account_bundle.return_value = {"account_id": "a2", "profile": {}}
-        mock_td.compile_timeline_reference_tweets.return_value = timeline_payload
+        mock_td.compile_search_reference_tweets.return_value = search_payload
         mock_td.merge_reference_pool.side_effect = TickDataService.merge_reference_pool
         orch = Orchestrator(
             repo=repo,
             twitter=tw,
             guardian=guardian,
-            creator=MagicMock(),
             post_registry=None,
             pulled_tweets=None,
         )
@@ -120,7 +119,7 @@ def test_interval_posts_once_per_slot():
 
 
 def test_pipeline_posts_composed_body_after_safety():
-    acc = AccountDocument(account_id="a2", niche="Test")
+    acc = AccountDocument(account_id="a2", niche="Test", niches=[{"niche": "topic", "score": 1}])
     repo = FakeRepo([acc])
     tw = TwitterService(repo)
     guardian = MagicMock()
@@ -129,13 +128,13 @@ def test_pipeline_posts_composed_body_after_safety():
     from app.services.tick_data_service import TickDataService
 
     tick_data.compile_account_bundle.return_value = {"account_id": "a2", "profile": {}}
-    tick_data.compile_timeline_reference_tweets.return_value = {
-        "timeline_reference_tweets": [
+    tick_data.compile_search_reference_tweets.return_value = {
+        "search_reference_tweets": [
             {
                 "id": "2056000000000000001",
                 "text": "External angle https://example.com/x",
                 "like_count": 30,
-                "source": "following_timeline",
+                "source": "search_recent",
                 "tweet_permalink": "https://x.com/i/status/2056000000000000001",
             },
         ],
@@ -155,7 +154,6 @@ def test_pipeline_posts_composed_body_after_safety():
         ctx = build_tick_context(
             repo=repo,
             twitter=tw,
-            creator=MagicMock(),
             guardian=guardian,
             tick_data=tick_data,
             post_registry=None,
@@ -189,7 +187,6 @@ def test_pipeline_skips_when_no_url_references():
         ctx = build_tick_context(
             repo=repo,
             twitter=tw,
-            creator=MagicMock(),
             guardian=MagicMock(),
             tick_data=tick_data,
             post_registry=None,
@@ -207,7 +204,6 @@ def test_slot_reserve_blocks_second_pipeline_same_slot():
         ctx = build_tick_context(
             repo=repo,
             twitter=MagicMock(),
-            creator=MagicMock(),
             guardian=MagicMock(),
             tick_data=MagicMock(),
             post_registry=None,
@@ -225,6 +221,7 @@ def test_force_mode_bypasses_slot_guard():
     acc = AccountDocument(
         account_id="a2",
         niche="Test",
+        niches=[{"niche": "topic", "score": 1}],
         last_interval_slot="2026-05-13-15",
     )
     repo = FakeRepo([acc])
@@ -234,8 +231,8 @@ def test_force_mode_bypasses_slot_guard():
     from app.services.tick_data_service import TickDataService
 
     composed = "Forced opinion.\n\nFollow for updates\n\nhttps://x.com/i/status/200"
-    timeline_payload = {
-        "timeline_reference_tweets": [
+    search_payload = {
+        "search_reference_tweets": [
             {
                 "id": "200",
                 "text": "Forced ref https://example.com/z",
@@ -252,13 +249,12 @@ def test_force_mode_bypasses_slot_guard():
     ):
         mock_td = mock_tds_cls.return_value
         mock_td.compile_account_bundle.return_value = {"account_id": "a2", "profile": {}}
-        mock_td.compile_timeline_reference_tweets.return_value = timeline_payload
+        mock_td.compile_search_reference_tweets.return_value = search_payload
         mock_td.merge_reference_pool.side_effect = TickDataService.merge_reference_pool
         orch = Orchestrator(
             repo=repo,
             twitter=tw,
             guardian=guardian,
-            creator=MagicMock(),
             post_registry=None,
             pulled_tweets=None,
         )

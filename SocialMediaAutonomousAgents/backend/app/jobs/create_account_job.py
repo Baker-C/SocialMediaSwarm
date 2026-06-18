@@ -20,7 +20,7 @@ class CreateAccountJobError(ValueError):
 def run_create_account_job(
     *,
     account_id: str,
-    niche: str | None = None,
+    category: str | None = None,
     twitter_handle: str = "",
     repo: AccountRepository | None = None,
 ) -> AccountDocument:
@@ -32,7 +32,7 @@ def run_create_account_job(
     r = repo or AccountRepository()
     acc = r.upsert_profile(
         aid,
-        niche=niche,
+        category=category,
         twitter_handle=twitter_handle or None,
         status="active",
     )

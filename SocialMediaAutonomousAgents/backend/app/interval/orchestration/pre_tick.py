@@ -1,4 +1,4 @@
-"""Deterministic pre-crew setup: load accounts, slot idempotency."""
+"""Deterministic pre phase setup: load accounts, slot idempotency."""
 
 from __future__ import annotations
 

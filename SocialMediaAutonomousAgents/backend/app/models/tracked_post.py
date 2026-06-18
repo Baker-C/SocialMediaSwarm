@@ -32,6 +32,9 @@ class TrackedPostDocument(BaseModel):
     tweet_id: str
     posted_at: str = ""
     last_fetched_at: str | None = None
+    # Set once the tweet is gone from X (404/Tweet not found). Deleted posts keep
+    # their last-known metrics for analytics but are never polled again.
+    is_deleted: bool = False
     like_count: int | None = None
     reply_count: int | None = None
     retweet_count: int | None = None

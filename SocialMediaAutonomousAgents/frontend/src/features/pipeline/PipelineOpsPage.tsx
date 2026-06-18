@@ -177,7 +177,7 @@ export function PipelineOpsPage() {
 export function FleetPipelinePage() {
   return (
     <PipelineOpsBody
-      title="Fleet Pipeline"
+      title="Swarm Pipeline"
       subtitle="Outcomes across all accounts (7d)"
     />
   );

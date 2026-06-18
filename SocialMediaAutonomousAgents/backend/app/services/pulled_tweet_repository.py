@@ -206,7 +206,7 @@ class PulledTweetRepository:
             return []
         cap = max(1, min(int(limit), 500))
         rql = (
-            f'from PulledTweets where pulled_for_account_ids any in ("{aid}") '
+            f'from PulledTweets where pulled_for_account_ids in ("{aid}") '
             f"order by last_pulled_at desc limit {cap}"
         )
         try:
@@ -215,7 +215,7 @@ class PulledTweetRepository:
             try:
                 rows = self.client.query(
                     f'from @all where startsWith(id(), "pulledtweets/") '
-                    f'and pulled_for_account_ids any in ("{aid}") '
+                    f'and pulled_for_account_ids in ("{aid}") '
                     f"order by last_pulled_at desc limit {cap}"
                 )
             except RavenDBHttpError as exc:
