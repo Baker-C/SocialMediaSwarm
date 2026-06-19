@@ -144,7 +144,7 @@ const OPS_PRE_SECTION: FlowSection = {
 
 /**
  * Transform a PipelineSpec into FlowSection[] for rendering.
- * Walks the nested spec.steps and derives the same shape as the current hardcoded PIPELINE_FLOW.
+ * Walks the nested spec.steps to build the diagram for this account's pipeline.
  */
 export function flowFromSpec(spec: PipelineSpec): FlowSection[] {
   const specRows: any[] = [];
