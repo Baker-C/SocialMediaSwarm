@@ -42,7 +42,7 @@ export function personaChatReduce(
     case 'assistant_message':
       return {
         ...state,
-        messages: [...state.messages, { role: 'assistant', text: event.text }],
+        messages: [...state.messages, { role: 'assistant', content: event.text }],
       };
     case 'persona_preview':
       return { ...state, proposal: event.spec, validationErrors: null };

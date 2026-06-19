@@ -62,3 +62,17 @@ def test_disabled_fal_raises_runtime_error():
     service = PersonaImageService(fal=_FakeFal(enabled=False), media_repo=_FakeRepo())
     with pytest.raises(RuntimeError, match="FAL_API_KEY"):
         service.generate("an avatar", "a header")
+
+
+def test_generate_one_picks_size_by_kind():
+    fal = _FakeFal()
+    service = PersonaImageService(fal=fal, media_repo=_FakeRepo())
+
+    avatar_id = service.generate_one("avatar", "an avatar")
+    header_id = service.generate_one("header", "a header")
+
+    assert avatar_id == "asset1" and header_id == "asset2"
+    assert fal.sizes == [
+        PersonaImageService.AVATAR_SIZE,
+        PersonaImageService.HEADER_SIZE,
+    ]

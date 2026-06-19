@@ -6,6 +6,8 @@ repository directly, mirroring ``pipeline/tools/media/seedance_image.py``.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from app.infrastructure.fal_client import FalMediaClient, get_fal_client
 from app.services.media_asset_repository import MediaAssetRepository
 
@@ -48,6 +50,14 @@ class PersonaImageService:
             self._one(header_prompt, self.HEADER_SIZE),
         )
 
+    def generate_one(self, kind: Literal["avatar", "header"], prompt: str) -> str:
+        image_size = self.AVATAR_SIZE if kind == "avatar" else self.HEADER_SIZE
+        return self._one(prompt, image_size)
+
 
 def generate_persona_images(avatar_prompt: str, header_prompt: str) -> tuple[str, str]:
     return PersonaImageService().generate(avatar_prompt, header_prompt)
+
+
+def generate_persona_image(kind: Literal["avatar", "header"], prompt: str) -> str:
+    return PersonaImageService().generate_one(kind, prompt)

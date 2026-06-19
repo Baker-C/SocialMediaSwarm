@@ -48,6 +48,7 @@ SPEC_DICT = {
     "category": "Tech",
     "personality": "Dry and witty.",
     "posting_prompt": "Post about tech.",
+    "niches": ["topic one", "topic two"],
     "avatar_prompt": "a square robot avatar",
     "header_prompt": "a wide tech banner",
 }
@@ -142,6 +143,7 @@ def test_approve_writes_account_and_images(monkeypatch):
     assert saved["acc"].provisioning.images.header_asset_id == "h1"
     assert saved["acc"].provisioning.display_name == "Cool Bot"
     assert saved["acc"].provisioning.status == "draft"
+    assert [n.niche for n in saved["acc"].soul.niches] == ["topic one", "topic two"]
 
 
 def test_approve_nothing_to_approve():
@@ -156,9 +158,49 @@ def test_approve_nothing_to_approve():
     assert events[-1]["type"] == "done"
 
 
+def test_chat_turn_without_account_id(monkeypatch):
+    """Chat works before an account id exists (entered later, not up front)."""
+    monkeypatch.setattr(
+        persona_routes,
+        "claude",
+        _fake_claude({"reply": "Here's a persona.", "spec": SPEC_DICT}),
+    )
+
+    response = client.post(
+        "/api/persona/chat",
+        json=PersonaChatRequest(
+            messages=[PersonaChatMessage(role="user", content="A tech bot")],
+        ).model_dump(),
+    )
+
+    assert response.status_code == 200
+    events = response.json()["events"]
+    assert events[0]["type"] == "assistant_message"
+    assert events[-1]["type"] == "done"
+
+
+def test_approve_without_account_id_errors():
+    """Approve with a proposal but no account id → validation_errors (not a crash)."""
+    response = client.post(
+        "/api/persona/chat",
+        json=PersonaChatRequest(
+            proposal=PersonaSpec.model_validate(SPEC_DICT),
+            approve=True,
+        ).model_dump(),
+    )
+
+    events = response.json()["events"]
+    assert events[0]["type"] == "validation_errors"
+    assert events[-1]["type"] == "done"
+
+
 def test_regenerate_images(monkeypatch):
-    """Regenerate endpoint returns fresh asset ids."""
-    monkeypatch.setattr(persona_routes, "generate_persona_images", lambda a, h: ("av", "hd"))
+    """Both prompts → both asset ids returned."""
+    monkeypatch.setattr(
+        persona_routes,
+        "generate_persona_image",
+        lambda kind, prompt: "av" if kind == "avatar" else "hd",
+    )
 
     response = client.post(
         "/api/persona/regenerate-images",
@@ -167,6 +209,40 @@ def test_regenerate_images(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"avatar_asset_id": "av", "header_asset_id": "hd"}
+
+
+def test_regenerate_images_avatar_only(monkeypatch):
+    """Only avatar_prompt → response has only avatar_asset_id."""
+    monkeypatch.setattr(
+        persona_routes,
+        "generate_persona_image",
+        lambda kind, prompt: "av" if kind == "avatar" else "hd",
+    )
+
+    response = client.post(
+        "/api/persona/regenerate-images",
+        json={"avatar_prompt": "x"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"avatar_asset_id": "av"}
+
+
+def test_regenerate_images_header_only(monkeypatch):
+    """Only header_prompt → response has only header_asset_id."""
+    monkeypatch.setattr(
+        persona_routes,
+        "generate_persona_image",
+        lambda kind, prompt: "av" if kind == "avatar" else "hd",
+    )
+
+    response = client.post(
+        "/api/persona/regenerate-images",
+        json={"header_prompt": "y"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"header_asset_id": "hd"}
 
 
 def test_persona_draft_defensive_parse():

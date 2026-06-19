@@ -252,6 +252,11 @@ class AccountDocument(BaseModel):
         # (A)/(B): already nested (has 'profile')
         if "profile" in value:
             profile = value.get("profile") or {}
+            # profile may arrive as an AccountProfile instance (e.g. when AccountDocument
+            # is constructed with sub-models in upsert_profile), not a dict. Coerce so the
+            # .get(...) reads below work — mirrors the soul handling just after.
+            if not isinstance(profile, dict):
+                profile = dict(profile)
             if "soul" not in value or not value.get("soul"):
                 soul = _soul_from_legacy(value.get("voice") or {})
             else:

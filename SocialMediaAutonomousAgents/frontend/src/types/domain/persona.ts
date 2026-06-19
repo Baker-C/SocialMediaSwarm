@@ -7,6 +7,7 @@ export interface PersonaSpec {
   display_name: string;
   bio: string;
   category: string;
+  niches: string[];
   personality: string;
   posting_prompt: string;
   avatar_prompt: string;
@@ -15,7 +16,7 @@ export interface PersonaSpec {
 
 export type PersonaChatMessage = {
   role: 'user' | 'assistant';
-  text: string;
+  content: string;
 };
 
 export type PersonaChatRequest = {
