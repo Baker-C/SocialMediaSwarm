@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from app.api.routes import (
     accounts, analytics, oauth, posts, dashboard, health, force_post,
     pipeline_runs, pipeline_spec, auth, agent_builder, engagement,
+    provisioning, persona, media,
 )
 from app.api.routes.auth import require_auth
 from app.core.config import settings
@@ -189,6 +190,9 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(oauth.router, prefix="/api", tags=["oauth"])
+# Media bytes are served unauthed: browser <img src> requests can't send the bearer
+# token, and generated avatar/header images (uuid asset ids) are non-sensitive.
+app.include_router(media.router, prefix="/api", tags=["media"])
 
 # Everything below requires a valid login token when DASHBOARD_PASSWORD is set.
 _auth = [Depends(require_auth)]
@@ -201,3 +205,9 @@ app.include_router(pipeline_spec.router, prefix="/api", tags=["pipeline-spec"], 
 app.include_router(posts.router, prefix="/api", tags=["posts"], dependencies=_auth)
 app.include_router(engagement.router, prefix="/api", tags=["engagement"], dependencies=_auth)
 app.include_router(dashboard.router, prefix="/api", tags=["dashboard"], dependencies=_auth)
+app.include_router(provisioning.router, prefix="/api", tags=["provisioning"], dependencies=_auth)
+app.include_router(persona.router, prefix="/api", tags=["persona"], dependencies=_auth)
+
+# Agent-facing provisioning routes are gated per-route by require_agent_token (the
+# local agent presents its own shared secret), so they are NOT behind _auth.
+app.include_router(provisioning.agent_router, prefix="/api", tags=["provisioning-agent"])

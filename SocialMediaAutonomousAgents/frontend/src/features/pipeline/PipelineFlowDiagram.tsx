@@ -1,17 +1,12 @@
 /* ────────────────────────────────────────────────────────────────────────────
- * ⚠️  KEEP IN SYNC WITH THE BACKEND RUNBOOK.
- *
- * This component renders the post-tick pipeline defined in
- *   backend/app/pipeline/runbooks/post_tick.py  (POST_TICK_REFERENCE_STEPS).
- * The flow it draws comes from ./lib/pipeline/flowGraph.ts, which mirrors that
- * runbook step-for-step. If you change the runbook, update flowGraph.ts (and
- * therefore this display); if you change the display, make sure it still matches
- * the runbook. One should never drift from the other.
+ * Renders a pipeline flow diagram from the `sections` it is given. Callers build
+ * those from a per-account PipelineSpec via `flowFromSpec` (specToFlow.ts), so
+ * the diagram always reflects that account's actual pipeline — no hardcoded
+ * mirror of the backend runbook.
  * ──────────────────────────────────────────────────────────────────────────── */
 import { Fragment } from 'react';
 import {
   EXTERNAL_LABELS,
-  PIPELINE_FLOW,
   type FlowNodeDef,
   type FlowRow,
   type FlowSection,
@@ -22,7 +17,7 @@ type PipelineFlowDiagramProps = {
   nodeState: FlowNodeState;
   running: boolean;
   error: string | null;
-  sections?: FlowSection[];
+  sections: FlowSection[];
 };
 
 function statusOf(nodeState: FlowNodeState, id: string): FlowNodeStatus {
@@ -76,7 +71,7 @@ function Row({ row, nodeState }: { row: FlowRow; nodeState: FlowNodeState }) {
 }
 
 export function PipelineFlowDiagram({ nodeState, running, error, sections }: PipelineFlowDiagramProps) {
-  const flowSections = sections ?? PIPELINE_FLOW;
+  const flowSections = sections;
   return (
     <div className="pipeline-flow" role="region" aria-label="Pipeline flow diagram">
       <div className="pipeline-flow__meta">

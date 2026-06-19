@@ -44,8 +44,12 @@ class SocialMediaClient(Protocol):
         """Batch lookup. Returns ``(found_posts, missing_ids)`` for deleted/unknown ids."""
         ...
 
-    def create_post(self, text: str) -> CreatedPost:
-        """Publish a short-form post (tweet on X)."""
+    def upload_media(self, data: bytes, mime: str, *, kind: str = "image") -> str:
+        """Upload media bytes; return a vendor media id for ``create_post``."""
+        ...
+
+    def create_post(self, text: str, *, media_ids: list[str] | None = None) -> CreatedPost:
+        """Publish a short-form post (tweet on X), optionally with attached media."""
         ...
 
     def search_recent_tweets(
@@ -66,4 +70,70 @@ class SocialMediaClient(Protocol):
         exclude_retweets: bool = True,
     ) -> list[dict]:
         """Home timeline rows (``source=following_timeline``)."""
+        ...
+
+    def like_tweet(self, tweet_id: str) -> dict:
+        """Like a tweet. Returns engagement response with success flag."""
+        ...
+
+    def unlike_tweet(self, tweet_id: str) -> dict:
+        """Unlike a previously liked tweet. Returns engagement response."""
+        ...
+
+    def get_tweet_likers(
+        self,
+        tweet_id: str,
+        *,
+        max_results: int = 100,
+    ) -> list[dict]:
+        """Get users who liked a tweet. Returns user rows."""
+        ...
+
+    def retweet(self, tweet_id: str) -> dict:
+        """Retweet a tweet. Returns engagement response."""
+        ...
+
+    def undo_retweet(self, tweet_id: str) -> dict:
+        """Remove a retweet. Returns engagement response."""
+        ...
+
+    def get_tweet_retweeters(
+        self,
+        tweet_id: str,
+        *,
+        max_results: int = 100,
+    ) -> list[dict]:
+        """Get users who retweeted a tweet. Returns user rows."""
+        ...
+
+    def follow_user(self, user_id: str) -> dict:
+        """Follow a user. Returns engagement response."""
+        ...
+
+    def unfollow_user(self, user_id: str) -> dict:
+        """Unfollow a user. Returns engagement response."""
+        ...
+
+    def create_quote_tweet(self, quoted_tweet_id: str, text: str) -> CreatedPost:
+        """Quote a tweet with new text. Returns created post."""
+        ...
+
+    def get_quote_tweets(
+        self,
+        tweet_id: str,
+        *,
+        max_results: int = 100,
+    ) -> list[dict]:
+        """Get quote tweets for a tweet. Returns reference rows."""
+        ...
+
+    def search_all_tweets(
+        self,
+        query: str,
+        *,
+        max_results: int = 100,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> list[dict]:
+        """Full-archive tweet search (requires academic access). Returns reference rows."""
         ...

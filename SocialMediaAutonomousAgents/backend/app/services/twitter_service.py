@@ -154,6 +154,35 @@ class TwitterService:
         )
         return {"id": created.id, "text": created.text or text}
 
+    def post_tweet_with_media(
+        self,
+        account_id: str,
+        text: str,
+        media: list[tuple[bytes, str, str]],
+    ) -> dict:
+        """Upload each (bytes, mime, kind) then post with the resulting media_ids.
+
+        Alternative media-attached posting path; the text-only ``post_tweet`` is
+        unchanged. Requires the account's X app to include the ``media.write`` scope.
+        """
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        media_ids = [
+            self._call_with_auth_retry(
+                acc,
+                lambda c, d=data, m=mime, k=kind: self._social.upload_media(
+                    SocialPlatform.X, c, d, m, kind=k
+                ),
+            )
+            for data, mime, kind in media
+        ]
+        created = self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.create_post(SocialPlatform.X, c, text, media_ids=media_ids),
+        )
+        return {"id": created.id, "text": created.text or text, "media_ids": media_ids}
+
     def get_tweet_metrics(self, account_id: str, tweet_id: str) -> dict:
         acc = self._repo.load(account_id)
         if acc is None:
@@ -303,3 +332,138 @@ class TwitterService:
             ),
         )
         return data.model_dump()
+
+    def like_tweet(self, account_id: str, tweet_id: str) -> dict:
+        """Like a tweet for the authenticated user."""
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        return self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.like_tweet(SocialPlatform.X, c, tweet_id),
+        )
+
+    def unlike_tweet(self, account_id: str, tweet_id: str) -> dict:
+        """Unlike a previously liked tweet."""
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        return self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.unlike_tweet(SocialPlatform.X, c, tweet_id),
+        )
+
+    def get_tweet_likers(self, account_id: str, tweet_id: str, *, max_results: int = 100) -> list[dict]:
+        """Get users who liked a tweet."""
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        return self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.get_tweet_likers(
+                SocialPlatform.X, c, tweet_id, max_results=max_results
+            ),
+        )
+
+    def retweet(self, account_id: str, tweet_id: str) -> dict:
+        """Retweet a tweet."""
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        return self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.retweet(SocialPlatform.X, c, tweet_id),
+        )
+
+    def undo_retweet(self, account_id: str, tweet_id: str) -> dict:
+        """Undo a retweet."""
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        return self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.undo_retweet(SocialPlatform.X, c, tweet_id),
+        )
+
+    def get_tweet_retweeters(self, account_id: str, tweet_id: str, *, max_results: int = 100) -> list[dict]:
+        """Get users who retweeted a tweet."""
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        return self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.get_tweet_retweeters(
+                SocialPlatform.X, c, tweet_id, max_results=max_results
+            ),
+        )
+
+    def follow_user(self, account_id: str, user_id: str) -> dict:
+        """Follow a user."""
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        return self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.follow_user(SocialPlatform.X, c, user_id),
+        )
+
+    def unfollow_user(self, account_id: str, user_id: str) -> dict:
+        """Unfollow a user."""
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        return self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.unfollow_user(SocialPlatform.X, c, user_id),
+        )
+
+    def create_quote_tweet(self, account_id: str, quoted_tweet_id: str, text: str) -> dict:
+        """Create a quote tweet."""
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        created = self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.create_quote_tweet(SocialPlatform.X, c, quoted_tweet_id, text),
+        )
+        return {"id": created.id, "text": created.text or text}
+
+    def get_quote_tweets(self, account_id: str, tweet_id: str, *, max_results: int = 100) -> list[dict]:
+        """Get quote tweets for a tweet."""
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        return self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.get_quote_tweets(
+                SocialPlatform.X, c, tweet_id, max_results=max_results
+            ),
+        )
+
+    def search_all_tweets(
+        self,
+        account_id: str,
+        query: str,
+        *,
+        max_results: int = 100,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> list[dict]:
+        """Full-archive tweet search (requires academic/enterprise access)."""
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        q = (query or "").strip()
+        if not q:
+            return []
+        return self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.search_all_tweets(
+                SocialPlatform.X,
+                c,
+                q,
+                max_results=max_results,
+                start_time=start_time,
+                end_time=end_time,
+            ),
+        )

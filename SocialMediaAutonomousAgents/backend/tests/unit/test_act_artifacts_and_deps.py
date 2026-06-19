@@ -322,10 +322,10 @@ def test_artifact_keys_include_act_tail():
     assert ArtifactKey.PUBLISHED_POST.value == "published_post"
 
 
-def test_artifacts_dict_has_11_entries():
-    """ARTIFACTS dict has 11 entries: 8 SENSE + 3 ACT."""
-    assert len(ARTIFACTS) == 11
-    assert len(ArtifactKey) == 11
+def test_artifacts_dict_has_16_entries():
+    """ARTIFACTS dict has 16 entries: 8 SENSE + 3 post-ACT + 5 reply-family (doc 12)."""
+    assert len(ARTIFACTS) == 16
+    assert len(ArtifactKey) == 16
 
 
 def test_all_artifact_keys_in_artifacts_dict():
