@@ -39,26 +39,12 @@ export function AccountProvisioningPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-end gap-3">
-        <div className="flex-1 max-w-xs">
-          <label className="block text-xs tracking-wider text-neutral-400 mb-1" htmlFor="account-id">
-            ACCOUNT ID
-          </label>
-          <Input
-            id="account-id"
-            value={accountId}
-            placeholder="Auto-filled from the persona"
-            disabled={stage !== 'chat'}
-            onChange={(e) => setAccountId(e.target.value)}
-          />
-        </div>
-        <div className="flex gap-1 text-xs tracking-wider text-neutral-500">
-          <span className={stage === 'chat' ? 'text-orange-500' : ''}>CHAT</span>
-          <span>→</span>
-          <span className={stage === 'review' ? 'text-orange-500' : ''}>REVIEW</span>
-          <span>→</span>
-          <span className={stage === 'provisioning' ? 'text-orange-500' : ''}>PROVISION</span>
-        </div>
+      <div className="flex gap-1 text-xs tracking-wider text-neutral-500">
+        <span className={stage === 'chat' ? 'text-orange-500' : ''}>CHAT</span>
+        <span>→</span>
+        <span className={stage === 'review' ? 'text-orange-500' : ''}>REVIEW</span>
+        <span>→</span>
+        <span className={stage === 'provisioning' ? 'text-orange-500' : ''}>PROVISION</span>
       </div>
 
       {stage === 'chat' && (
@@ -71,6 +57,8 @@ export function AccountProvisioningPage() {
       {stage === 'review' && persona.proposal && (
         <ReviewStage
           persona={persona}
+          accountId={accountId}
+          onAccountIdChange={setAccountId}
           onWritten={() => setStage('provisioning')}
         />
       )}
@@ -194,9 +182,13 @@ function SpecRow({ label, value }: { label: string; value: string }) {
 
 function ReviewStage({
   persona,
+  accountId,
+  onAccountIdChange,
   onWritten,
 }: {
   persona: PersonaHook;
+  accountId: string;
+  onAccountIdChange: (id: string) => void;
   onWritten: () => void;
 }) {
   const {
@@ -231,6 +223,17 @@ function ReviewStage({
           <CardDescription>Edit any field before provisioning.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div>
+            <label className="block text-xs tracking-wider text-neutral-400 mb-1" htmlFor="review-account-id">
+              ACCOUNT ID
+            </label>
+            <Input
+              id="review-account-id"
+              value={accountId}
+              placeholder="Account ID"
+              onChange={(e) => onAccountIdChange(e.target.value)}
+            />
+          </div>
           <LabeledInput label="Handle" value={proposal.handle} onChange={field('handle')} />
           <LabeledInput
             label="Display name"
