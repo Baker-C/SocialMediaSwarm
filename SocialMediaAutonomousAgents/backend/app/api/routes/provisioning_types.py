@@ -48,6 +48,13 @@ class ControlBody(BaseModel):
     action: Literal["continue", "cancel"]
 
 
+class PhoneInputBody(BaseModel):
+    """Operator provides phone number + verification code (manual OTP mode)."""
+    phone: str
+    code: str
+    lease_id: str
+
+
 # ── SSE emit helpers for the frontend status stream ──
 
 def emit_status(p: AccountProvisioning) -> dict:

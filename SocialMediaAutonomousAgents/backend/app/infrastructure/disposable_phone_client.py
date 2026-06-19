@@ -30,94 +30,56 @@ class PhoneLease:
 
 
 class DisposablePhoneClient:
+    """Phone OTP client backed by n8n Vonage workflows (Acquire + Fetch SMS)."""
+
     def __init__(self, client: httpx.Client | None = None) -> None:
         self._client = client
-        self._base_url = (settings.disposable_phone_api_base or "").rstrip("/")
-        self._api_key = (settings.disposable_phone_api_key or "").strip()
-        self._country = (settings.disposable_phone_country or "").strip()
-
-    def _headers(self) -> dict[str, str]:
-        h = {"Accept": "application/json"}
-        if self._api_key:
-            h["Authorization"] = f"Bearer {self._api_key}"
-        return h
-
-    def _require_base(self) -> None:
-        if not self._base_url:
-            raise DisposablePhoneError("DISPOSABLE_PHONE_API_BASE is not set")
-
-    def _provider_acquire(self, *, service: str, country: str) -> dict:
-        self._require_base()
-        url = f"{self._base_url}/acquire"
-        with httpx.Client(timeout=30) as client:
-            resp = client.get(
-                url, headers=self._headers(), params={"service": service, "country": country}
-            )
-        if resp.status_code >= 400:
-            raise DisposablePhoneError(
-                f"phone acquire HTTP {resp.status_code}: {resp.text[:300]}"
-            )
-        data = resp.json()
-        if not isinstance(data, dict) or not data.get("id") or not data.get("phone"):
-            raise DisposablePhoneError(f"phone acquire missing id/phone: {data!r}")
-        return data
-
-    def _provider_messages(self, lease_id: str) -> str:
-        self._require_base()
-        url = f"{self._base_url}/messages"
-        with httpx.Client(timeout=30) as client:
-            resp = client.get(url, headers=self._headers(), params={"id": lease_id})
-        if resp.status_code >= 400:
-            raise DisposablePhoneError(
-                f"phone messages HTTP {resp.status_code}: {resp.text[:300]}"
-            )
-        data = resp.json()
-        if isinstance(data, dict):
-            return str(data.get("sms") or data.get("text") or data.get("code") or "")
-        return str(data or "")
-
-    def _provider_release(self, lease_id: str) -> None:
-        self._require_base()
-        url = f"{self._base_url}/release"
-        with httpx.Client(timeout=30) as client:
-            resp = client.post(url, headers=self._headers(), params={"id": lease_id})
-        if resp.status_code >= 400:
-            logger.warning(
-                "phone release HTTP %s for lease=%s: %s",
-                resp.status_code,
-                lease_id,
-                resp.text[:300],
-            )
 
     def acquire_number(
         self, *, service: str = "twitter", country: str | None = None
     ) -> PhoneLease:
-        """Lease a SIM number for X; returns a PhoneLease. Raises if none available."""
-        data = self._provider_acquire(service=service, country=(country or self._country))
-        return PhoneLease(lease_id=str(data["id"]), phone=str(data["phone"]))
+        """Lease a SIM number for X via n8n Vonage workflow; returns a PhoneLease."""
+        n8n_url = "https://xswarm.app.n8n.cloud/webhook/acquire-phone"
+        try:
+            with httpx.Client(timeout=30) as client:
+                resp = client.post(n8n_url, json={"service": service, "country": country or "US"})
+            resp.raise_for_status()
+            data = resp.json()
+            return PhoneLease(lease_id=str(data.get("lease_id")), phone=str(data.get("phone")))
+        except Exception as exc:
+            raise DisposablePhoneError(f"n8n acquire_phone failed: {exc}") from exc
 
     def fetch_code(
         self, lease_id: str, *, timeout_s: int = 240, pattern: str = r"\b\d{6}\b"
     ) -> str | None:
-        """Poll the provider for the SMS to this lease; regex the code, else None."""
+        """Poll n8n Vonage workflow for the SMS code to this lease; regex the code, else None."""
         rx = re.compile(pattern)
         deadline = time.monotonic() + max(0, int(timeout_s))
         interval = 5.0
+        n8n_url = f"https://xswarm.app.n8n.cloud/webhook/fetch-sms/{lease_id}"
+
         while True:
             try:
-                sms = self._provider_messages(lease_id)
-            except DisposablePhoneError as exc:
-                logger.warning("disposable_phone fetch_code read failed: %s", exc)
-                sms = ""
-            m = rx.search(sms)
-            if m:
-                return m.group(0)
+                with httpx.Client(timeout=30) as client:
+                    resp = client.get(n8n_url)
+                resp.raise_for_status()
+                data = resp.json()
+                code = data.get("code", "")
+                if code:
+                    m = rx.search(code)
+                    if m:
+                        return m.group(0)
+            except Exception as exc:
+                logger.warning("disposable_phone fetch_code n8n request failed: %s", exc)
+
             if time.monotonic() >= deadline:
                 return None
             time.sleep(interval)
 
     def release(self, lease_id: str) -> None:
-        self._provider_release(lease_id)
+        """Release the phone lease (cleanup via n8n workflow)."""
+        # n8n workflows handle cleanup; this is a no-op locally
+        pass
 
 
 _client: DisposablePhoneClient | None = None
