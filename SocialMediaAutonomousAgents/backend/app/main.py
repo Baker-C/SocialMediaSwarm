@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from app.api.routes import (
     accounts, analytics, oauth, posts, dashboard, health, force_post,
     pipeline_runs, pipeline_spec, auth, agent_builder, engagement,
-    provisioning, persona, media,
+    provisioning, persona, media, comments,
 )
 from app.api.routes.auth import require_auth
 from app.core.config import settings
@@ -204,6 +204,7 @@ app.include_router(pipeline_runs.router, prefix="/api", tags=["pipeline-runs"], 
 app.include_router(pipeline_spec.router, prefix="/api", tags=["pipeline-spec"], dependencies=_auth)
 app.include_router(posts.router, prefix="/api", tags=["posts"], dependencies=_auth)
 app.include_router(engagement.router, prefix="/api", tags=["engagement"], dependencies=_auth)
+app.include_router(comments.router, prefix="/api", tags=["comments"], dependencies=_auth)
 app.include_router(dashboard.router, prefix="/api", tags=["dashboard"], dependencies=_auth)
 app.include_router(provisioning.router, prefix="/api", tags=["provisioning"], dependencies=_auth)
 app.include_router(persona.router, prefix="/api", tags=["persona"], dependencies=_auth)

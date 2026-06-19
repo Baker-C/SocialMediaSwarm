@@ -467,3 +467,38 @@ class TwitterService:
                 end_time=end_time,
             ),
         )
+
+    def get_tweet_replies(self, account_id: str, tweet_id: str, *, max_results: int | None = None) -> list[dict]:
+        from app.core.config import settings
+
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        cap = max_results if max_results is not None else 50
+        return self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.get_post_replies(
+                SocialPlatform.X,
+                c,
+                tweet_id,
+                max_results=cap,
+            ),
+        )
+
+    def reply_to_tweet(self, account_id: str, tweet_id: str, text: str) -> dict:
+        acc = self._repo.load(account_id)
+        if acc is None:
+            raise ValueError(f"Unknown account_id={account_id}")
+        reply_text = (text or "").strip()
+        if not reply_text:
+            raise ValueError("Reply text cannot be empty")
+        created = self._call_with_auth_retry(
+            acc,
+            lambda c: self._social.reply_to_tweet(
+                SocialPlatform.X,
+                c,
+                tweet_id,
+                reply_text,
+            ),
+        )
+        return {"id": created.id, "text": created.text or reply_text}

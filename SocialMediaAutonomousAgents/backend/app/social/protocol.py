@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.social.dtos import AccountData, CreatedPost, PostData, TrendsResult
+from app.social.dtos import AccountData, CommentData, CreatedPost, PostData, TrendsResult
 
 
 class SocialMediaClient(Protocol):
@@ -136,4 +136,21 @@ class SocialMediaClient(Protocol):
         end_time: str | None = None,
     ) -> list[dict]:
         """Full-archive tweet search (requires academic access). Returns reference rows."""
+        ...
+
+    def get_post_replies(
+        self,
+        post_id: str,
+        *,
+        max_results: int = 50,
+    ) -> list[dict]:
+        """Fetch replies to a specific post (rows with ``source=conversation``)."""
+        ...
+
+    def reply_to_tweet(
+        self,
+        post_id: str,
+        text: str,
+    ) -> CreatedPost:
+        """Publish a reply to a specific tweet."""
         ...

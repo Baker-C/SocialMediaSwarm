@@ -83,3 +83,11 @@ class CreatedPost(BaseModel):
 
     id: str
     text: str | None = None
+
+
+class CommentData(PostData):
+    """Reply/comment on a post (extends PostData with reply-specific context)."""
+
+    in_reply_to_tweet_id: str | None = None
+    conversation_id: str | None = None
+    reply_level: int | None = None
