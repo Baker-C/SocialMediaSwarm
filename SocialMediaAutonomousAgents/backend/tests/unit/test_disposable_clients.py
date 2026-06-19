@@ -25,59 +25,77 @@ from app.main import app
 client = TestClient(app)
 
 
-# ── email client ──
+# ── email client (n8n Mailgun workflows) ──
 
-def test_create_inbox_returns_address_on_domain(monkeypatch) -> None:
-    monkeypatch.setattr(email_mod.settings, "disposable_email_domain", "mail.example.com")
-    addr = DisposableEmailClient().create_inbox("Acct-123")
-    assert addr.endswith("@mail.example.com")
-    assert addr.startswith("acct123-")
+def test_create_inbox_calls_n8n_webhook(monkeypatch) -> None:
+    """Email inbox creation via n8n acquire-email webhook."""
+    c = DisposableEmailClient()
+    with patch("app.infrastructure.disposable_email_client.httpx.Client") as ClientCls:
+        mock_resp = ClientCls.return_value.__enter__.return_value.post.return_value
+        mock_resp.json.return_value = {"email": "test-abc@xswarm.mailgun.org"}
+        mock_resp.raise_for_status.return_value = None
+        addr = c.create_inbox("test-account")
+        assert addr == "test-abc@xswarm.mailgun.org"
 
 
-def test_create_inbox_requires_domain(monkeypatch) -> None:
-    monkeypatch.setattr(email_mod.settings, "disposable_email_domain", "")
-    with pytest.raises(DisposableEmailError):
-        DisposableEmailClient().create_inbox("aid")
+def test_create_inbox_raises_on_error(monkeypatch) -> None:
+    """Email inbox creation fails if n8n workflow errors."""
+    c = DisposableEmailClient()
+    with patch("app.infrastructure.disposable_email_client.httpx.Client") as ClientCls:
+        ClientCls.return_value.__enter__.return_value.post.side_effect = Exception("n8n error")
+        with pytest.raises(DisposableEmailError, match="n8n create_inbox failed"):
+            c.create_inbox("aid")
 
 
 def test_email_fetch_code_parses_six_digits(monkeypatch) -> None:
-    monkeypatch.setattr(email_mod.settings, "disposable_email_api_base", "https://mb.example")
-    resp = httpx.Response(200, json={"messages": [{"subject": "Verify", "text": "Your code is 123456 now"}]})
+    """Email code fetching via n8n fetch-email-code webhook."""
+    monkeypatch.setattr(email_mod.time, "sleep", lambda *_: None)
     c = DisposableEmailClient()
     with patch("app.infrastructure.disposable_email_client.httpx.Client") as ClientCls:
-        ClientCls.return_value.__enter__.return_value.get.return_value = resp
+        mock_resp = ClientCls.return_value.__enter__.return_value.get.return_value
+        mock_resp.json.return_value = {"code": "123456"}
+        mock_resp.raise_for_status.return_value = None
         assert c.fetch_code("a@mail.example.com", timeout_s=0) == "123456"
 
 
 def test_email_fetch_code_returns_none_on_no_match(monkeypatch) -> None:
-    monkeypatch.setattr(email_mod.settings, "disposable_email_api_base", "https://mb.example")
+    """Email code fetch returns None if no code found."""
+    from unittest.mock import MagicMock
     monkeypatch.setattr(email_mod.time, "sleep", lambda *_: None)
-    empty = httpx.Response(200, json={"messages": []})
-    hit = httpx.Response(200, json={"messages": [{"text": "code 654321"}]})
     c = DisposableEmailClient()
     with patch("app.infrastructure.disposable_email_client.httpx.Client") as ClientCls:
-        # First poll empty, second poll has the code (simulate polling via side_effect).
-        ClientCls.return_value.__enter__.return_value.get.side_effect = [empty, hit]
+        mock_get = ClientCls.return_value.__enter__.return_value.get
+        # First call: no code, Second call: has code
+        resp1 = MagicMock()
+        resp1.json.return_value = {"code": None}
+        resp1.raise_for_status.return_value = None
+        resp2 = MagicMock()
+        resp2.json.return_value = {"code": "654321"}
+        resp2.raise_for_status.return_value = None
+        mock_get.side_effect = [resp1, resp2]
         assert c.fetch_code("a@mail.example.com", timeout_s=30) == "654321"
 
 
 def test_email_fetch_code_timeout_returns_none(monkeypatch) -> None:
-    monkeypatch.setattr(email_mod.settings, "disposable_email_api_base", "https://mb.example")
-    empty = httpx.Response(200, json={"messages": [{"text": "no digits here"}]})
+    """Email code fetch returns None on timeout."""
+    monkeypatch.setattr(email_mod.time, "sleep", lambda *_: None)
     c = DisposableEmailClient()
     with patch("app.infrastructure.disposable_email_client.httpx.Client") as ClientCls:
-        ClientCls.return_value.__enter__.return_value.get.return_value = empty
+        mock_resp = ClientCls.return_value.__enter__.return_value.get.return_value
+        mock_resp.json.return_value = {"code": None}
+        mock_resp.raise_for_status.return_value = None
         assert c.fetch_code("a@mail.example.com", timeout_s=0) is None
 
 
-# ── phone client ──
+# ── phone client (n8n Vonage workflows) ──
 
 def test_phone_acquire_returns_lease(monkeypatch) -> None:
-    monkeypatch.setattr(phone_mod.settings, "disposable_phone_api_base", "https://sim.example")
-    resp = httpx.Response(200, json={"id": "lease-9", "phone": "+15551234567"})
+    """Phone acquisition via n8n acquire-phone webhook."""
     c = DisposablePhoneClient()
     with patch("app.infrastructure.disposable_phone_client.httpx.Client") as ClientCls:
-        ClientCls.return_value.__enter__.return_value.get.return_value = resp
+        mock_resp = ClientCls.return_value.__enter__.return_value.post.return_value
+        mock_resp.json.return_value = {"lease_id": "lease-9", "phone": "+15551234567"}
+        mock_resp.raise_for_status.return_value = None
         lease = c.acquire_number()
     assert isinstance(lease, PhoneLease)
     assert lease.lease_id == "lease-9"
@@ -85,21 +103,22 @@ def test_phone_acquire_returns_lease(monkeypatch) -> None:
 
 
 def test_phone_acquire_error_response_raises(monkeypatch) -> None:
-    monkeypatch.setattr(phone_mod.settings, "disposable_phone_api_base", "https://sim.example")
-    resp = httpx.Response(503, text="no numbers available")
+    """Phone acquisition fails if n8n workflow errors."""
     c = DisposablePhoneClient()
     with patch("app.infrastructure.disposable_phone_client.httpx.Client") as ClientCls:
-        ClientCls.return_value.__enter__.return_value.get.return_value = resp
-        with pytest.raises(DisposablePhoneError):
+        ClientCls.return_value.__enter__.return_value.post.side_effect = Exception("n8n error")
+        with pytest.raises(DisposablePhoneError, match="n8n acquire_phone failed"):
             c.acquire_number()
 
 
 def test_phone_fetch_code_parses(monkeypatch) -> None:
-    monkeypatch.setattr(phone_mod.settings, "disposable_phone_api_base", "https://sim.example")
-    resp = httpx.Response(200, json={"sms": "X code: 222333"})
+    """Phone code fetching via n8n fetch-sms webhook."""
+    monkeypatch.setattr(phone_mod.time, "sleep", lambda *_: None)
     c = DisposablePhoneClient()
     with patch("app.infrastructure.disposable_phone_client.httpx.Client") as ClientCls:
-        ClientCls.return_value.__enter__.return_value.get.return_value = resp
+        mock_resp = ClientCls.return_value.__enter__.return_value.get.return_value
+        mock_resp.json.return_value = {"code": "222333"}
+        mock_resp.raise_for_status.return_value = None
         assert c.fetch_code("lease-9", timeout_s=0) == "222333"
 
 

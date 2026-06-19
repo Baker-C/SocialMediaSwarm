@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.routes.provisioning_types import (
     ControlBody,
+    PhoneInputBody,
     ProvisioningJob,
     ProvisioningResult,
     StatusUpdate,
@@ -83,6 +84,13 @@ async def status_stream(account_id: str, request: Request):
 @router.post("/provisioning/{account_id}/control")
 def control(account_id: str, body: ControlBody):
     svc.set_control(account_id, body.action)
+    return {"ok": True}
+
+
+@router.post("/provisioning/{account_id}/phone-input")
+def phone_input(account_id: str, body: PhoneInputBody):
+    """Operator provides phone number + verification code for manual OTP mode."""
+    get_disposable_phone_client().set_manual_phone(body.lease_id, body.phone, body.code)
     return {"ok": True}
 
 
