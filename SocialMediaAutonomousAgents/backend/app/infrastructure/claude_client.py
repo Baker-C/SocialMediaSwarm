@@ -95,6 +95,50 @@ class ClaudeClient:
             logger.warning("ClaudeClient: could not parse JSON from model output")
         return parsed
 
+    def messages_multi(
+        self,
+        *,
+        system: str,
+        messages: list[dict[str, Any]],
+        max_tokens: int = 2048,
+    ) -> str:
+        """Call Claude with a native multi-turn messages array instead of a single user string."""
+        if not self.enabled:
+            raise RuntimeError("ClaudeClient: ANTHROPIC_API_KEY is not set")
+        try:
+            import anthropic
+        except ImportError as exc:
+            raise RuntimeError("Install the anthropic package to use ClaudeClient") from exc
+        client = anthropic.Anthropic(api_key=self._api_key)
+        msg = client.messages.create(
+            model=self._model,
+            max_tokens=max_tokens,
+            system=system,
+            messages=messages,
+        )
+        _record_usage(getattr(msg, "usage", None))
+        parts: list[str] = []
+        for block in msg.content:
+            if hasattr(block, "text"):
+                parts.append(block.text)
+            elif isinstance(block, dict) and "text" in block:
+                parts.append(str(block["text"]))
+        return "".join(parts).strip()
+
+    def messages_json_dict_multi(
+        self,
+        *,
+        system: str,
+        messages: list[dict[str, Any]],
+        max_tokens: int = 2048,
+    ) -> dict[str, Any] | None:
+        """Multi-turn variant of messages_json_dict."""
+        raw = self.messages_multi(system=system, messages=messages, max_tokens=max_tokens)
+        parsed = _extract_json_object(raw)
+        if parsed is None:
+            logger.warning("ClaudeClient: could not parse JSON from model output")
+        return parsed
+
 
 _claude: ClaudeClient | None = None
 

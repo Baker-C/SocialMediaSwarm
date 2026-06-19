@@ -60,8 +60,14 @@ class PipelineSpecDocument(BaseModel):
     # exact analogue of POST_TICK_REFERENCE_STEPS: tuple[Step, ...].
     steps: list[StepSpec | CompositeSpec] = Field(default_factory=list)
 
+    # ── metadata ──
+    name: str = ""
+    description: str = ""
+    template_id: str = ""
+    weight: float = 1.0
+
     # ── champion/challenger ──
-    status: Literal["champion", "challenger"] = "champion"
+    status: Literal["active", "paused"] = "active"
     parent_hash: str | None = None  # version_hash this spec was forked from
 
     # ── version stamp (bumps when `steps` changes; see pipeline_version_service) ──

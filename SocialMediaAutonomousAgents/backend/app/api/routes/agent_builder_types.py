@@ -64,6 +64,7 @@ class BuilderSoulEdit(BaseModel):
     contrast_patterns: list | None = None  # list[ContrastPattern]
     punctuation_rules: list | None = None  # list[PunctuationRule]
     category: str | None = None
+    pipeline_selections: list[dict] | None = None  # list[{"template_id": str, "weight": float}]
 
 
 class BuilderDraft(BaseModel):
@@ -80,6 +81,9 @@ class BuilderDraft(BaseModel):
     spec: dict | None = None
     # Optional soul changes proposed alongside the spec.
     soul_edit: BuilderSoulEdit | None = None
+    # Pipeline template selections proposed for create mode.
+    # Each entry: {"template_id": str, "weight": float}. Weights should sum to 1.0.
+    pipeline_selections: list[dict] | None = None
 
 
 # ── SSE event builder helpers ──

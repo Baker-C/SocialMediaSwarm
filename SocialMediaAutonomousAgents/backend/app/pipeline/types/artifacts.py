@@ -36,6 +36,16 @@ class ArtifactKey(StrEnum):
     REFERENCE_MEDIA = "reference_media"
     GENERATED_IMAGE = "generated_image"
     GENERATED_VIDEO = "generated_video"
+    # Media prompt and A/B variant artifacts
+    MEDIA_PROMPT = "media_prompt"
+    MEDIA_PROMPT_A = "media_prompt_a"
+    MEDIA_PROMPT_B = "media_prompt_b"
+    POST_IDEAS = "post_ideas"
+    GENERATED_IMAGE_A = "generated_image_a"
+    GENERATED_IMAGE_B = "generated_image_b"
+    GENERATED_VIDEO_A = "generated_video_a"
+    GENERATED_VIDEO_B = "generated_video_b"
+    COMPOSED_POST_WITH_MEDIA = "composed_post_with_media"
 
 
 class ReferenceTweetRow(BaseModel):
