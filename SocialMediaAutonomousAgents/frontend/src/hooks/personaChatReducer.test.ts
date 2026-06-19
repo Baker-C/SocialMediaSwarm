@@ -21,7 +21,7 @@ describe('personaChatReduce', () => {
       type: 'assistant_message',
       text: 'Tell me more.',
     });
-    expect(next.messages).toEqual([{ role: 'assistant', text: 'Tell me more.' }]);
+    expect(next.messages).toEqual([{ role: 'assistant', content: 'Tell me more.' }]);
   });
 
   it('sets the proposal on persona_preview and clears prior validation errors', () => {
@@ -60,7 +60,7 @@ describe('personaChatReduce', () => {
   });
 
   it('is a no-op for done / error', () => {
-    const start = initialPersonaChatState([{ role: 'user', text: 'hi' }]);
+    const start = initialPersonaChatState([{ role: 'user', content: 'hi' }]);
     expect(personaChatReduce(start, { type: 'done' })).toEqual(start);
     expect(personaChatReduce(start, { type: 'error', message: 'boom' })).toEqual(start);
   });

@@ -29,6 +29,8 @@ def normalize_account_document(raw: dict) -> dict:
     d = _strip_metadata(raw)
     profile = dict(d.get("profile") or {})
     posting = dict(d.get("posting") or {})
+    # Carry the provisioning sub-doc through verbatim; absent on legacy docs (model default applies).
+    provisioning = dict(d.get("provisioning") or {})
 
     profile.setdefault("twitter_handle", d.get("twitter_handle") or "")
     profile.setdefault("status", d.get("status") or "active")
@@ -76,6 +78,7 @@ def normalize_account_document(raw: dict) -> dict:
         "profile": profile,
         "soul": soul,           # emit soul, not voice
         "posting": posting,
+        "provisioning": provisioning,
     }
 
 

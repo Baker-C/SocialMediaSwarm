@@ -97,8 +97,8 @@ function ChatStage({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* Left: chat transcript + composer */}
+    <div className="space-y-4">
+      {/* Top: chat transcript + composer */}
       <Card className="flex flex-col">
         <CardHeader>
           <CardTitle className="text-lg">Design the persona</CardTitle>
@@ -120,7 +120,7 @@ function ChatStage({
                     : 'self-start bg-muted text-foreground'
                 }`}
               >
-                {msg.text}
+                {msg.content}
               </div>
             ))}
           </div>
@@ -150,7 +150,7 @@ function ChatStage({
         </CardContent>
       </Card>
 
-      {/* Right: persona preview */}
+      {/* Below: persona preview */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Persona preview</CardTitle>

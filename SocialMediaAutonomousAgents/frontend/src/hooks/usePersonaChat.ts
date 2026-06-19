@@ -88,7 +88,7 @@ export function usePersonaChat({
           (event: PersonaStreamEvent) => {
             switch (event.type) {
               case 'assistant_message':
-                setMessages((prev) => [...prev, { role: 'assistant', text: event.text }]);
+                setMessages((prev) => [...prev, { role: 'assistant', content: event.text }]);
                 return;
               case 'persona_preview':
                 setProposal(event.spec);
@@ -138,7 +138,7 @@ export function usePersonaChat({
       if (running || !text.trim()) return;
       const newMessages: PersonaChatMessage[] = [
         ...messagesRef.current,
-        { role: 'user', text: text.trim() },
+        { role: 'user', content: text.trim() },
       ];
       setMessages(newMessages);
       await stream(newMessages, false);

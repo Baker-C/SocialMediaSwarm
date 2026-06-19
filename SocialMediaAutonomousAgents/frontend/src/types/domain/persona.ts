@@ -15,7 +15,7 @@ export interface PersonaSpec {
 
 export type PersonaChatMessage = {
   role: 'user' | 'assistant';
-  text: string;
+  content: string;
 };
 
 export type PersonaChatRequest = {
