@@ -1,19 +1,15 @@
-import { PIPELINE_FLOW_STEP_IDS } from './flowGraph';
 import type { FlowNodeState, PipelineProgressPayload } from '../../types/pipelineProgress';
 
-// Default known-id set (the static fallback graph). Callers that render a
-// per-account spec pass their own id set so live progress lights up the spec's
-// actual steps (e.g. compose_until_safe / publish_post) instead of these.
-const DEFAULT_STEP_NODE_IDS = new Set(PIPELINE_FLOW_STEP_IDS);
-
-export function initialFlowState(stepIds: readonly string[] = PIPELINE_FLOW_STEP_IDS): FlowNodeState {
+// The valid step-id set is derived per-account from the rendered spec
+// (sectionStepIds), so live progress lights up exactly that account's steps.
+export function initialFlowState(stepIds: readonly string[]): FlowNodeState {
   return Object.fromEntries(stepIds.map((id) => [id, 'pending']));
 }
 
 export function applyFlowProgress(
   state: FlowNodeState,
   event: PipelineProgressPayload,
-  validIds: ReadonlySet<string> = DEFAULT_STEP_NODE_IDS
+  validIds: ReadonlySet<string>
 ): FlowNodeState {
   if (!validIds.has(event.step_id)) {
     return state;
@@ -23,6 +19,6 @@ export function applyFlowProgress(
   return next;
 }
 
-export function resetFlowState(stepIds?: readonly string[]): FlowNodeState {
+export function resetFlowState(stepIds: readonly string[]): FlowNodeState {
   return initialFlowState(stepIds);
 }
