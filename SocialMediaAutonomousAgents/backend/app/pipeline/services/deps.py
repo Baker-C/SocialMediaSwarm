@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from app.infrastructure.fal_client import FalMediaClient
 from app.models.account import AccountDocument
 from app.services.account_repository import AccountRepository
+from app.services.media_asset_repository import MediaAssetRepository
 from app.services.post_registry import TrackedPostRepository
 from app.services.pulled_tweet_repository import PulledTweetRepository
 from app.services.tick_data_service import TickDataService
@@ -45,6 +47,10 @@ class PostRunDeps:
     post_registry: TrackedPostRepository | None = None
     pulled_tweets: PulledTweetRepository | None = None
     twitter: TwitterService | None = None
+    # ── Media generation (Seedance/Seedream); injected, never proposable. Present so the
+    # media tools are drop-in ready, though no runbook spec wires them yet. ──
+    media_repo: MediaAssetRepository | None = None
+    fal: FalMediaClient | None = None
     # ── ACT-phase side-channel (engine-injected; never proposable in a spec) ──
     live: ActLive | None = None
 
@@ -56,6 +62,8 @@ class PostRunDeps:
         twitter: TwitterService | None = None,
         post_registry: TrackedPostRepository | None = None,
         pulled_tweets: PulledTweetRepository | None = None,
+        media_repo: MediaAssetRepository | None = None,
+        fal: FalMediaClient | None = None,
     ) -> PostRunDeps:
         repo = repo or AccountRepository()
         twitter = twitter or TwitterService(repo)
@@ -68,4 +76,6 @@ class PostRunDeps:
             post_registry=post_registry,
             pulled_tweets=pulled_tweets,
             twitter=twitter,
+            media_repo=media_repo if media_repo is not None else MediaAssetRepository(),
+            fal=fal if fal is not None else FalMediaClient(),
         )

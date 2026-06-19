@@ -32,6 +32,10 @@ class ArtifactKey(StrEnum):
     REPLY_DRAFT = "reply_draft"
     REPLY_VERDICT = "reply_verdict"
     REPLY_RESULT = "reply_result"
+    # Media generation artifacts (Seedance/Seedream)
+    REFERENCE_MEDIA = "reference_media"
+    GENERATED_IMAGE = "generated_image"
+    GENERATED_VIDEO = "generated_video"
 
 
 class ReferenceTweetRow(BaseModel):
@@ -233,6 +237,27 @@ class ReplyResult(BaseModel):
     note: str | None = None
 
 
+# ── Media generation artifacts (Seedance/Seedream) ──
+
+
+class MediaRef(BaseModel):
+    """Lightweight handle to a media asset that flows between pipeline stages.
+
+    The asset's bytes and full provenance live in the MediaAssets DB record
+    (resolve via ``MediaAssetRepository``); only this pointer travels in context.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    asset_id: str
+    kind: Literal["image", "video"]
+    mime: str
+    width: int | None = None
+    height: int | None = None
+    duration_s: float | None = None
+    provider: str | None = None
+
+
 @dataclass(frozen=True)
 class ArtifactDef:
     key: ArtifactKey
@@ -338,6 +363,25 @@ ARTIFACTS: dict[ArtifactKey, ArtifactDef] = {
         ReplyResult,
         "X reply publish + finalize result",
         "steps.reply_publish_step",
+    ),
+    # Media generation (Seedance/Seedream)
+    ArtifactKey.REFERENCE_MEDIA: ArtifactDef(
+        ArtifactKey.REFERENCE_MEDIA,
+        MediaRef,
+        "Reference image handle fed into media generation",
+        "tools.media (imported / upstream)",
+    ),
+    ArtifactKey.GENERATED_IMAGE: ArtifactDef(
+        ArtifactKey.GENERATED_IMAGE,
+        MediaRef,
+        "Seedream-generated image handle",
+        "tools.media.seedance_image",
+    ),
+    ArtifactKey.GENERATED_VIDEO: ArtifactDef(
+        ArtifactKey.GENERATED_VIDEO,
+        MediaRef,
+        "Seedance-generated video handle",
+        "tools.media.seedance_video",
     ),
 }
 

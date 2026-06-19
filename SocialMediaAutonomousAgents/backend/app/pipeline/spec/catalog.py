@@ -30,6 +30,12 @@ _TOOL_MODULES = (
     compose_until_safe,
     publish_post,
 ) + _REPLY_TOOLS
+# Media generation tools (Seedance/Seedream) are built and convention-ready
+# (app/pipeline/tools/media/), with their injected deps registered in
+# ENGINE_INJECTED_DEPS and PostRunDeps. They are intentionally NOT in _TOOL_MODULES
+# yet: registering them makes them spec-proposable. To wire them in, import
+# seedance_image/seedance_video, append them above, add steps.py wrappers to
+# _TOOL_RUN, and update tests/unit/test_tool_catalog.py's tool count + literal set.
 
 # Parameter NAME -> the live dep it is injected from.
 # These are NEVER proposable; the engine wires them around every leaf.
@@ -43,6 +49,9 @@ ENGINE_INJECTED_DEPS: dict[str, str] = {
     "twitter": "PostRunDeps.twitter",  # TwitterService | None
     # ── added by doc 06's PostRunDeps extension (NOT on today's dataclass) ──
     "guardian": "PostRunDeps.guardian",  # SafetyGuardian — arrives via deps.guardian (doc 06)
+    # ── media generation (Seedance/Seedream); on PostRunDeps today, tools not yet in _TOOL_MODULES ──
+    "media_repo": "PostRunDeps.media_repo",  # MediaAssetRepository
+    "fal": "PostRunDeps.fal",  # FalMediaClient
 }
 
 # Names the ENGINE supplies from the live tick, not from a spec literal and not a dep object.
@@ -62,6 +71,7 @@ WIRED_FROM_CONTEXT: frozenset[str] = frozenset({
     "reference_context_block",
     "regeneration_round",
     "safety_reject_reason",
+    "reference",  # MediaRef fed into image-to-video (media tools; wired from an upstream artifact)
 })
 
 

@@ -1,17 +1,17 @@
-import { PIPELINE_FLOW_STEP_IDS } from './flowGraph';
 import type { FlowNodeState, PipelineProgressPayload } from '../../types/pipelineProgress';
 
-const STEP_NODE_IDS = new Set(PIPELINE_FLOW_STEP_IDS);
-
-export function initialFlowState(): FlowNodeState {
-  return Object.fromEntries(PIPELINE_FLOW_STEP_IDS.map((id) => [id, 'pending']));
+// The valid step-id set is derived per-account from the rendered spec
+// (sectionStepIds), so live progress lights up exactly that account's steps.
+export function initialFlowState(stepIds: readonly string[]): FlowNodeState {
+  return Object.fromEntries(stepIds.map((id) => [id, 'pending']));
 }
 
 export function applyFlowProgress(
   state: FlowNodeState,
-  event: PipelineProgressPayload
+  event: PipelineProgressPayload,
+  validIds: ReadonlySet<string>
 ): FlowNodeState {
-  if (!STEP_NODE_IDS.has(event.step_id)) {
+  if (!validIds.has(event.step_id)) {
     return state;
   }
   const next: FlowNodeState = { ...state };
@@ -19,6 +19,6 @@ export function applyFlowProgress(
   return next;
 }
 
-export function resetFlowState(): FlowNodeState {
-  return initialFlowState();
+export function resetFlowState(stepIds: readonly string[]): FlowNodeState {
+  return initialFlowState(stepIds);
 }

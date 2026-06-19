@@ -60,7 +60,7 @@ export function AgentBuilderPage() {
     return <div style={{ padding: '1rem', color: 'hsl(var(--muted-foreground))' }}>No spec available.</div>;
   }
 
-  const sections = proposedSpec ? flowFromSpec(proposedSpec) : undefined;
+  const sections = proposedSpec ? flowFromSpec(proposedSpec) : [];
   const showValidation = proposal || (messages.length > 0 && messages[messages.length - 1]?.validation_errors);
   const validationErrors = messages.length > 0 ? messages[messages.length - 1]?.validation_errors : null;
   const isValid = proposal != null;

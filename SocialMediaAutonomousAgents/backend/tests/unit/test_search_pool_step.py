@@ -12,7 +12,10 @@ from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 
 
-def test_fetch_search_references_skipped_when_no_niches() -> None:
+def test_fetch_search_references_skipped_when_no_search_topics() -> None:
+    # Search topics come from niches → live trends → category, in that order. With no
+    # niches, no twitter (so no trends), and no category, the step has nothing to query
+    # and skips with "no_search_topics" (the niche→category refactor renamed this reason).
     ctx = TickRunContext(account_id="acct", slot="s1")
     repo = MagicMock()
     acc = MagicMock()

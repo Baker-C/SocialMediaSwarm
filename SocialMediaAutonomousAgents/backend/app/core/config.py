@@ -112,6 +112,56 @@ class Settings(BaseSettings):
     learn_rollback_hard_drop: float = 0.05  # parent must beat current champion by this to roll back
     learn_use_builder_llm: bool = False  # off => deterministic knob-tweak proposer (§5.2)
     challenger_slot_every: int = 4  # run the challenger on 1-in-N posting slots
+    # fal.ai media generation (Seedance video + Seedream image). Auth: "Authorization: Key <fal_api_key>".
+    fal_api_key: str = ""
+    fal_queue_base_url: str = "https://queue.fal.run"
+    # Model ids on fal.ai (override here as fal versions them).
+    fal_seedream_image_model: str = "fal-ai/bytedance/seedream/v3/text-to-image"
+    fal_seedance_t2v_model: str = "fal-ai/bytedance/seedance/v1/pro/text-to-video"
+    fal_seedance_i2v_model: str = "fal-ai/bytedance/seedance/v1/pro/image-to-video"
+    # Generation defaults. Image uses fal's image_size presets (square_hd, square,
+    # portrait_4_3/16_9, landscape_4_3/16_9); video uses 480p/720p/1080p.
+    fal_default_image_size: str = "square_hd"
+    fal_default_video_resolution: str = "1080p"
+    fal_default_video_duration: int = 5
+    # Poll backstop for async fal jobs (seconds). Generous: only trips on a wedged/dropped job.
+    fal_poll_timeout_seconds: int = 900
+    fal_poll_interval_seconds: float = 3.0
+    # Local media store: where generated/imported media bytes are saved on this machine.
+    media_store_dir: str = "media_store"
+    # --- Account provisioning ---
+    provisioning_agent_token: str = ""          # shared secret the local agent presents
+    provisioning_agent_enabled: bool = False
+    # pay-per-use card (single operator card; PCI risk accepted for throwaway use)
+    provisioning_card_number: str = ""
+    provisioning_card_exp: str = ""             # MM/YY
+    provisioning_card_cvv: str = ""
+    provisioning_card_name: str = ""
+    # --- Disposable identity ---
+    disposable_email_domain: str = ""           # owned domain for catch-all addresses
+    disposable_email_api_base: str = ""         # mailbox read API (worker/imap-bridge/mail.tm)
+    disposable_email_api_key: str = ""
+    disposable_phone_api_base: str = ""         # SIM OTP provider
+    disposable_phone_api_key: str = ""
+    disposable_phone_country: str = ""          # optional default
+
+    @property
+    def provisioning_card(self) -> dict | None:
+        """The operator card as a dict when all fields are set, else None."""
+        fields = (
+            self.provisioning_card_number,
+            self.provisioning_card_exp,
+            self.provisioning_card_cvv,
+            self.provisioning_card_name,
+        )
+        if not all(f.strip() for f in fields):
+            return None
+        return {
+            "number": self.provisioning_card_number,
+            "exp": self.provisioning_card_exp,
+            "cvv": self.provisioning_card_cvv,
+            "name": self.provisioning_card_name,
+        }
 
 
 settings = Settings()
