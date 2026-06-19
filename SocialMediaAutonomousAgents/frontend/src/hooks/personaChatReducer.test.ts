@@ -9,6 +9,7 @@ const spec: PersonaSpec = {
   display_name: 'The Oracle',
   bio: 'Sees all.',
   category: 'mystic',
+  niches: ['tarot', 'astrology'],
   personality: 'cryptic',
   posting_prompt: 'speak in riddles',
   avatar_prompt: 'glowing eyes',

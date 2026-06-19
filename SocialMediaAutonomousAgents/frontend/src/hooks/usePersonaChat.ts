@@ -18,13 +18,13 @@ type UsePersonaChatResult = {
   error: string | null;
   proposal: PersonaSpec | null;
   images: PersonaImages | null;
-  imagesGenerating: boolean;
+  imagesGenerating: { avatar: boolean; header: boolean };
   written: string | null;
   validationErrors: string[] | null;
   send: (text: string) => Promise<void>;
   approve: () => Promise<void>;
   editSpec: (patch: Partial<PersonaSpec>) => void;
-  regenerate: () => Promise<void>;
+  regenerate: (target: 'avatar' | 'header') => Promise<void>;
 };
 
 // Copy of useBuilderChat, adapted to the persona event union (plan 08 §4). Keeps the
@@ -38,7 +38,10 @@ export function usePersonaChat({
   const [error, setError] = useState<string | null>(null);
   const [proposal, setProposal] = useState<PersonaSpec | null>(null);
   const [images, setImages] = useState<PersonaImages | null>(null);
-  const [imagesGenerating, setImagesGenerating] = useState(false);
+  const [imagesGenerating, setImagesGenerating] = useState<{ avatar: boolean; header: boolean }>({
+    avatar: false,
+    header: false,
+  });
   const [written, setWritten] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[] | null>(null);
 
@@ -95,10 +98,10 @@ export function usePersonaChat({
                 setValidationErrors(null);
                 return;
               case 'images_generating':
-                setImagesGenerating(true);
+                setImagesGenerating({ avatar: true, header: true });
                 return;
               case 'images_ready':
-                setImagesGenerating(false);
+                setImagesGenerating({ avatar: false, header: false });
                 setImages({
                   avatar_asset_id: event.avatar_asset_id,
                   header_asset_id: event.header_asset_id,
@@ -155,18 +158,28 @@ export function usePersonaChat({
     setProposal((prev) => (prev ? { ...prev, ...patch } : prev));
   }, []);
 
-  const regenerate = useCallback(async () => {
+  const regenerate = useCallback(async (target: 'avatar' | 'header') => {
     const spec = proposalRef.current;
     if (running || !spec) return;
     setError(null);
-    setImagesGenerating(true);
+    setImagesGenerating((prev) => ({ ...prev, [target]: true }));
     try {
-      const result = await regenerateImages(spec.avatar_prompt, spec.header_prompt);
-      setImages(result);
+      const body =
+        target === 'avatar'
+          ? { avatar_prompt: spec.avatar_prompt }
+          : { header_prompt: spec.header_prompt };
+      const result = await regenerateImages(body);
+      setImages((prev) => {
+        const base: PersonaImages = prev ?? { avatar_asset_id: '', header_asset_id: '' };
+        return {
+          avatar_asset_id: result.avatar_asset_id ?? base.avatar_asset_id,
+          header_asset_id: result.header_asset_id ?? base.header_asset_id,
+        };
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Image regeneration failed');
     } finally {
-      setImagesGenerating(false);
+      setImagesGenerating((prev) => ({ ...prev, [target]: false }));
     }
   }, [running]);
 

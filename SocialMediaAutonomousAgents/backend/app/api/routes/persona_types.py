@@ -37,6 +37,7 @@ class PersonaSpec(BaseModel):
     category: str = ""          # -> AccountSoul.category
     personality: str = ""       # -> AccountSoul.personality
     posting_prompt: str = ""    # -> AccountSoul.posting_prompt
+    niches: list[str] = Field(default_factory=list)  # short topic strings -> AccountSoul.niches
     avatar_prompt: str = ""     # -> fal image gen (04)
     header_prompt: str = ""     # -> fal image gen (04)
 
@@ -48,7 +49,8 @@ class PersonaChatRequest(BaseModel):
     and echoes the prior assistant's proposal back so the next turn can reference it.
     """
 
-    account_id: str = Field(min_length=1, max_length=500)
+    # Empty during the chat phase (no account exists yet); required at approve.
+    account_id: str = Field(default="", max_length=500)
     messages: list[PersonaChatMessage] = Field(default_factory=list)
     # The prior proposal echoed back; on approve, this is what gets written.
     proposal: "PersonaSpec | None" = None

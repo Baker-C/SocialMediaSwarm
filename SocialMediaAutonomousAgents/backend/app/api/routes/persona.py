@@ -38,13 +38,17 @@ from app.api.routes.persona_types import (
     emit_validation_errors,
 )
 from app.infrastructure.claude_client import ClaudeClient
+from app.models.niche import Niche
 from app.services.account_create_service import (
     AccountAlreadyExistsError,
     AccountCreateBody,
     apply_account_create,
 )
 from app.services.account_repository import AccountRepository
-from app.services.persona_image_service import generate_persona_images
+from app.services.persona_image_service import (
+    generate_persona_image,
+    generate_persona_images,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +62,15 @@ repo = AccountRepository()
 _REPHRASE = "Tell me more about the account — niche, audience, voice, name."
 
 SYSTEM_PROMPT = """You design X (Twitter) account personas. Converse with the operator to nail
-down niche, audience, voice, name and bio. When you have enough, return JSON:
+down niches.
+, audience, voice, name and bio. Ask the operator about options and questions until you 
+and the operator are on the same page. Also discuss the account's VISUAL identity — what the
+profile picture (avatar) and banner (header) should look like — and capture that discussion in
+avatar_prompt / header_prompt. When you have enough, return JSON:
 {"reply": "<message>", "spec": {"handle","display_name","bio","category","personality",
-"posting_prompt","avatar_prompt","header_prompt"} | null}. When you are only chatting or
+"posting_prompt","niches","avatar_prompt","header_prompt"} | null}. When you are only chatting or
 clarifying, set spec to null. Keep handle <=15 chars, alphanumeric/underscore (no '@').
+niches is an array of short topic strings the account will ride (e.g. ["Trump news", "political scandals"]).
 avatar_prompt/header_prompt are vivid image-gen prompts (square avatar, wide banner)."""
 
 
@@ -103,6 +112,9 @@ def _do_approve(req: PersonaChatRequest, emit: Callable[[dict], None]) -> None:
     if spec is None:
         emit(emit_validation_errors(["No persona to approve — propose one first."]))
         return
+    if not (req.account_id or "").strip():
+        emit(emit_validation_errors(["Account ID is required to provision — set it before approving."]))
+        return
 
     # 1) Images (04). generate_persona_images may raise; surfaced as an error event.
     emit(emit_images_generating())
@@ -122,6 +134,8 @@ def _do_approve(req: PersonaChatRequest, emit: Callable[[dict], None]) -> None:
 
     # 3) Provisioning sub-doc: identity + image refs + status="draft".
     acc = repo.load(req.account_id)
+    if spec.niches:
+        acc.soul.niches = [Niche(niche=n.strip()) for n in spec.niches if n and n.strip()]
     acc.provisioning.display_name = spec.display_name
     acc.provisioning.bio = spec.bio
     acc.provisioning.images.avatar_asset_id = avatar_id
@@ -199,12 +213,20 @@ async def persona_chat(req: PersonaChatRequest, request: Request):
 
 
 class RegenImagesBody(BaseModel):
-    avatar_prompt: str
-    header_prompt: str
+    avatar_prompt: str | None = None
+    header_prompt: str | None = None
 
 
 @router.post("/persona/regenerate-images")
 def regenerate_images(body: RegenImagesBody) -> dict:
-    """Regenerate avatar + header before approving; returns fresh asset ids."""
-    avatar_id, header_id = generate_persona_images(body.avatar_prompt, body.header_prompt)
-    return {"avatar_asset_id": avatar_id, "header_asset_id": header_id}
+    """Regenerate avatar and/or header before approving.
+
+    Generates an image only for each non-empty prompt provided; the response
+    contains only the keys actually produced.
+    """
+    result: dict[str, str] = {}
+    if body.avatar_prompt:
+        result["avatar_asset_id"] = generate_persona_image("avatar", body.avatar_prompt)
+    if body.header_prompt:
+        result["header_asset_id"] = generate_persona_image("header", body.header_prompt)
+    return result

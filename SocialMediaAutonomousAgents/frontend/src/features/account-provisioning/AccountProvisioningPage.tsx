@@ -29,6 +29,14 @@ export function AccountProvisioningPage() {
 
   const persona = usePersonaChat({ apiBase, accountId });
 
+  // The account id isn't entered up front — populate it from the persona's handle once
+  // proposed (operator can still override it while in the chat stage).
+  useEffect(() => {
+    if (persona.proposal?.handle && !accountId.trim()) {
+      setAccountId(persona.proposal.handle);
+    }
+  }, [persona.proposal, accountId]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-end gap-3">
@@ -39,7 +47,7 @@ export function AccountProvisioningPage() {
           <Input
             id="account-id"
             value={accountId}
-            placeholder="e.g. midnight_oracle"
+            placeholder="Auto-filled from the persona"
             disabled={stage !== 'chat'}
             onChange={(e) => setAccountId(e.target.value)}
           />
@@ -55,7 +63,6 @@ export function AccountProvisioningPage() {
 
       {stage === 'chat' && (
         <ChatStage
-          accountId={accountId}
           persona={persona}
           onProceed={() => setStage('review')}
         />
@@ -78,11 +85,9 @@ export function AccountProvisioningPage() {
 type PersonaHook = ReturnType<typeof usePersonaChat>;
 
 function ChatStage({
-  accountId,
   persona,
   onProceed,
 }: {
-  accountId: string;
   persona: PersonaHook;
   onProceed: () => void;
 }) {
@@ -91,7 +96,7 @@ function ChatStage({
 
   const handleSend = async () => {
     const text = draft.trim();
-    if (!text || !accountId.trim()) return;
+    if (!text) return;
     setDraft('');
     await send(text);
   };
@@ -131,7 +136,7 @@ function ChatStage({
             <Textarea
               value={draft}
               placeholder="Describe the account…"
-              disabled={running || !accountId.trim()}
+              disabled={running}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -142,7 +147,7 @@ function ChatStage({
             />
             <div className="flex justify-between items-center">
               <span className="text-xs text-neutral-500">Ctrl+Enter to send</span>
-              <Button onClick={() => void handleSend()} disabled={running || !accountId.trim()}>
+              <Button onClick={() => void handleSend()} disabled={running}>
                 {running ? 'Thinking…' : 'Send'}
               </Button>
             </div>
@@ -163,6 +168,7 @@ function ChatStage({
               <SpecRow label="Display name" value={proposal.display_name} />
               <SpecRow label="Bio" value={proposal.bio} />
               <SpecRow label="Category" value={proposal.category} />
+              <SpecRow label="Niches" value={proposal.niches.join(', ')} />
               <SpecRow label="Personality" value={proposal.personality} />
               <Button className="mt-3 w-full" onClick={onProceed}>
                 Review &amp; edit
@@ -218,7 +224,7 @@ function ReviewStage({
   ) => editSpec({ [key]: e.target.value } as Partial<PersonaSpec>);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Review persona</CardTitle>
@@ -233,6 +239,18 @@ function ReviewStage({
           />
           <LabeledTextarea label="Bio" value={proposal.bio} onChange={field('bio')} />
           <LabeledInput label="Category" value={proposal.category} onChange={field('category')} />
+          <LabeledInput
+            label="Niches (comma-separated)"
+            value={proposal.niches.join(', ')}
+            onChange={(e) =>
+              editSpec({
+                niches: e.target.value
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              })
+            }
+          />
           <LabeledTextarea
             label="Personality"
             value={proposal.personality}
@@ -270,6 +288,13 @@ function ReviewStage({
             value={proposal.avatar_prompt}
             onChange={field('avatar_prompt')}
           />
+          <Button
+            variant="outline"
+            onClick={() => void regenerate('avatar')}
+            disabled={imagesGenerating.avatar}
+          >
+            {imagesGenerating.avatar ? 'Generating…' : 'Regenerate profile picture'}
+          </Button>
           <LabeledTextarea
             label="Header prompt"
             value={proposal.header_prompt}
@@ -277,24 +302,28 @@ function ReviewStage({
           />
           <Button
             variant="outline"
-            onClick={() => void regenerate()}
-            disabled={imagesGenerating}
+            onClick={() => void regenerate('header')}
+            disabled={imagesGenerating.header}
           >
-            {imagesGenerating ? 'Generating…' : 'Regenerate images'}
+            {imagesGenerating.header ? 'Generating…' : 'Regenerate banner'}
           </Button>
 
-          {images ? (
+          {images && (images.avatar_asset_id || images.header_asset_id) ? (
             <div className="space-y-2">
-              <img
-                src={mediaUrl(images.header_asset_id)}
-                alt="Header"
-                className="w-full rounded-md border border-neutral-700"
-              />
-              <img
-                src={mediaUrl(images.avatar_asset_id)}
-                alt="Avatar"
-                className="w-24 h-24 rounded-full border border-neutral-700 object-cover"
-              />
+              {images.header_asset_id ? (
+                <img
+                  src={mediaUrl(images.header_asset_id)}
+                  alt="Header"
+                  className="w-full rounded-md border border-neutral-700"
+                />
+              ) : null}
+              {images.avatar_asset_id ? (
+                <img
+                  src={mediaUrl(images.avatar_asset_id)}
+                  alt="Avatar"
+                  className="w-24 h-24 rounded-full border border-neutral-700 object-cover"
+                />
+              ) : null}
             </div>
           ) : (
             <EmptyState message="No images yet. Approve or regenerate to create them." />

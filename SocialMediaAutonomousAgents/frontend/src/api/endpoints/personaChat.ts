@@ -52,15 +52,16 @@ export async function streamPersonaChat(
     }
 }
 
-// Review-stage regenerate (plan 04 §3). Returns fresh asset ids.
-export async function regenerateImages(
-  avatarPrompt: string,
-  headerPrompt: string
-): Promise<{ avatar_asset_id: string; header_asset_id: string }> {
+// Review-stage regenerate (plan 04 §3). Posts only non-empty prompts; the response
+// includes only the keys produced for those prompts.
+export async function regenerateImages(body: {
+  avatar_prompt?: string;
+  header_prompt?: string;
+}): Promise<{ avatar_asset_id?: string; header_asset_id?: string }> {
   return apiFetch('/persona/regenerate-images', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ avatar_prompt: avatarPrompt, header_prompt: headerPrompt }),
+    body: JSON.stringify(body),
   });
 }
 
