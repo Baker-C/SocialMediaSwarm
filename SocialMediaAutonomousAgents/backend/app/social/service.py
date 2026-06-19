@@ -66,13 +66,26 @@ class SocialMediaService:
     ) -> tuple[list[PostData], list[str]]:
         return self._client(platform, creds).get_posts_data(post_ids)
 
+    def upload_media(
+        self,
+        platform: SocialPlatform,
+        creds: XCredentials | None,
+        data: bytes,
+        mime: str,
+        *,
+        kind: str = "image",
+    ) -> str:
+        return self._client(platform, creds).upload_media(data, mime, kind=kind)
+
     def create_post(
         self,
         platform: SocialPlatform,
         creds: XCredentials | None,
         text: str,
+        *,
+        media_ids: list[str] | None = None,
     ) -> CreatedPost:
-        return self._client(platform, creds).create_post(text)
+        return self._client(platform, creds).create_post(text, media_ids=media_ids)
 
     def search_recent_tweets(
         self,

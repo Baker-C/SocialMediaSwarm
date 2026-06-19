@@ -78,12 +78,13 @@ def fetch_search_references(ctx: TickRunContext, deps: PostRunDeps) -> StepResul
         return StepResult(ok=True, skipped=True, skip_reason="no_search_topics")
     bundle_raw = ctx.get(ArtifactKey.ACCOUNT_BUNDLE.value) or {}
     auth_id = authenticated_user_id_from_bundle(bundle_raw if isinstance(bundle_raw, dict) else {})
+    cfg = ctx.data.get("_step_config:data.search_fetch", {})
     return search_fetch.run(
         ctx,
         tick_data=deps.tick_data,
         queries=queries,
         authenticated_user_id=auth_id,
-        max_results_per_query=SEARCH_RESULTS_PER_NICHE,
+        max_results_per_query=int(cfg.get("max_results_per_query", SEARCH_RESULTS_PER_NICHE)),
     )
 
 
@@ -132,10 +133,11 @@ def rank_external_references(ctx: TickRunContext, deps: PostRunDeps) -> StepResu
             {"ranked": [], "winner": None},
         )
         return StepResult(ok=True, skipped=True, skip_reason="no_reference_with_urls")
+    cfg = ctx.data.get("_step_config:deterministic.reference_rank", {})
     return reference_rank.run(
         ctx,
         rows=pool,
-        top_n=MIN_TOP_N,
+        top_n=int(cfg.get("top_n", MIN_TOP_N)),
         store_key=ArtifactKey.TIMELINE_RANKED.value,
     )
 
@@ -208,10 +210,11 @@ def rank_own_posts(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
             payload={"post_count": len(rows)},
         )
 
+    cfg = ctx.data.get("_step_config:deterministic.reference_rank", {})
     return reference_rank.run(
         ctx,
         rows=rows,
-        top_n=MIN_TOP_N,
+        top_n=int(cfg.get("top_n", MIN_TOP_N)),
         store_key=ArtifactKey.OWN_POSTS_RANKED.value,
     )
 

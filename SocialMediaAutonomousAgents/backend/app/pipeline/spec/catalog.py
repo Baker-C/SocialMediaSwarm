@@ -8,9 +8,9 @@ import json
 from typing import Any, Callable
 
 from app.models.tool_catalog import ConfigOrigin, ToolCatalogDocument, ToolParameter, config_type
-from app.pipeline.tools.data import account_profile, own_posts_fetch, search_fetch
+from app.pipeline.tools.data import account_profile, own_posts_fetch, publish_post, search_fetch
 from app.pipeline.tools.deterministic import reference_rank
-from app.pipeline.tools.llm import compose_timeline_post, reference_pattern_summary
+from app.pipeline.tools.llm import compose_until_safe, reference_pattern_summary
 
 # Optional imports for doc 12 reply tools (imported with guard for pre-doc-12):
 try:
@@ -27,8 +27,15 @@ _TOOL_MODULES = (
     own_posts_fetch,
     reference_rank,
     reference_pattern_summary,
-    compose_timeline_post,
+    compose_until_safe,
+    publish_post,
 ) + _REPLY_TOOLS
+# Media generation tools (Seedance/Seedream) are built and convention-ready
+# (app/pipeline/tools/media/), with their injected deps registered in
+# ENGINE_INJECTED_DEPS and PostRunDeps. They are intentionally NOT in _TOOL_MODULES
+# yet: registering them makes them spec-proposable. To wire them in, import
+# seedance_image/seedance_video, append them above, add steps.py wrappers to
+# _TOOL_RUN, and update tests/unit/test_tool_catalog.py's tool count + literal set.
 
 # Parameter NAME -> the live dep it is injected from.
 # These are NEVER proposable; the engine wires them around every leaf.
@@ -42,6 +49,9 @@ ENGINE_INJECTED_DEPS: dict[str, str] = {
     "twitter": "PostRunDeps.twitter",  # TwitterService | None
     # ── added by doc 06's PostRunDeps extension (NOT on today's dataclass) ──
     "guardian": "PostRunDeps.guardian",  # SafetyGuardian — arrives via deps.guardian (doc 06)
+    # ── media generation (Seedance/Seedream); on PostRunDeps today, tools not yet in _TOOL_MODULES ──
+    "media_repo": "PostRunDeps.media_repo",  # MediaAssetRepository
+    "fal": "PostRunDeps.fal",  # FalMediaClient
 }
 
 # Names the ENGINE supplies from the live tick, not from a spec literal and not a dep object.
@@ -61,6 +71,7 @@ WIRED_FROM_CONTEXT: frozenset[str] = frozenset({
     "reference_context_block",
     "regeneration_round",
     "safety_reject_reason",
+    "reference",  # MediaRef fed into image-to-video (media tools; wired from an upstream artifact)
 })
 
 
@@ -187,9 +198,9 @@ _TOOL_RUN: dict[str, Callable | None] = {
     "data.own_posts_fetch": steps.fetch_own_post_history,
     "deterministic.reference_rank": None,  # shared by 2+ steps → resolved per-step by compiler
     "llm.reference_pattern_summary": None,  # shared by 2 steps → likewise
-    "llm.compose_timeline_post": None,  # informational only; never spec-wired (§4.3a)
-    # doc 06 adds: "llm.compose_until_safe": steps.compose_step,
-    #              "data.publish_post":      steps.publish_step,
+    # doc 06 ACT-tail tools (the seed/runbook wires these by tool_id):
+    "llm.compose_until_safe": steps.compose_step,  # writes SAFETY_VERDICT (R7 invariant)
+    "data.publish_post": steps.publish_step,       # terminal; writes PUBLISHED_POST (R6 invariant)
     # doc 12 adds (reply pipeline):
     "data.mentions_fetch": getattr(steps, "fetch_mentions", None),
     "llm.reply_compose": getattr(steps, "reply_compose_step", None),

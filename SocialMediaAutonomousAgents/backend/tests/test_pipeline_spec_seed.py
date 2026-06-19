@@ -132,6 +132,45 @@ class TestSpecFromRunbook:
         assert spec.version_hash is None
 
 
+class TestBaselineValidatesAgainstRealCatalog:
+    """Regression guard: the seeded baseline (what the runner loads via load_or_default
+    on every tick) MUST validate and compile against the REAL get_tool_catalog().
+
+    This guards the exact failure where the catalog did not register the ACT-tail tools
+    (llm.compose_until_safe / data.publish_post): validate_spec then rejected the baseline
+    with unknown_tool + missing invariants, so the runner returned invalid_spec and never
+    posted. The validator's own tests use a FIXTURE catalog, so only this test exercises
+    the real seed-vs-real-catalog contract."""
+
+    def test_seed_validates_against_real_catalog(self):
+        from app.pipeline.spec.catalog import get_tool_catalog
+        from app.pipeline.spec.validator import validate_spec
+
+        spec = spec_from_runbook("JohnJames_News")
+        report = validate_spec(spec, get_tool_catalog())
+        assert report.ok, f"baseline failed validation: {report.codes()}"
+
+    def test_default_pipeline_spec_validates_and_compiles(self):
+        from app.models.pipeline_spec import default_pipeline_spec
+        from app.pipeline.spec.catalog import get_tool_catalog
+        from app.pipeline.spec.compiler import compile_spec
+        from app.pipeline.spec.validator import validate_spec
+
+        spec = default_pipeline_spec("JohnJames_News")
+        catalog = get_tool_catalog()
+        assert validate_spec(spec, catalog).ok
+        # compile must succeed too (the runner compiles right after validating)
+        graph = compile_spec(spec, catalog=catalog)
+        assert len(graph) > 0
+
+    def test_act_tail_tools_are_in_real_catalog(self):
+        from app.pipeline.spec.catalog import get_tool_catalog
+
+        catalog = get_tool_catalog()
+        assert "llm.compose_until_safe" in catalog
+        assert "data.publish_post" in catalog
+
+
 def _collect_step_ids(steps: list) -> set[str]:
     """Recursively collect all step IDs from a step tree."""
     ids = set()

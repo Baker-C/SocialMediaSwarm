@@ -1,11 +1,12 @@
 import { NavLink, useLocation, useParams } from 'react-router-dom';
-import { ChevronRight, LogOut, Monitor, Users } from 'lucide-react';
+import { ChevronRight, LogOut, Monitor, Plus, Users } from 'lucide-react';
 import type { AccountSummary } from '../types';
 import { Button } from '../components/ui/button';
 import { logout } from '../api/auth';
 import { Sigil } from '../components/brand/Sigil';
 import {
   ACCOUNT_SUB_NAV,
+  TOP_NAV,
   accountSubNavPath,
   buildAccountNavItems,
 } from './navItems';
@@ -72,6 +73,25 @@ export function Sidebar({ accounts, collapsed, onToggle }: SidebarProps) {
             <Monitor className="w-5 h-5 flex-shrink-0" />
             {!collapsed && <span className="text-sm font-medium tracking-wider">OVERVIEW</span>}
           </NavLink>
+
+          {TOP_NAV.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `w-full flex items-center gap-3 p-3 rounded transition-colors no-underline ${
+                  isActive
+                    ? 'bg-orange-500 text-white'
+                    : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                }`
+              }
+            >
+              <Plus className="w-5 h-5 flex-shrink-0" />
+              {!collapsed && (
+                <span className="text-sm font-medium tracking-wider">{item.label.toUpperCase()}</span>
+              )}
+            </NavLink>
+          ))}
 
           {accountItems.map((item) => {
             const accountActive = isAccountRouteActive(location.pathname, item.accountId);

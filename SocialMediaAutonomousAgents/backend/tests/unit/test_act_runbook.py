@@ -47,6 +47,7 @@ def test_compose_until_safe_step():
         ArtifactKey.TIMELINE_ANALYSIS,
         ArtifactKey.OWN_POSTS_ANALYSIS,
         ArtifactKey.TIMELINE_RANKED,
+        ArtifactKey.TIMELINE_REFERENCES,
     )
     assert compose.writes == (ArtifactKey.COMPOSED_POST, ArtifactKey.SAFETY_VERDICT)
 
@@ -59,7 +60,7 @@ def test_publish_post_step():
             publish = step
             break
     assert publish is not None
-    assert publish.reads == (ArtifactKey.COMPOSED_POST, ArtifactKey.SAFETY_VERDICT)
+    assert publish.reads == (ArtifactKey.COMPOSED_POST, ArtifactKey.SAFETY_VERDICT, ArtifactKey.ACCOUNT_BUNDLE)
     assert publish.writes == (ArtifactKey.PUBLISHED_POST,)
 
 
