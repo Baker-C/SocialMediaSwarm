@@ -167,15 +167,16 @@ export const PIPELINE_FLOW: FlowSection[] = [
     rows: [
       {
         type: 'step',
-        node: { id: 'compose', label: 'Compose', subtext: 'Claude + voice', external: 'claude' },
+        node: {
+          id: 'compose_until_safe',
+          label: 'Compose',
+          subtext: 'compose · safety · regen loop',
+          external: 'claude',
+        },
       },
       {
         type: 'step',
-        node: { id: 'safety', label: 'Safety', subtext: 'category · policy · regen loop' },
-      },
-      {
-        type: 'step',
-        node: { id: 'publish', label: 'Publish', subtext: 'post to X', external: 'x_api' },
+        node: { id: 'publish_post', label: 'Publish', subtext: 'post to X', external: 'x_api' },
       },
       {
         type: 'step',
@@ -198,3 +199,16 @@ export const PIPELINE_FLOW_STEP_NODES: FlowNodeDef[] = PIPELINE_FLOW.flatMap((se
 );
 
 export const PIPELINE_FLOW_STEP_IDS = PIPELINE_FLOW_STEP_NODES.map((n) => n.id);
+
+/**
+ * Flatten the step-node ids from any FlowSection[] (e.g. one derived from a
+ * per-account spec via `flowFromSpec`). Used to seed/filter the live-run reducer
+ * so progress events light up exactly the nodes that are rendered.
+ */
+export function sectionStepIds(sections: FlowSection[]): string[] {
+  return sections.flatMap((section) =>
+    section.rows.flatMap((row) =>
+      row.type === 'step' ? [row.node.id] : row.branches.flatMap((b) => b.steps.map((s) => s.id))
+    )
+  );
+}

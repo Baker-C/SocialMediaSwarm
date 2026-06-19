@@ -47,4 +47,26 @@ describe('flowReducer', () => {
     });
     expect(state.claude).toBe('active');
   });
+
+  it('lights up spec-derived step ids when given a custom valid-id set', () => {
+    // A per-account spec drives the live view: the ACT tail uses compose_until_safe
+    // / publish_post, which are NOT in the static default set.
+    const validIds = new Set(['compose_until_safe', 'publish_post']);
+    let state = initialFlowState(['compose_until_safe', 'publish_post']);
+
+    state = applyFlowProgress(
+      state,
+      { step_id: 'compose_until_safe', label: 'Compose', status: 'active', scope: 'runbook' },
+      validIds
+    );
+    expect(state.compose_until_safe).toBe('active');
+
+    // An id outside the spec's set is ignored.
+    state = applyFlowProgress(
+      state,
+      { step_id: 'compose', label: 'Compose', status: 'done', scope: 'orchestrator' },
+      validIds
+    );
+    expect(state.compose).toBeUndefined();
+  });
 });
