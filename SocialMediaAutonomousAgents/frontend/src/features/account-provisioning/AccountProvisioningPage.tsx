@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiBaseUrl } from '../../api/client';
@@ -209,6 +209,17 @@ function ReviewStage({
     if (written) onWritten();
   }, [written, onWritten]);
 
+  // Auto-generate both images on first load when none exist yet.
+  const didAutoGenerate = useRef(false);
+  useEffect(() => {
+    if (didAutoGenerate.current) return;
+    if (!proposal) return;
+    if (images?.avatar_asset_id || images?.header_asset_id) return;
+    didAutoGenerate.current = true;
+    void regenerate('avatar');
+    void regenerate('header');
+  }, [proposal, images, regenerate]);
+
   if (!proposal) return null;
 
   const field = (key: keyof PersonaSpec) => (
@@ -217,6 +228,66 @@ function ReviewStage({
 
   return (
     <div className="space-y-4">
+      {/* Images card first */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Images</CardTitle>
+          <CardDescription>Avatar and header generated from the prompts.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Avatar: image → prompt → button */}
+          <div className="space-y-2">
+            {images?.avatar_asset_id ? (
+              <img
+                src={mediaUrl(images.avatar_asset_id)}
+                alt="Avatar"
+                className="w-24 h-24 rounded-full border border-neutral-700 object-cover"
+              />
+            ) : imagesGenerating.avatar ? (
+              <p className="text-sm text-neutral-400">Generating profile picture…</p>
+            ) : null}
+            <LabeledTextarea
+              label="Avatar prompt"
+              value={proposal.avatar_prompt}
+              onChange={field('avatar_prompt')}
+            />
+            <Button
+              variant="outline"
+              onClick={() => void regenerate('avatar')}
+              disabled={imagesGenerating.avatar}
+            >
+              {imagesGenerating.avatar ? 'Generating…' : 'Regenerate profile picture'}
+            </Button>
+          </div>
+
+          {/* Header: image → prompt → button */}
+          <div className="space-y-2">
+            {images?.header_asset_id ? (
+              <img
+                src={mediaUrl(images.header_asset_id)}
+                alt="Header"
+                className="w-full rounded-md border border-neutral-700"
+              />
+            ) : imagesGenerating.header ? (
+              <p className="text-sm text-neutral-400">Generating banner…</p>
+            ) : null}
+            <LabeledTextarea
+              label="Header prompt"
+              value={proposal.header_prompt}
+              onChange={field('header_prompt')}
+            />
+            <Button
+              variant="outline"
+              onClick={() => void regenerate('header')}
+              disabled={imagesGenerating.header}
+            >
+              {imagesGenerating.header ? 'Generating…' : 'Regenerate banner'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Review persona card second */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Review persona</CardTitle>
@@ -279,60 +350,6 @@ function ReviewStage({
           </Button>
         </CardContent>
       </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Images</CardTitle>
-          <CardDescription>Avatar and header generated from the prompts.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <LabeledTextarea
-            label="Avatar prompt"
-            value={proposal.avatar_prompt}
-            onChange={field('avatar_prompt')}
-          />
-          <Button
-            variant="outline"
-            onClick={() => void regenerate('avatar')}
-            disabled={imagesGenerating.avatar}
-          >
-            {imagesGenerating.avatar ? 'Generating…' : 'Regenerate profile picture'}
-          </Button>
-          <LabeledTextarea
-            label="Header prompt"
-            value={proposal.header_prompt}
-            onChange={field('header_prompt')}
-          />
-          <Button
-            variant="outline"
-            onClick={() => void regenerate('header')}
-            disabled={imagesGenerating.header}
-          >
-            {imagesGenerating.header ? 'Generating…' : 'Regenerate banner'}
-          </Button>
-
-          {images && (images.avatar_asset_id || images.header_asset_id) ? (
-            <div className="space-y-2">
-              {images.header_asset_id ? (
-                <img
-                  src={mediaUrl(images.header_asset_id)}
-                  alt="Header"
-                  className="w-full rounded-md border border-neutral-700"
-                />
-              ) : null}
-              {images.avatar_asset_id ? (
-                <img
-                  src={mediaUrl(images.avatar_asset_id)}
-                  alt="Avatar"
-                  className="w-24 h-24 rounded-full border border-neutral-700 object-cover"
-                />
-              ) : null}
-            </div>
-          ) : (
-            <EmptyState message="No images yet. Approve or regenerate to create them." />
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
@@ -370,7 +387,7 @@ function LabeledTextarea({
       <label className="block text-xs tracking-wider text-neutral-400 mb-1">
         {label.toUpperCase()}
       </label>
-      <Textarea value={value} onChange={onChange} className="min-h-[60px]" />
+      <Textarea value={value} onChange={onChange} className="min-h-[120px]" />
     </div>
   );
 }

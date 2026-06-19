@@ -50,6 +50,26 @@ class PipelineSpecRepository:
         baseline.version_hash = compute_pipeline_hash(baseline)
         return baseline
 
+    def load_all_active(self, account_id: str, kind: str = "post") -> list[PipelineSpecDocument]:
+        """Load all active pipeline specs for an account via RQL.
+
+        Returns an empty list if none are found; sorted by name for determinism.
+        """
+        safe_id = account_id.replace("'", "\\'")
+        rql = (
+            f"from {PIPELINE_SPEC_COLLECTION} "
+            f"where account_id = '{safe_id}' and status = 'active'"
+        )
+        results = self.client.query(rql)
+        if not results:
+            return []
+        docs: list[PipelineSpecDocument] = []
+        for raw in results:
+            stripped = {k: v for k, v in raw.items() if not str(k).startswith("@")}
+            docs.append(PipelineSpecDocument.model_validate(stripped))
+        docs.sort(key=lambda d: d.name or d.account_id)
+        return docs
+
     def save(self, spec: PipelineSpecDocument, kind: str = "post") -> None:
         # `kind` ("post" default; "reply" is doc 12's family — CC-12) selects the doc-id
         # namespace. The spec model itself carries no `kind` field; the family is a

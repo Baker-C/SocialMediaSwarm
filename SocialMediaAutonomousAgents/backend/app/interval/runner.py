@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import random
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -48,6 +49,7 @@ from app.models.pipeline_spec import PipelineSpecDocument
 from app.pipeline.spec.validator import validate_spec
 from app.pipeline.spec.compiler import compile_spec
 from app.pipeline.spec.catalog import get_tool_catalog
+from app.pipeline.runbooks.templates import TEMPLATE_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -61,29 +63,29 @@ __all__ = [
 ]
 
 
-def _slot_spec_status(slot: str, mode: TickMode) -> str:
-    """Run the challenger on 1-in-N slots so a staged variant accrues its own
-    attribution rows; the rest run the champion. Pure function of the slot string
-    + a fixed cron job — NOT a per-agent scheduler. Forced (manual) ticks always
-    run the champion: a human force-post must not silently land on a variant."""
-    if mode != "scheduled":
-        return "champion"
-    every = max(2, int(settings.challenger_slot_every))
-    bucket = int(slot.replace("-", ""))  # deterministic integer index from the slot
-    return "challenger" if (bucket % every == 0) else "champion"
+def _select_pipeline_for_account(account_id: str) -> PipelineSpecDocument:
+    """Load all active specs for the account and pick one by weighted random selection.
 
+    Falls back to the reference_remix template when no active specs are stored.
+    When only one active spec exists it is returned directly (no random call).
+    """
+    repo = PipelineSpecRepository()
+    active_specs = repo.load_all_active(account_id)
 
-def _load_spec_for_status(
-    account_id: str, status: str, repo: PipelineSpecRepository
-) -> PipelineSpecDocument:
-    """Champion slot → the live champion (or seeded baseline). Challenger slot →
-    the staged challenger if one exists, else fall back to champion-or-baseline.
-    Uses ONLY doc 04's repo API (load / load_or_default); no new repo method."""
-    if status == "challenger":
-        challenger = repo.load(account_id, "challenger")  # None when unstaged
-        if challenger is not None:
-            return challenger
-    return repo.load_or_default(account_id)  # champion or baseline
+    if not active_specs:
+        logger.debug("account %s has no active specs — falling back to reference_remix", account_id)
+        return TEMPLATE_MAP["standard"](account_id)
+
+    if len(active_specs) == 1:
+        return active_specs[0]
+
+    total = sum(s.__dict__.get("weight", 1.0) for s in active_specs)
+    weights = [
+        s.__dict__.get("weight", 1.0) / total if total > 0 else 1.0 / len(active_specs)
+        for s in active_specs
+    ]
+    selected = random.choices(active_specs, weights=weights, k=1)[0]
+    return selected
 
 
 def build_tick_context(
@@ -101,7 +103,6 @@ def build_tick_context(
     forced_run_id: str | None = None,
 ) -> TickContext:
     slot = current_interval_slot_key()
-    spec_status = _slot_spec_status(slot, mode)  # NEW — single clock read, no drift
     now_iso = datetime.now(timezone.utc).isoformat()
     regen_rounds = (
         max_regeneration_rounds
@@ -117,7 +118,6 @@ def build_tick_context(
         slot=slot,
         now_iso=now_iso,
         mode=mode,
-        spec_status=spec_status,  # NEW — derived from slot
         force_account_ids=force_account_ids,
         max_candidates=max_candidates,
         max_regeneration_rounds=regen_rounds,
@@ -131,7 +131,6 @@ def build_tick_context(
         {
             "slot": slot,
             "mode": mode,
-            "spec_status": spec_status,
             "force_account_ids": list(force_account_ids) if force_account_ids else None,
             "max_candidates": max_candidates,
             "max_regeneration_rounds": regen_rounds,
@@ -364,8 +363,14 @@ def _run_account_pipeline(ctx: TickContext, account: AccountDocument, *, run_id:
             handoff_to="spec_load_validate_compile",
         )
 
-        # === Load + validate + compile the account's pipeline ONCE ===
-        spec = _load_spec_for_status(aid, ctx.spec_status, PipelineSpecRepository())
+        # === Select the active pipeline for this account by weighted random choice ===
+        spec = _select_pipeline_for_account(aid)
+        pipeline_name = spec.__dict__.get("name") or spec.__dict__.get("template_id") or aid
+        pipeline_weight = spec.__dict__.get("weight", 1.0)
+        logger.info(
+            "account %s selected pipeline %r (weight=%.2f)",
+            aid, pipeline_name, pipeline_weight,
+        )
         catalog = get_tool_catalog()
         report = validate_spec(spec, catalog)
         if not report.ok:
@@ -389,6 +394,10 @@ def _run_account_pipeline(ctx: TickContext, account: AccountDocument, *, run_id:
         # === One context for the WHOLE graph ===
         run_ctx = start(aid, niche=account.category, mode=ctx.mode, slot=ctx.slot)
         run_ctx.run_id = run_id  # the wrapper's minted id, == current_run_id()
+
+        # Inject pipeline identity for post record tracking
+        run_ctx.data["_pipeline_id"] = pipeline_name
+        run_ctx.data["_pipeline_weight"] = pipeline_weight
 
         deps = post_run_deps_from_tick(ctx)
         deps.live = ActLive(

@@ -24,6 +24,7 @@ TOOL_ID = "llm.compose_until_safe"
 TOOL_KIND = "llm"
 TOOL_PURPOSE = "Compose a post, regenerating with guardian feedback and falling back across references until one passes safety"
 TOOL_READS = (ArtifactKey.TIMELINE_ANALYSIS, ArtifactKey.OWN_POSTS_ANALYSIS, ArtifactKey.TIMELINE_RANKED, ArtifactKey.TIMELINE_REFERENCES)
+TOOL_READS_OPTIONAL = (ArtifactKey.OWN_POSTS,)
 TOOL_WRITES = (ArtifactKey.COMPOSED_POST, ArtifactKey.SAFETY_VERDICT)
 
 
@@ -66,6 +67,34 @@ def _reference_inputs(ctx: TickRunContext) -> tuple[str, dict, list[dict]]:
     return block, refs_payload, reference_pool
 
 
+def _fivegrams(text: str) -> set[str]:
+    """Return the set of whitespace-token 5-grams for overlap scoring."""
+    tokens = text.lower().split()
+    if len(tokens) < 5:
+        return {" ".join(tokens)}
+    return {" ".join(tokens[i:i + 5]) for i in range(len(tokens) - 4)}
+
+
+def _similar_recent_post(body: str, own_posts_raw: list) -> str | None:
+    """Return the text of the first recent post (last 5) that overlaps >60% of 5-grams
+    with *body*, or None if no match.  Handles both raw strings and dicts with a 'text' key."""
+    body_grams = _fivegrams(body)
+    if not body_grams:
+        return None
+    recent = own_posts_raw[-5:] if len(own_posts_raw) > 5 else own_posts_raw
+    for item in recent:
+        post_text = item if isinstance(item, str) else (item.get("text") if isinstance(item, dict) else None)
+        if not post_text:
+            continue
+        post_grams = _fivegrams(post_text)
+        if not post_grams:
+            continue
+        overlap = len(body_grams & post_grams) / len(body_grams)
+        if overlap > 0.60:
+            return post_text
+    return None
+
+
 def run(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
     live = deps.live
     guardian = live.guardian
@@ -73,6 +102,9 @@ def run(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
     ranked_refs = _ranked_refs(ctx, live.copied_exclude)
     reference_context_block, refs_payload, reference_pool = _reference_inputs(ctx)
     max_rounds = max(1, int(live.max_regeneration_rounds))
+    own_posts_raw: list = ctx.data.get("own_posts") or []
+    if not isinstance(own_posts_raw, list):
+        own_posts_raw = []
 
     last_reject: str | None = None
     selected_body: str | None = None
@@ -99,6 +131,14 @@ def run(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
                 regeneration_round=reg_round,
                 safety_reject_reason=candidate_reject if reg_round > 0 else None,
             )
+            if own_posts_raw:
+                similar_post = _similar_recent_post(body, own_posts_raw)
+                if similar_post is not None:
+                    candidate_reject = (
+                        f"too_similar_to_recent_post: Your draft was too similar to a recent post:"
+                        f" '{similar_post[:100]}'. Write about a completely different angle or topic."
+                    )
+                    continue
             approved, reject = guardian.evaluate(body, niche=account.category)
             if approved:
                 selected_body = body

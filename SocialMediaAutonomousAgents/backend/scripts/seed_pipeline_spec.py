@@ -84,7 +84,7 @@ def spec_from_runbook(account_id: str) -> PipelineSpecDocument:
     # is complete on its own.
     have = {s.id for s in sense}
     tail = [s for s in ACT_TAIL_SPECS if s.id not in have]
-    spec = PipelineSpecDocument(account_id=account_id, steps=sense + tail, status="champion")
+    spec = PipelineSpecDocument(account_id=account_id, steps=sense + tail, status="active")
     return spec  # version stamp is applied by repo.save → bump_pipeline_version_if_needed
 
 

@@ -115,7 +115,7 @@ def _render_tool_for_prompt(tool: ToolCatalogDocument) -> str:
 """
 
 
-def _build_system_prompt(account_id: str) -> str:
+def _build_system_prompt(account_id: str, mode: str = "edit") -> str:
     """Assemble the full system prompt: role + rules + catalog + soul schema + baseline.
 
     Rebuilt per turn so it includes live catalog and current soul defaults.
@@ -161,6 +161,34 @@ Any new spec you draft MUST conform to this vocabulary (same step ids, reads/wri
     spec_block += json.dumps(baseline_json, indent=2)
     spec_block += "\n```\n"
 
+    # ── Pipeline template block + conversation awareness (create mode only) ──
+    pipeline_block = ""
+    if mode == "create":
+        from app.pipeline.runbooks.templates import get_all_template_descriptions
+        template_list = get_all_template_descriptions()
+        pipeline_block = "\n\nAVAILABLE PIPELINE TEMPLATES (use these when creating accounts):\n"
+        for t in template_list:
+            pipeline_block += f"- {t['template_id']}: {t['description']}\n"
+        pipeline_block += "\nAfter understanding the account purpose and niche, suggest 1-3 pipeline templates. Include a weight for each that sums to 1.0. Default to equal weights. Return your suggestions in pipeline_selections within soul_edit."
+
+        pipeline_block += """
+
+## Conversation Awareness
+
+At the start of every response, silently review the full conversation history above.
+Identify which of the following you still need from the user:
+  - Account concept or name idea
+  - Content niche and category
+  - Target audience
+  - Posting style, tone, and personality traits
+  - Content strategy (text commentary / images / video / mix)
+  - Preferred pipeline type(s) and relative frequency
+
+Ask ONLY for information that is not already present in prior turns.
+Do not re-ask for anything the user has already answered.
+Once you have enough to propose a soul and pipeline selection, do so immediately — \
+do not ask follow-up questions about information you already have."""
+
     # ── Full prompt ──
     prompt = """You are an agent-builder assistant. You help users describe their social media posting strategy in prose and draft a PipelineSpecDocument that implements it.
 
@@ -183,24 +211,27 @@ Any new spec you draft MUST conform to this vocabulary (same step ids, reads/wri
    When you are only chatting or clarifying, set spec to null.
 
 """
-    prompt += tool_block + "\n\n" + soul_block + "\n\n" + spec_block
+    prompt += tool_block + "\n\n" + soul_block + "\n\n" + spec_block + pipeline_block
 
     return prompt
 
 
-def _render_messages(messages: list[BuilderChatMessage]) -> str:
-    """Flatten the message history into a single user turn for Claude.
+def _build_messages_array(messages: list[BuilderChatMessage]) -> list[dict]:
+    """Convert BuilderChatMessage history to Claude's native messages array format.
 
-    Includes echoed validation errors so the repair loop has memory across turns.
+    Validation errors are appended to the assistant turn that produced them so
+    Claude can see what went wrong without losing the role structure.
+    The array must end on a user turn — guaranteed by the client always appending
+    a new user message before posting.
     """
-    lines = []
+    result = []
     for msg in messages:
         if msg.role == "user":
-            lines.append(f"User: {msg.text}")
+            result.append({"role": "user", "content": msg.text})
         else:  # assistant
-            lines.append(f"Assistant: {msg.text}")
+            content = msg.text
             if msg.validation_errors:
-                lines.append("Validation errors from last proposal:")
+                content += "\n\nValidation errors from last proposal:\n"
                 for err in msg.validation_errors:
                     code = err.get("code", "unknown")
                     detail = err.get("detail", "")
@@ -210,8 +241,9 @@ def _render_messages(messages: list[BuilderChatMessage]) -> str:
                         line += f" (step: {step})"
                     if detail:
                         line += f": {detail}"
-                    lines.append(line)
-    return "\n".join(lines)
+                    content += line + "\n"
+            result.append({"role": "assistant", "content": content})
+    return result
 
 
 # ── Helpers for the approve path (§7.3) ──
@@ -253,8 +285,8 @@ def _run_builder_turn(req: BuilderChatRequest, emit: Callable[[dict], None]) -> 
         return
 
     # ── Build system prompt (held in context every turn) ──
-    system = _build_system_prompt(req.account_id)
-    user = _render_messages(req.messages)
+    system = _build_system_prompt(req.account_id, mode=req.mode)
+    messages_array = _build_messages_array(req.messages)
 
     # ── Call Claude ──
     claude = get_claude_client()
@@ -262,7 +294,7 @@ def _run_builder_turn(req: BuilderChatRequest, emit: Callable[[dict], None]) -> 
         emit(emit_assistant_message("Agent builder needs ANTHROPIC_API_KEY configured."))
         return
 
-    raw = claude.messages_json_dict(system=system, user=user, max_tokens=4096)
+    raw = claude.messages_json_dict_multi(system=system, messages=messages_array, max_tokens=4096)
     draft = BuilderDraft.model_validate(raw or {"reply": _REPHRASE})
     emit(emit_assistant_message(draft.reply or _REPHRASE))
 
@@ -344,6 +376,26 @@ def _do_approve(req: BuilderChatRequest, emit: Callable[[dict], None]) -> None:
 
     # ── Save the spec (bumps version in place) ──
     doc_id = _save_spec(spec)
+
+    # ── Save pipeline template specs if pipeline_selections were proposed (create mode) ──
+    if req.mode == "create" and soul_edit is not None and soul_edit.pipeline_selections:
+        from app.pipeline.runbooks.templates import get_all_template_descriptions
+        from app.models.pipeline_spec import default_pipeline_spec
+        valid_template_ids = {t["template_id"] for t in get_all_template_descriptions()}
+        spec_repo = PipelineSpecRepository()
+        for selection in soul_edit.pipeline_selections:
+            template_id = selection.get("template_id")
+            weight = float(selection.get("weight", 1.0))
+            if template_id not in valid_template_ids:
+                continue
+            template_spec = default_pipeline_spec(req.account_id)
+            template_spec.template_id = template_id
+            template_spec.weight = weight
+            template_spec.status = "active"
+            template_spec.name = template_id
+            template_spec.version_hash = None  # force fresh version stamp
+            spec_repo.save(template_spec)
+
     emit(emit_spec_written(
         spec_doc_id=doc_id,
         status=spec.status,

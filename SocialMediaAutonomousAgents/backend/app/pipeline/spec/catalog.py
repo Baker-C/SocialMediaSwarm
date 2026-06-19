@@ -12,6 +12,31 @@ from app.pipeline.tools.data import account_profile, own_posts_fetch, publish_po
 from app.pipeline.tools.deterministic import reference_rank
 from app.pipeline.tools.llm import compose_until_safe, reference_pattern_summary
 
+# New tool imports:
+from app.pipeline.tools import generate_ideas
+from app.pipeline.tools.data import (
+    apply_soul_and_weight_updates,
+    fetch_all_accounts,
+    fetch_recent_posts,
+)
+from app.pipeline.tools.deterministic import (
+    compute_niche_metrics,
+    compute_pipeline_metrics,
+    group_posts_by_pipeline,
+)
+from app.pipeline.tools.llm import (
+    classify_posts_by_niche,
+    niche_weight_adjuster,
+    pipeline_weight_adjuster,
+)
+from app.pipeline.tools.media import seedance_image, seedance_video
+
+from app.pipeline.tools import (
+    compose_with_media,
+    generate_media_prompt,
+    publish_post_with_media,
+)
+
 # Optional imports for doc 12 reply tools (imported with guard for pre-doc-12):
 try:
     from app.pipeline.tools.data import mentions_fetch, reply_publish
@@ -29,13 +54,24 @@ _TOOL_MODULES = (
     reference_pattern_summary,
     compose_until_safe,
     publish_post,
+    # media generation (Seedance/Seedream):
+    seedance_image,
+    seedance_video,
+    # new analytics / self-improvement tools:
+    generate_ideas,
+    generate_media_prompt,
+    compose_with_media,
+    publish_post_with_media,
+    fetch_all_accounts,
+    fetch_recent_posts,
+    group_posts_by_pipeline,
+    compute_pipeline_metrics,
+    classify_posts_by_niche,
+    compute_niche_metrics,
+    niche_weight_adjuster,
+    pipeline_weight_adjuster,
+    apply_soul_and_weight_updates,
 ) + _REPLY_TOOLS
-# Media generation tools (Seedance/Seedream) are built and convention-ready
-# (app/pipeline/tools/media/), with their injected deps registered in
-# ENGINE_INJECTED_DEPS and PostRunDeps. They are intentionally NOT in _TOOL_MODULES
-# yet: registering them makes them spec-proposable. To wire them in, import
-# seedance_image/seedance_video, append them above, add steps.py wrappers to
-# _TOOL_RUN, and update tests/unit/test_tool_catalog.py's tool count + literal set.
 
 # Parameter NAME -> the live dep it is injected from.
 # These are NEVER proposable; the engine wires them around every leaf.
@@ -72,6 +108,7 @@ WIRED_FROM_CONTEXT: frozenset[str] = frozenset({
     "regeneration_round",
     "safety_reject_reason",
     "reference",  # MediaRef fed into image-to-video (media tools; wired from an upstream artifact)
+    "prompt",  # generation prompt wired from the media_prompt artifact (seedance_image/video)
 })
 
 
@@ -205,6 +242,23 @@ _TOOL_RUN: dict[str, Callable | None] = {
     "data.mentions_fetch": getattr(steps, "fetch_mentions", None),
     "llm.reply_compose": getattr(steps, "reply_compose_step", None),
     "data.reply_publish": getattr(steps, "reply_publish_step", None),
+    # media generation:
+    "data.seedance_image": seedance_image.run,
+    "data.seedance_video": seedance_video.run,
+    # new analytics / self-improvement tools:
+    "llm.generate_ideas": generate_ideas.run,
+    "llm.generate_media_prompt": generate_media_prompt.run,
+    "llm.compose_with_media": compose_with_media.run,
+    "data.publish_post_with_media": publish_post_with_media.run,
+    "data.fetch_all_accounts": fetch_all_accounts.run,
+    "data.fetch_recent_posts": fetch_recent_posts.run,
+    "deterministic.group_posts_by_pipeline": group_posts_by_pipeline.run,
+    "deterministic.compute_pipeline_metrics": compute_pipeline_metrics.run,
+    "llm.classify_posts_by_niche": classify_posts_by_niche.run,
+    "deterministic.compute_niche_metrics": compute_niche_metrics.run,
+    "llm.niche_weight_adjuster": niche_weight_adjuster.run,
+    "llm.pipeline_weight_adjuster": pipeline_weight_adjuster.run,
+    "data.apply_soul_and_weight_updates": apply_soul_and_weight_updates.run,
 }
 
 
