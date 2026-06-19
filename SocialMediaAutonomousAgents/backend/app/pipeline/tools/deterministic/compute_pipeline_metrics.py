@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.pipeline.types.artifacts import ArtifactKey
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 
 TOOL_ID = "deterministic.compute_pipeline_metrics"
 TOOL_KIND = "deterministic"
 TOOL_PURPOSE = "Compute engagement metrics per pipeline per account"
-TOOL_READS = ["posts_by_pipeline"]
-TOOL_WRITES = ["pipeline_metrics"]
+TOOL_READS = (ArtifactKey.POSTS_BY_PIPELINE,)
+TOOL_WRITES = (ArtifactKey.PIPELINE_METRICS,)
 
 
 def run(ctx: TickRunContext) -> StepResult:

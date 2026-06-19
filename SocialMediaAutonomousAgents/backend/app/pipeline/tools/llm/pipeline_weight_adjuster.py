@@ -10,11 +10,13 @@ from app.interval_crew import prompt_loader
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 
+from app.pipeline.types.artifacts import ArtifactKey
+
 TOOL_ID = "llm.pipeline_weight_adjuster"
 TOOL_KIND = "llm"
 TOOL_PURPOSE = "Reason about pipeline performance and propose updated weights"
-TOOL_READS = ["pipeline_metrics", "all_accounts"]
-TOOL_WRITES = ["pipeline_weight_proposals"]
+TOOL_READS = (ArtifactKey.PIPELINE_METRICS, ArtifactKey.ALL_ACCOUNTS)
+TOOL_WRITES = (ArtifactKey.PIPELINE_WEIGHT_PROPOSALS,)
 PROMPT_STEM = "pipeline_weight_adjuster"
 
 

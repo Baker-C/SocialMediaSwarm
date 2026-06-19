@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.pipeline.types.artifacts import ArtifactKey
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 
 TOOL_ID = "deterministic.group_posts_by_pipeline"
 TOOL_KIND = "deterministic"
 TOOL_PURPOSE = "Group recent posts by pipeline_id per account"
-TOOL_READS = ["recent_posts"]
-TOOL_WRITES = ["posts_by_pipeline"]
+TOOL_READS = (ArtifactKey.RECENT_POSTS,)
+TOOL_WRITES = (ArtifactKey.POSTS_BY_PIPELINE,)
 
 
 def run(ctx: TickRunContext) -> StepResult:

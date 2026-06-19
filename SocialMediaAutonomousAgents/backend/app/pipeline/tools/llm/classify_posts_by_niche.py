@@ -10,11 +10,13 @@ from app.interval_crew import prompt_loader
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 
+from app.pipeline.types.artifacts import ArtifactKey
+
 TOOL_ID = "llm.classify_posts_by_niche"
 TOOL_KIND = "llm"
 TOOL_PURPOSE = "Semantically match each post to the account's niche list"
-TOOL_READS = ["recent_posts", "all_accounts"]
-TOOL_WRITES = ["posts_with_niche"]
+TOOL_READS = (ArtifactKey.RECENT_POSTS, ArtifactKey.ALL_ACCOUNTS)
+TOOL_WRITES = (ArtifactKey.POSTS_WITH_NICHE,)
 PROMPT_STEM = "classify_posts_by_niche"
 
 

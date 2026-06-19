@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.pipeline.types.artifacts import ArtifactKey
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 from app.services.post_registry import TrackedPostRepository
@@ -11,8 +12,8 @@ from app.services.post_registry import TrackedPostRepository
 TOOL_ID = "data.fetch_recent_posts"
 TOOL_KIND = "data"
 TOOL_PURPOSE = "Fetch recent published posts per account for performance analysis"
-TOOL_READS = ["all_accounts"]
-TOOL_WRITES = ["recent_posts"]
+TOOL_READS = (ArtifactKey.ALL_ACCOUNTS,)
+TOOL_WRITES = (ArtifactKey.RECENT_POSTS,)
 
 
 def run(

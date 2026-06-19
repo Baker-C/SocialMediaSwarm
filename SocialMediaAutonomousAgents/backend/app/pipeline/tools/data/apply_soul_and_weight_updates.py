@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.pipeline.types.artifacts import ArtifactKey
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 from app.services.account_repository import AccountRepository
@@ -12,8 +13,8 @@ from app.services.pipeline_spec_repository import PipelineSpecRepository
 TOOL_ID = "data.apply_soul_and_weight_updates"
 TOOL_KIND = "data"
 TOOL_PURPOSE = "Apply niche score and pipeline weight updates to all accounts (terminal)"
-TOOL_READS = ["niche_weight_proposals", "pipeline_weight_proposals"]
-TOOL_WRITES = ["updates_applied"]
+TOOL_READS = (ArtifactKey.NICHE_WEIGHT_PROPOSALS, ArtifactKey.PIPELINE_WEIGHT_PROPOSALS)
+TOOL_WRITES = (ArtifactKey.UPDATES_APPLIED,)
 
 
 def run(

@@ -10,11 +10,13 @@ from app.interval_crew import prompt_loader
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 
+from app.pipeline.types.artifacts import ArtifactKey
+
 TOOL_ID = "llm.niche_weight_adjuster"
 TOOL_KIND = "llm"
 TOOL_PURPOSE = "Reason about niche performance and propose updated niche scores"
-TOOL_READS = ["niche_metrics", "all_accounts"]
-TOOL_WRITES = ["niche_weight_proposals"]
+TOOL_READS = (ArtifactKey.NICHE_METRICS, ArtifactKey.ALL_ACCOUNTS)
+TOOL_WRITES = (ArtifactKey.NICHE_WEIGHT_PROPOSALS,)
 PROMPT_STEM = "niche_weight_adjuster"
 
 

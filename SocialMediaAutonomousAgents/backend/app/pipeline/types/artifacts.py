@@ -46,6 +46,16 @@ class ArtifactKey(StrEnum):
     GENERATED_VIDEO_A = "generated_video_a"
     GENERATED_VIDEO_B = "generated_video_b"
     COMPOSED_POST_WITH_MEDIA = "composed_post_with_media"
+    # Self-improvement pipeline artifacts
+    ALL_ACCOUNTS = "all_accounts"
+    RECENT_POSTS = "recent_posts"
+    POSTS_BY_PIPELINE = "posts_by_pipeline"
+    PIPELINE_METRICS = "pipeline_metrics"
+    POSTS_WITH_NICHE = "posts_with_niche"
+    NICHE_METRICS = "niche_metrics"
+    NICHE_WEIGHT_PROPOSALS = "niche_weight_proposals"
+    PIPELINE_WEIGHT_PROPOSALS = "pipeline_weight_proposals"
+    UPDATES_APPLIED = "updates_applied"
 
 
 class ReferenceTweetRow(BaseModel):

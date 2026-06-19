@@ -51,23 +51,23 @@ class PipelineSpecRepository:
         return baseline
 
     def load_all_active(self, account_id: str, kind: str = "post") -> list[PipelineSpecDocument]:
-        """Load all active pipeline specs for an account.
+        """Load all active pipeline specs for an account via RQL.
 
-        Queries RavenDB for all PipelineSpecDocuments where account_id matches and
-        status == "active". Returns the list sorted by name for determinism.
-        Returns an empty list if none are found.
+        Returns an empty list if none are found; sorted by name for determinism.
         """
-        results = self.client.query_collection(
-            PIPELINE_SPEC_COLLECTION,
-            filters={"account_id": account_id, "status": "active"},
+        safe_id = account_id.replace("'", "\\'")
+        rql = (
+            f"from {PIPELINE_SPEC_COLLECTION} "
+            f"where account_id = '{safe_id}' and status = 'active'"
         )
+        results = self.client.query(rql)
         if not results:
             return []
         docs: list[PipelineSpecDocument] = []
         for raw in results:
             stripped = {k: v for k, v in raw.items() if not str(k).startswith("@")}
             docs.append(PipelineSpecDocument.model_validate(stripped))
-        docs.sort(key=lambda d: (d.__dict__.get("name") or d.account_id))
+        docs.sort(key=lambda d: d.name or d.account_id)
         return docs
 
     def save(self, spec: PipelineSpecDocument, kind: str = "post") -> None:

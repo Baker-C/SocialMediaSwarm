@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.pipeline.types.artifacts import ArtifactKey
 from app.pipeline.types.context import TickRunContext
 from app.pipeline.types.tool import StepResult
 
 TOOL_ID = "deterministic.compute_niche_metrics"
 TOOL_KIND = "deterministic"
 TOOL_PURPOSE = "Compute engagement metrics per niche per account"
-TOOL_READS = ["posts_with_niche"]
-TOOL_WRITES = ["niche_metrics"]
+TOOL_READS = (ArtifactKey.POSTS_WITH_NICHE,)
+TOOL_WRITES = (ArtifactKey.NICHE_METRICS,)
 
 
 def run(ctx: TickRunContext) -> StepResult:
