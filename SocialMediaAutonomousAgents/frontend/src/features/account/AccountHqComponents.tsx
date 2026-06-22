@@ -3,7 +3,7 @@ import type { NormalizedSnapshotPoint } from '../../analytics/normalize/accountS
 import { TimeSeriesChart, type TimeSeriesSeries } from '../../components/charts/TimeSeriesChart';
 import { CHART_COLORS } from '../../components/charts/chartTheme';
 import type { AccountSummary } from '../../types';
-import { formatGrowth, formatShortDate } from '../../lib/format';
+import { buildXProfileUrl, formatGrowth, formatShortDate } from '../../lib/format';
 
 type AccountHeaderProps = {
   account: AccountSummary;
@@ -12,14 +12,27 @@ type AccountHeaderProps = {
 export function AccountHeader({ account }: AccountHeaderProps) {
   const voiceLabel = account.voice_version_label ?? 'default';
   const voiceSeq = account.voice_version_seq;
+  const profileUrl = buildXProfileUrl({
+    xUsername: account.x_username,
+    xUserId: account.x_user_id,
+  });
+  const verifiedUsername = account.x_username?.trim().replace(/^@/, '');
 
   return (
     <header className="account-header">
       <div>
         <h2 className="account-header__title">{account.account_id}</h2>
         <p className="account-header__meta">
-          {account.category} · @{account.twitter_handle?.replace(/^@/, '') || '—'} ·{' '}
-          {account.followers.toLocaleString()} followers · {formatGrowth(account.follower_growth_vs_registered)}
+          {account.category} ·{' '}
+          {profileUrl ? (
+            <a href={profileUrl} target="_blank" rel="noopener noreferrer">
+              @{verifiedUsername || account.twitter_handle?.replace(/^@/, '') || '—'}
+            </a>
+          ) : (
+            <>@{account.twitter_handle?.replace(/^@/, '') || '—'}</>
+          )}{' '}
+          · {account.followers.toLocaleString()} followers ·{' '}
+          {formatGrowth(account.follower_growth_vs_registered)}
         </p>
       </div>
       <span className="voice-badge" title="Current voice version">

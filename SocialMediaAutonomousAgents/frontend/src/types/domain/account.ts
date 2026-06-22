@@ -30,6 +30,9 @@ export type AccountSummary = {
   voice_version_seq?: number | null;
   copied_reference_count?: number | null;
   copied_reference_tweet_ids?: string[];
+  x_user_id?: string | null;
+  x_username?: string | null;
+  retired?: boolean;
 };
 
 export type ContrastPattern = {
@@ -82,6 +85,7 @@ export type OAuthStatus = {
   expires_at?: string | null;
   scopes?: string | null;
   x_user_id?: string | null;
+  x_username?: string | null;
   updated_at?: string | null;
 };
 

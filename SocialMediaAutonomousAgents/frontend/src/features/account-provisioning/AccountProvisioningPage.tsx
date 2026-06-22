@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { apiBaseUrl } from '../../api/client';
 import { mediaUrl } from '../../api/endpoints/personaChat';
 import { usePersonaChat } from '../../hooks/usePersonaChat';
-import { useProvisioningStatus } from '../../hooks/useProvisioningStatus';
 import type { PersonaSpec } from '../../types/domain/persona';
 import { Button } from '../../components/ui/button';
 import {
@@ -14,7 +12,6 @@ import {
   CardHeader,
   CardTitle,
 } from '../../components/ui/card';
-import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { ErrorBanner } from '../../components/layout/ErrorBanner';
@@ -64,7 +61,7 @@ export function AccountProvisioningPage() {
       )}
 
       {stage === 'provisioning' && (
-        <ProvisioningStage apiBase={apiBase} accountId={accountId} />
+        <ProvisioningStage accountId={accountId} />
       )}
     </div>
   );
@@ -346,7 +343,7 @@ function ReviewStage({
           {error ? <ErrorBanner message={error} /> : null}
 
           <Button className="w-full" onClick={() => void approve()} disabled={running}>
-            {running ? 'Provisioning…' : 'Approve & provision'}
+            {running ? 'Initializing…' : 'Initialize account'}
           </Button>
         </CardContent>
       </Card>
@@ -392,81 +389,20 @@ function LabeledTextarea({
   );
 }
 
-function statusVariant(status: string): 'default' | 'secondary' | 'destructive' {
-  if (status === 'complete') return 'default';
-  if (status === 'failed' || status === 'cancelled') return 'destructive';
-  return 'secondary';
-}
-
-function ProvisioningStage({ apiBase, accountId }: { apiBase: string; accountId: string }) {
-  const queryClient = useQueryClient();
-  const { status, currentPage, stepLog, error, awaitingCaptcha, continue: cont, cancel } =
-    useProvisioningStatus({ apiBase, accountId });
-
-  const complete = status === 'complete';
-
-  useEffect(() => {
-    if (complete) void queryClient.invalidateQueries({ queryKey: ['accounts'] });
-  }, [complete, queryClient]);
-
-  if (complete) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Account provisioned</CardTitle>
-          <CardDescription>{accountId} is ready.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-foreground">
-            Provisioning complete. You can now connect the X OAuth and start the pipeline.
-          </p>
-          <Button asChild>
-            <Link to={`/accounts/${encodeURIComponent(accountId)}`}>Go to account dashboard</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
+function ProvisioningStage({ accountId }: { accountId: string }) {
+  // ponytail: no registration here — persona just fills a slot; X signup is a
+  // separate desktop step. Add a "Sign up" surface on the account when needed.
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Provisioning {accountId}</CardTitle>
-          <Badge variant={statusVariant(status)}>{status}</Badge>
-        </div>
-        <CardDescription>{currentPage ? `Current page: ${currentPage}` : 'Working…'}</CardDescription>
+        <CardTitle className="text-lg">Account initialized</CardTitle>
+        <CardDescription>
+          {accountId} is ready. Sign it up on X from the desktop app when you want.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {awaitingCaptcha ? (
-          <div className="rounded-md border border-orange-500 bg-orange-500/10 p-3 space-y-2">
-            <p className="text-sm font-medium text-orange-500">CAPTCHA required</p>
-            <p className="text-sm text-foreground">
-              Solve the CAPTCHA in the Chrome window, then click Continue.
-            </p>
-            <Button onClick={() => void cont()}>Continue</Button>
-          </div>
-        ) : null}
-
-        {error ? <ErrorBanner message={error} /> : null}
-
-        <div>
-          <div className="text-xs tracking-wider text-neutral-400 mb-1">STEP LOG</div>
-          {stepLog.length === 0 ? (
-            <EmptyState message="No steps yet." />
-          ) : (
-            <ul className="space-y-1 text-sm">
-              {stepLog.map((line, i) => (
-                <li key={i} className="text-foreground">
-                  • {line}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <Button variant="destructive" onClick={() => void cancel()}>
-          Cancel
+      <CardContent>
+        <Button asChild>
+          <Link to={`/accounts/${encodeURIComponent(accountId)}`}>Go to account</Link>
         </Button>
       </CardContent>
     </Card>
