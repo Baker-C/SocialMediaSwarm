@@ -1,85 +1,135 @@
-"""Disposable phone: SIM-based OTP-receive provider (5sim/TextVerified-style).
+"""Disposable phone: TextVerified SIM-based OTP via the official `textverified` client.
 
-VoIP/Twilio numbers are rejected by X (2026), so this must front a SIM tier. Numbers
-cost per-use, so the agent only acquires one when a phone page actually appears. The
-provider is pluggable behind the private `_provider_*` methods.
+VoIP/Twilio numbers are rejected by X (2026), so this fronts TextVerified's SIM tier.
+Numbers cost per-use, so acquisition is made idempotent per account at the route layer
+(reuse a saved number instead of paying again). `fetch_code` is a NON-blocking snapshot
+(uses sms.list, not the blocking sms.incoming) so the route returns fast and the caller
+polls — which is how the live modal display works.
 """
 
 from __future__ import annotations
 
 import logging
 import re
-import time
 from dataclasses import dataclass
-
-import httpx
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+_SERVICE = "twitter"
+_CODE_PATTERN = r"\b\d{4,8}\b"
+
 
 class DisposablePhoneError(RuntimeError):
-    """HTTP failure, no number available, or unexpected provider payload."""
+    """TextVerified API failure, no number available, or unexpected payload."""
 
 
 @dataclass
 class PhoneLease:
-    lease_id: str
+    lease_id: str  # TextVerified verification id
     phone: str
 
 
 class DisposablePhoneClient:
-    """Phone OTP client backed by n8n Vonage workflows (Acquire + Fetch SMS)."""
+    """Phone OTP client backed by the TextVerified `textverified` package."""
 
-    def __init__(self, client: httpx.Client | None = None) -> None:
-        self._client = client
+    def __init__(self) -> None:
+        self._client = None
+        # Manual-mode overrides keyed by lease_id (operator-provided OTP), kept for the
+        # existing /phone-input route; takes precedence over the live API when present.
+        self._manual: dict[str, dict] = {}
 
-    def acquire_number(
-        self, *, service: str = "twitter", country: str | None = None
-    ) -> PhoneLease:
-        """Lease a SIM number for X via n8n Vonage workflow; returns a PhoneLease."""
-        n8n_url = "https://xswarm.app.n8n.cloud/webhook/acquire-phone"
+    def _tv(self):
+        if self._client is None:
+            from textverified import TextVerified  # lazy import keeps tests light
+
+            key = (settings.textverified_api_key or "").strip()
+            user = (settings.textverified_api_username or "").strip()
+            if not key or not user:
+                raise DisposablePhoneError(
+                    "TEXTVERIFIED_API_KEY / TEXTVERIFIED_API_USERNAME not configured"
+                )
+            self._client = TextVerified(api_key=key, api_username=user)
+        return self._client
+
+    def acquire_number(self, *, service: str = _SERVICE, country: str | None = None) -> PhoneLease:
+        """Reserve a SIM number for X via TextVerified; returns a PhoneLease."""
         try:
-            with httpx.Client(timeout=30) as client:
-                resp = client.post(n8n_url, json={"service": service, "country": country or "US"})
-            resp.raise_for_status()
-            data = resp.json()
-            return PhoneLease(lease_id=str(data.get("lease_id")), phone=str(data.get("phone")))
-        except Exception as exc:
-            raise DisposablePhoneError(f"n8n acquire_phone failed: {exc}") from exc
+            from textverified import NewVerificationRequest, ReservationCapability
 
-    def fetch_code(
-        self, lease_id: str, *, timeout_s: int = 240, pattern: str = r"\b\d{6}\b"
-    ) -> str | None:
-        """Poll n8n Vonage workflow for the SMS code to this lease; regex the code, else None."""
-        rx = re.compile(pattern)
-        deadline = time.monotonic() + max(0, int(timeout_s))
-        interval = 5.0
-        n8n_url = f"https://xswarm.app.n8n.cloud/webhook/fetch-sms/{lease_id}"
+            client = self._tv()
+            req = NewVerificationRequest(
+                service_name=service or _SERVICE,
+                capability=ReservationCapability.SMS,
+            )
+            v = client.verifications.create(req)
+            phone = str(getattr(v, "number", "") or "").strip()
+            lease_id = str(getattr(v, "id", "") or "").strip()
+            if not phone or not lease_id:
+                raise DisposablePhoneError("TextVerified returned no number/id")
+            return PhoneLease(lease_id=lease_id, phone=phone)
+        except DisposablePhoneError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — surface a clean error to the route
+            raise DisposablePhoneError(f"TextVerified acquire failed: {exc}") from exc
 
-        while True:
-            try:
-                with httpx.Client(timeout=30) as client:
-                    resp = client.get(n8n_url)
-                resp.raise_for_status()
-                data = resp.json()
-                code = data.get("code", "")
+    def fetch_code(self, lease_id: str, *, pattern: str = _CODE_PATTERN) -> str | None:
+        """Non-blocking snapshot of the latest SMS code for this verification, else None."""
+        man = self._manual.get(lease_id)
+        if man and man.get("code"):
+            return str(man["code"])
+        try:
+            client = self._tv()
+            verification = client.verifications.details(lease_id)
+            for m in client.sms.list(verification):
+                # Prefer the full code from the message body — TextVerified's
+                # parsed_code drops leading zeros (e.g. "035202" -> "35202").
+                text = getattr(m, "sms_content", None) or getattr(m, "content", None) or ""
+                hit = re.search(pattern, str(text))
+                if hit:
+                    return hit.group(0)
+                code = getattr(m, "parsed_code", None)
                 if code:
-                    m = rx.search(code)
-                    if m:
-                        return m.group(0)
-            except Exception as exc:
-                logger.warning("disposable_phone fetch_code n8n request failed: %s", exc)
+                    return str(code)
+            return None
+        except Exception as exc:  # noqa: BLE001 — caller polls; a miss is not fatal
+            logger.warning("textverified fetch_code failed for %s: %s", lease_id, exc)
+            return None
 
-            if time.monotonic() >= deadline:
-                return None
-            time.sleep(interval)
+    def fetch_code_by_number(self, number: str, *, pattern: str = _CODE_PATTERN) -> str | None:
+        """Non-blocking snapshot of the latest SMS code received on a specific NUMBER.
+
+        Used for persistent rental numbers assigned per account: we listen by the
+        number (not a one-shot verification id), so the same number keeps working
+        across signups and re-auth challenges.
+        """
+        num = str(number or "").strip()
+        if not num:
+            return None
+        try:
+            client = self._tv()
+            for m in client.sms.list(to_number=num):
+                # Prefer the full code from the body — parsed_code drops leading digits.
+                text = getattr(m, "sms_content", None) or getattr(m, "content", None) or ""
+                hit = re.search(pattern, str(text))
+                if hit:
+                    return hit.group(0)
+                code = getattr(m, "parsed_code", None)
+                if code:
+                    return str(code)
+            return None
+        except Exception as exc:  # noqa: BLE001 — caller polls; a miss is not fatal
+            logger.warning("textverified fetch_code_by_number failed for %s: %s", num, exc)
+            return None
+
+    def set_manual_phone(self, lease_id: str, phone: str, code: str) -> None:
+        """Manual OTP mode: operator supplies the number + code directly."""
+        self._manual[lease_id] = {"phone": phone, "code": code}
 
     def release(self, lease_id: str) -> None:
-        """Release the phone lease (cleanup via n8n workflow)."""
-        # n8n workflows handle cleanup; this is a no-op locally
-        pass
+        # TextVerified verifications expire on their own; nothing to release synchronously.
+        return None
 
 
 _client: DisposablePhoneClient | None = None

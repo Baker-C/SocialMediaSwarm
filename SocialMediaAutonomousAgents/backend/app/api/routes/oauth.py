@@ -106,7 +106,12 @@ def oauth_callback(
     except RavenDBHttpError as exc:
         raise HTTPException(status_code=503, detail=f"RavenDB error: {exc}") from exc
 
-    redirect = _frontend_redirect(account_id=token.account_id, connected="1")
+    redirect_params: dict[str, str] = {"account_id": token.account_id, "connected": "1"}
+    if token.x_username:
+        redirect_params["x_username"] = token.x_username
+    if not (token.x_user_id or "").strip():
+        redirect_params["unverified"] = "1"
+    redirect = _frontend_redirect(**redirect_params)
     if redirect is not None:
         return redirect
     return {
@@ -114,6 +119,8 @@ def oauth_callback(
         "account_id": token.account_id,
         "expires_at": token.expires_at,
         "scopes": token.scopes,
+        "x_user_id": token.x_user_id,
+        "x_username": token.x_username,
     }
 
 
@@ -127,6 +134,8 @@ def oauth_status(account_id: str):
         "expires_at": status.expires_at,
         "scopes": status.scopes,
         "x_user_id": status.x_user_id,
+        "x_username": status.x_username,
+        "unverified": status.unverified,
         "updated_at": status.updated_at,
     }
 

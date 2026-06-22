@@ -87,39 +87,78 @@ def test_email_fetch_code_timeout_returns_none(monkeypatch) -> None:
         assert c.fetch_code("a@mail.example.com", timeout_s=0) is None
 
 
-# ── phone client (n8n Vonage workflows) ──
+# ── phone client (TextVerified `textverified` package) ──
 
-def test_phone_acquire_returns_lease(monkeypatch) -> None:
-    """Phone acquisition via n8n acquire-phone webhook."""
+class _FakeVerif:
+    def __init__(self, number="2233458400", vid="lr_9") -> None:
+        self.number = number
+        self.id = vid
+
+
+class _FakeMsg:
+    def __init__(self, code) -> None:
+        self.parsed_code = code
+
+
+class _FakeVerifications:
+    def __init__(self, verif, raise_create=False) -> None:
+        self._verif = verif
+        self._raise = raise_create
+
+    def create(self, req):
+        if self._raise:
+            raise RuntimeError("boom")
+        return self._verif
+
+    def details(self, lease_id):
+        return self._verif
+
+
+class _FakeSms:
+    def __init__(self, msgs) -> None:
+        self._msgs = msgs
+
+    def list(self, verification):
+        return list(self._msgs)
+
+
+class _FakeTV:
+    def __init__(self, verif=None, msgs=None, raise_create=False) -> None:
+        verif = verif or _FakeVerif()
+        self.verifications = _FakeVerifications(verif, raise_create)
+        self.sms = _FakeSms(msgs or [])
+
+
+def test_phone_acquire_returns_lease() -> None:
+    """Phone acquisition via TextVerified verifications.create."""
     c = DisposablePhoneClient()
-    with patch("app.infrastructure.disposable_phone_client.httpx.Client") as ClientCls:
-        mock_resp = ClientCls.return_value.__enter__.return_value.post.return_value
-        mock_resp.json.return_value = {"lease_id": "lease-9", "phone": "+15551234567"}
-        mock_resp.raise_for_status.return_value = None
-        lease = c.acquire_number()
+    c._client = _FakeTV(verif=_FakeVerif(number="2233458400", vid="lr_9"))
+    lease = c.acquire_number()
     assert isinstance(lease, PhoneLease)
-    assert lease.lease_id == "lease-9"
-    assert lease.phone == "+15551234567"
+    assert lease.lease_id == "lr_9"
+    assert lease.phone == "2233458400"
 
 
-def test_phone_acquire_error_response_raises(monkeypatch) -> None:
-    """Phone acquisition fails if n8n workflow errors."""
+def test_phone_acquire_error_response_raises() -> None:
+    """Phone acquisition surfaces a clean error when TextVerified fails."""
     c = DisposablePhoneClient()
-    with patch("app.infrastructure.disposable_phone_client.httpx.Client") as ClientCls:
-        ClientCls.return_value.__enter__.return_value.post.side_effect = Exception("n8n error")
-        with pytest.raises(DisposablePhoneError, match="n8n acquire_phone failed"):
-            c.acquire_number()
+    c._client = _FakeTV(raise_create=True)
+    with pytest.raises(DisposablePhoneError, match="TextVerified acquire failed"):
+        c.acquire_number()
 
 
-def test_phone_fetch_code_parses(monkeypatch) -> None:
-    """Phone code fetching via n8n fetch-sms webhook."""
-    monkeypatch.setattr(phone_mod.time, "sleep", lambda *_: None)
+def test_phone_fetch_code_parses() -> None:
+    """SMS code snapshot via verifications.details + sms.list."""
     c = DisposablePhoneClient()
-    with patch("app.infrastructure.disposable_phone_client.httpx.Client") as ClientCls:
-        mock_resp = ClientCls.return_value.__enter__.return_value.get.return_value
-        mock_resp.json.return_value = {"code": "222333"}
-        mock_resp.raise_for_status.return_value = None
-        assert c.fetch_code("lease-9", timeout_s=0) == "222333"
+    c._client = _FakeTV(msgs=[_FakeMsg("222333")])
+    assert c.fetch_code("lr_9") == "222333"
+
+
+def test_phone_fetch_code_none_when_no_sms() -> None:
+    """No SMS yet → None (non-blocking; caller polls)."""
+    c = DisposablePhoneClient()
+    c._client = _FakeTV(msgs=[])
+    assert c.fetch_code("lr_9") is None
 
 
 # ── endpoints ──
@@ -169,28 +208,49 @@ def test_phone_endpoint_persists_number(monkeypatch) -> None:
     fake = _FakeSecrets()
     monkeypatch.setattr(provisioning_routes, "secrets_svc", fake)
 
-    class _Phone:
-        def acquire_number(self, **kw):
-            return PhoneLease(lease_id="L1", phone="+15550001111")
-
-    monkeypatch.setattr(provisioning_routes, "get_disposable_phone_client", lambda: _Phone())
-    r = client.post("/api/provisioning/aid/phone", headers={"Authorization": "Bearer t"})
+    r = client.post(
+        "/api/provisioning/aid/phone",
+        headers={"Authorization": "Bearer t"},
+        json={"phone": " 15550001111 "},
+    )
     assert r.status_code == 200
-    assert r.json() == {"phone": "+15550001111", "lease_id": "L1"}
-    assert fake.upserts == [{"account_id": "aid", "disposable_phone": "+15550001111"}]
-    assert provisioning_routes._phone_leases.get("aid") == "L1"
+    assert r.json() == {"phone": "15550001111"}
+    assert fake.upserts == [{"account_id": "aid", "disposable_phone": "15550001111"}]
 
 
-def test_phone_code_endpoint_uses_stored_lease(monkeypatch) -> None:
+def test_get_phone_endpoint_returns_stored_number(monkeypatch) -> None:
     monkeypatch.setattr(provisioning_routes.settings, "provisioning_agent_token", "t")
-    provisioning_routes._phone_leases["aid"] = "L9"
+    from app.services.account_secrets_service import AccountSecrets
+
+    fake = _FakeSecrets()
+    fake._sec = AccountSecrets(account_id="aid", disposable_phone="15550001111")
+    monkeypatch.setattr(provisioning_routes, "secrets_svc", fake)
+    r = client.get("/api/provisioning/aid/phone", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 200
+    assert r.json() == {"phone": "15550001111"}
+
+
+def test_phone_code_endpoint_uses_stored_number(monkeypatch) -> None:
+    monkeypatch.setattr(provisioning_routes.settings, "provisioning_agent_token", "t")
+    from app.services.account_secrets_service import AccountSecrets
+
+    fake = _FakeSecrets()
+    fake._sec = AccountSecrets(account_id="aid", disposable_phone="15550001111")
+    monkeypatch.setattr(provisioning_routes, "secrets_svc", fake)
 
     class _Phone:
-        def fetch_code(self, lease_id, **kw):
-            assert lease_id == "L9"
+        def fetch_code_by_number(self, number, **kw):
+            assert number == "15550001111"
             return "445566"
 
     monkeypatch.setattr(provisioning_routes, "get_disposable_phone_client", lambda: _Phone())
     r = client.get("/api/provisioning/aid/phone-code", headers={"Authorization": "Bearer t"})
     assert r.status_code == 200
     assert r.json() == {"code": "445566"}
+
+
+def test_phone_code_endpoint_409_without_number(monkeypatch) -> None:
+    monkeypatch.setattr(provisioning_routes.settings, "provisioning_agent_token", "t")
+    monkeypatch.setattr(provisioning_routes, "secrets_svc", _FakeSecrets())
+    r = client.get("/api/provisioning/aid/phone-code", headers={"Authorization": "Bearer t"})
+    assert r.status_code == 409

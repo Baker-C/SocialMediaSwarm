@@ -6,6 +6,7 @@ from app.models.account import AccountDocument
 from app.models.metrics import AccountMetricsDocument
 from app.models.tracked_post import TrackedPostDocument
 from app.services.ravendb_service import RavenDBService, _account_public
+from app.services.twitter_oauth2_service import OAuthConnectionStatus
 
 
 def test_account_public_includes_voice_and_reference_fields() -> None:
@@ -17,12 +18,29 @@ def test_account_public_includes_voice_and_reference_fields() -> None:
         voice_version_seq=3,
         copied_reference_tweet_ids=["ref1", "ref2", "ref3"],
     )
-    with patch("app.services.ravendb_service._account_has_x_credentials", return_value=False):
-        pub = _account_public(acc)
+    oauth = MagicMock()
+    oauth.connection_status.return_value = OAuthConnectionStatus(connected=False)
+    oauth.is_connected.return_value = False
+    pub = _account_public(acc, oauth)
 
     assert pub["voice_version_label"] == "v3"
     assert pub["voice_version_seq"] == 3
     assert pub["copied_reference_count"] == 3
+
+
+def test_account_public_includes_x_identity() -> None:
+    acc = AccountDocument(account_id="acct1", niche="tech", status="active")
+    oauth = MagicMock()
+    oauth.connection_status.return_value = OAuthConnectionStatus(
+        connected=True, x_user_id="123", x_username="alice"
+    )
+    oauth.is_connected.return_value = True
+    pub = _account_public(acc, oauth)
+
+    assert pub["x_user_id"] == "123"
+    assert pub["x_username"] == "alice"
+    assert "access_token_enc" not in pub
+    assert "refresh_token_enc" not in pub
 
 
 def test_get_dashboard_includes_fleet_kpis() -> None:

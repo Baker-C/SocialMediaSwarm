@@ -100,14 +100,31 @@ class RavenDBHttpClient:
     def _queries_url(self) -> str:
         return f"{self.base_url}/databases/{self.database}/queries"
 
-    def put_document(self, doc_id: str, document: dict[str, Any], *, collection: str | None = None) -> None:
+    def put_document(
+        self,
+        doc_id: str,
+        document: dict[str, Any],
+        *,
+        collection: str | None = None,
+        create_if_absent: bool = False,
+    ) -> bool:
+        """PUT a document. Returns True on success.
+
+        When ``create_if_absent`` is set, an empty ``If-None-Match`` (change-vector ``""``)
+        header is sent so the server only writes the document if it does not already exist.
+        A concurrent/existing document yields HTTP 409, which returns False rather than raising.
+        """
         payload = dict(document)
         meta = payload.setdefault("@metadata", {})
         meta.setdefault("@collection", collection or "Accounts")
         meta.setdefault("@id", doc_id)
-        r = self.client.put(self._docs_url(doc_id), content=json.dumps(payload))
+        headers = {"If-None-Match": '""'} if create_if_absent else None
+        r = self.client.put(self._docs_url(doc_id), content=json.dumps(payload), headers=headers)
+        if create_if_absent and r.status_code == 409:
+            return False
         if r.status_code >= 400:
             raise RavenDBHttpError(f"PUT {doc_id} failed: {r.status_code} {r.text}")
+        return True
 
     def get_document(self, doc_id: str) -> dict[str, Any] | None:
         r = self.client.get(self._docs_url(doc_id))

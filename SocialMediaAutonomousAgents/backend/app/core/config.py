@@ -132,6 +132,9 @@ class Settings(BaseSettings):
     # --- Account provisioning ---
     provisioning_agent_token: str = ""          # shared secret the local agent presents
     provisioning_agent_enabled: bool = False
+    # Shared password for the fixed fleet (env PROVISIONING_PASSWORD). Used when an
+    # account has no stored password; the signup modal fills this instead of generating.
+    provisioning_password: str = "Password!!0000"
     # pay-per-use card (single operator card; PCI risk accepted for throwaway use)
     provisioning_card_number: str = ""
     provisioning_card_exp: str = ""             # MM/YY
@@ -144,6 +147,9 @@ class Settings(BaseSettings):
     disposable_phone_api_base: str = ""         # SIM OTP provider
     disposable_phone_api_key: str = ""
     disposable_phone_country: str = ""          # optional default
+    # TextVerified (SIM-based phone OTP via the `textverified` package)
+    textverified_api_key: str = ""
+    textverified_api_username: str = ""
 
     @property
     def provisioning_card(self) -> dict | None:

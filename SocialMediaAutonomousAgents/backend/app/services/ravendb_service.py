@@ -21,6 +21,9 @@ def _account_has_x_credentials(acc: AccountDocument, oauth: TwitterOAuth2Service
 
 
 def _account_public(acc: AccountDocument, oauth: TwitterOAuth2Service | None = None) -> dict:
+    svc = oauth or TwitterOAuth2Service()
+    status = svc.connection_status(acc.account_id)
+
     follower_growth = None
     if acc.followers_when_registered is not None:
         follower_growth = acc.followers - acc.followers_when_registered
@@ -41,9 +44,12 @@ def _account_public(acc: AccountDocument, oauth: TwitterOAuth2Service | None = N
         "niches": [n.model_dump() for n in acc.niches],
         "twitter_handle": acc.twitter_handle,
         "status": acc.status,
+        "retired": acc.retired,
         "followers": acc.followers,
         "posts_total": acc.posts_total,
-        "has_credentials": _account_has_x_credentials(acc, oauth),
+        "has_credentials": _account_has_x_credentials(acc, svc),
+        "x_user_id": status.x_user_id,
+        "x_username": status.x_username,
         "registered_at": acc.registered_at,
         "follower_growth_vs_registered": follower_growth,
         "last_interval_slot": acc.last_interval_slot,
@@ -66,8 +72,10 @@ class RavenDBService:
 
     def get_accounts(self) -> list[dict]:
         try:
-            rows = self._accounts.list_all_accounts()
-            return [_account_public(a) for a in rows]
+            # Include retired so the dashboard can show them in a separate section
+            # (each row carries `retired`; the UI groups active vs retired).
+            rows = self._accounts.list_all_accounts(include_retired=True)
+            return [_account_public(a, self._oauth) for a in rows]
         except RavenDBHttpError as exc:
             logger.warning("RavenDB unavailable for accounts: %s", exc)
             return []

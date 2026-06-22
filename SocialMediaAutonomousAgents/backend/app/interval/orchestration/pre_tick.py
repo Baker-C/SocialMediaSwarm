@@ -13,7 +13,7 @@ def phase1_global_setup(ctx: TickContext) -> None:
             acc = ctx.repo.load(aid)
             if acc is None:
                 continue
-            if acc.status == "active":
+            if acc.status == "active" and not acc.retired:
                 seen.append(acc)
         ctx.accounts = seen
     else:
@@ -23,4 +23,6 @@ def phase1_global_setup(ctx: TickContext) -> None:
 def should_skip_account(ctx: TickContext, account: AccountDocument) -> str | None:
     if account.status != "active":
         return "inactive_account"
+    if account.retired:
+        return "retired_account"
     return None

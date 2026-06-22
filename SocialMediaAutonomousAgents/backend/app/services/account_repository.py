@@ -123,21 +123,36 @@ class AccountRepository:
         doc_id = AccountDocument.document_id(account.account_id)
         self.client.put_document(doc_id, account_to_document(account), collection="Accounts")
 
-    def list_active(self) -> list[AccountDocument]:
+    def list_active(self, include_retired: bool = False) -> list[AccountDocument]:
         rql = "from Accounts where profile.status = 'active' or status = 'active'"
         try:
             rows = self.client.query(rql)
         except RavenDBHttpError:
             rql = "from @all where startsWith(id(), 'accounts/') and status = 'active'"
             rows = self.client.query(rql)
-        return [document_to_account(r) for r in rows]
+        accounts = [document_to_account(r) for r in rows]
+        if not include_retired:
+            accounts = [a for a in accounts if not a.retired]
+        return accounts
 
-    def list_all_accounts(self) -> list[AccountDocument]:
+    def list_all_accounts(self, include_retired: bool = False) -> list[AccountDocument]:
         try:
             rows = self.client.query("from Accounts")
         except RavenDBHttpError:
             rows = self.client.query("from @all where startsWith(id(), 'accounts/')")
-        return [document_to_account(r) for r in rows]
+        accounts = [document_to_account(r) for r in rows]
+        if not include_retired:
+            accounts = [a for a in accounts if not a.retired]
+        return accounts
+
+    def set_retired(self, account_id: str, retired: bool) -> None:
+        """Soft-retire (or un-retire) an account. Loads, flips the flag, saves.
+        Never deletes — the document is kept for historical-data accuracy."""
+        acc = self.load(account_id)
+        if acc is None:
+            raise LookupError(f"Account not found: {account_id}")
+        acc.retired = bool(retired)
+        self.save(acc)
 
     def upsert_profile(
         self,

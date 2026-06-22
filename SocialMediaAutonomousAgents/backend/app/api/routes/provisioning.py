@@ -29,14 +29,19 @@ from app.infrastructure.disposable_email_client import get_disposable_email_clie
 from app.infrastructure.disposable_phone_client import get_disposable_phone_client
 from app.services.account_secrets_service import AccountSecretsService
 from app.services.provisioning_service import ProvisioningService
+from app.services.twitter_oauth2_service import TwitterOAuth2Service
+from pydantic import BaseModel
 
 router = APIRouter()
 agent_router = APIRouter()
 svc = ProvisioningService()
 secrets_svc = AccountSecretsService()
+oauth_svc = TwitterOAuth2Service()
 
-# Transient phone leases keyed by account_id (lease ids are not persisted to AccountSecrets).
-_phone_leases: dict[str, str] = {}
+
+class PhoneAssignBody(BaseModel):
+    phone: str
+
 
 _TERMINAL = {"complete", "failed", "cancelled"}
 _POLL_SECONDS = 2.0
@@ -125,6 +130,19 @@ def poll_control(account_id: str) -> dict:
     return {"action": svc.get_control(account_id) or ""}
 
 
+@agent_router.get("/provisioning/{account_id}/oauth-status", dependencies=[Depends(require_agent_token)])
+def oauth_status_for_agent(account_id: str) -> dict:
+    """OAuth connection status for the inline agent connect flow (no token material)."""
+    status = oauth_svc.connection_status(account_id)
+    return {
+        "account_id": account_id,
+        "connected": status.connected,
+        "x_user_id": status.x_user_id,
+        "x_username": status.x_username,
+        "unverified": status.unverified,
+    }
+
+
 @agent_router.post("/provisioning/{account_id}/result", dependencies=[Depends(require_agent_token)])
 def result(account_id: str, body: ProvisioningResult):
     try:
@@ -142,22 +160,41 @@ def email_code(account_id: str) -> dict:
     address = sec.disposable_email if sec else None
     if not address:
         raise HTTPException(status_code=409, detail="no disposable email for account")
-    code = get_disposable_email_client().fetch_code(address)
+    # Single non-blocking snapshot — the modal polls on its own interval, so this
+    # route must return immediately instead of long-polling Mailgun for ~180s
+    # (which would block the modal's email-then-sms code check from ever reaching
+    # the SMS code).
+    code = get_disposable_email_client().fetch_code(address, timeout_s=0)
     return {"code": code}
 
 
+@agent_router.get("/provisioning/{account_id}/phone", dependencies=[Depends(require_agent_token)])
+def get_phone(account_id: str) -> dict:
+    """Return the persistent rental number assigned to this account, if any."""
+    sec = secrets_svc.get(account_id)
+    return {"phone": (sec.disposable_phone if sec else None)}
+
+
 @agent_router.post("/provisioning/{account_id}/phone", dependencies=[Depends(require_agent_token)])
-def phone(account_id: str) -> dict:
-    lease = get_disposable_phone_client().acquire_number()
-    secrets_svc.upsert(account_id, disposable_phone=lease.phone)
-    _phone_leases[account_id] = lease.lease_id
-    return {"phone": lease.phone, "lease_id": lease.lease_id}
+def assign_phone(account_id: str, body: PhoneAssignBody) -> dict:
+    """Assign + persist the rental number the operator entered for this account.
+
+    No new number is acquired — each account keeps ONE consistent rental number in
+    RavenDB, so the number (and password) persist across re-auth / restarts.
+    """
+    num = (body.phone or "").strip()
+    if not num:
+        raise HTTPException(status_code=400, detail="phone is required")
+    secrets_svc.upsert(account_id, disposable_phone=num)
+    return {"phone": num}
 
 
 @agent_router.get("/provisioning/{account_id}/phone-code", dependencies=[Depends(require_agent_token)])
 def phone_code(account_id: str) -> dict:
-    lease_id = _phone_leases.get(account_id)
-    if not lease_id:
-        raise HTTPException(status_code=409, detail="no phone lease for account")
-    code = get_disposable_phone_client().fetch_code(lease_id)
+    """Listen for the latest SMS code on this account's assigned (rental) number."""
+    sec = secrets_svc.get(account_id)
+    num = (sec.disposable_phone if sec else None)
+    if not num:
+        raise HTTPException(status_code=409, detail="no phone assigned for account")
+    code = get_disposable_phone_client().fetch_code_by_number(num)
     return {"code": code}

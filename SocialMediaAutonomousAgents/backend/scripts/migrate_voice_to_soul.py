@@ -25,7 +25,7 @@ log = logging.getLogger("migrate_voice_to_soul")
 
 def main() -> None:
     repo = AccountRepository()
-    accounts = repo.list_all_accounts()
+    accounts = repo.list_all_accounts(include_retired=True)  # migrate every doc, retired included
     log.info("Found %d account(s) to migrate", len(accounts))
     for acc in accounts:
         # load() already ran the validator → acc.soul is populated, voice dropped.

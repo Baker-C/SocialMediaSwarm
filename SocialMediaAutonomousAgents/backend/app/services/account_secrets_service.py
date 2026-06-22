@@ -39,6 +39,7 @@ class AccountSecrets(BaseModel):
     password: str | None = None
     disposable_email: str | None = None
     disposable_phone: str | None = None
+    disposable_phone_lease: str | None = None  # TextVerified verification id
     session_cookies: str | None = None
     dev_api_key: str | None = None
     dev_api_secret: str | None = None
@@ -58,6 +59,7 @@ class AccountSecretsService:
             password=_dec(doc.password_enc),
             disposable_email=_dec(doc.disposable_email_enc),
             disposable_phone=_dec(doc.disposable_phone_enc),
+            disposable_phone_lease=_dec(doc.disposable_phone_lease_enc),
             session_cookies=_dec(doc.session_cookies_enc),
             dev_api_key=_dec(doc.dev_api_key_enc),
             dev_api_secret=_dec(doc.dev_api_secret_enc),
@@ -71,6 +73,7 @@ class AccountSecretsService:
             "password": "password_enc",
             "disposable_email": "disposable_email_enc",
             "disposable_phone": "disposable_phone_enc",
+            "disposable_phone_lease": "disposable_phone_lease_enc",
             "session_cookies": "session_cookies_enc",
             "dev_api_key": "dev_api_key_enc",
             "dev_api_secret": "dev_api_secret_enc",

@@ -11,3 +11,4 @@ tweepy
 click
 anthropic
 nats-py
+textverified

@@ -27,6 +27,9 @@ class AccountUpdateBody(BaseModel):
     )
     twitter_handle: str | None = Field(default=None, max_length=500)
     status: str | None = Field(default=None, max_length=64)
+    # Soft-retire flag. Retired accounts are excluded by default from the scheduler
+    # and account listings; the document is kept (never deleted).
+    retired: bool | None = None
 
     # ── Soul fields ──
     posting_prompt: str | None = Field(default=None, max_length=32000)   # was system_prompt
@@ -51,6 +54,7 @@ def account_edit_view(acc: AccountDocument, oauth: TwitterOAuth2Service | None =
         "niches": [n.model_dump() for n in acc.niches],
         "twitter_handle": acc.twitter_handle or "",
         "status": acc.status or "active",
+        "retired": acc.retired,
         # ── Soul ──
         "posting_prompt": (acc.posting_prompt or "").strip() or default_system_prompt(category),
         "personality": (acc.personality or "").strip(),
@@ -95,6 +99,8 @@ def apply_account_update(account_id: str, body: AccountUpdateBody, repo: Account
         profile["twitter_handle"] = body.twitter_handle.strip()
     if body.status is not None:
         profile["status"] = (body.status or "active").strip() or "active"
+    if body.retired is not None:
+        profile["retired"] = bool(body.retired)
 
     # ── Soul updates ──
     if body.posting_prompt is not None:

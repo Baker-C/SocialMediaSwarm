@@ -13,6 +13,7 @@ class AccountSecretsDocument(BaseModel):
     password_enc: str | None = None
     disposable_email_enc: str | None = None
     disposable_phone_enc: str | None = None
+    disposable_phone_lease_enc: str | None = None  # TextVerified verification id (for SMS polling)
     session_cookies_enc: str | None = None  # JSON blob of Playwright storage_state, encrypted
     # X developer (pay-per-use)
     dev_api_key_enc: str | None = None

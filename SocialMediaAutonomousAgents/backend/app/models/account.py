@@ -172,6 +172,9 @@ class AccountProfile(BaseModel):
     # that stored them on the profile are folded into the soul on load.
     twitter_handle: str = ""
     status: str = "active"
+    # Soft-retire: retired accounts keep their docs (never deleted) but are excluded by
+    # default from the posting scheduler and account listings. Defaults False for legacy docs.
+    retired: bool = False
     followers: int = 0
     posts_total: int = 0
     # Provenance / dashboard (optional for legacy documents)
@@ -215,6 +218,7 @@ class AccountProvisioning(BaseModel):
     display_name: str = ""
     bio: str = ""
     images: ProvisioningImages = Field(default_factory=ProvisioningImages)
+    persona_assigned: bool = False  # True once a designed persona fills this slot
     # live state
     status: ProvisioningStatus = "draft"
     current_page: str = ""          # PageState the agent last reported (free-text mirror)
@@ -330,6 +334,14 @@ class AccountDocument(BaseModel):
     @status.setter
     def status(self, value: str) -> None:
         self.profile.status = value
+
+    @property
+    def retired(self) -> bool:
+        return self.profile.retired
+
+    @retired.setter
+    def retired(self, value: bool) -> None:
+        self.profile.retired = value
 
     @property
     def followers(self) -> int:
