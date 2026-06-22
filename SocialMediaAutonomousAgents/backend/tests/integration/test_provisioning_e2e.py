@@ -31,6 +31,8 @@ SPEC = {
     "category": "Tech",
     "personality": "Dry and witty.",
     "posting_prompt": "Post about tech.",
+    "niches": ["tech", "gadgets"],
+    "pipelines": ["standard", "lean"],
     "avatar_prompt": "a square robot avatar",
     "header_prompt": "a wide tech banner",
 }
@@ -51,6 +53,10 @@ class _FakeAccountRepo:
 
     def save(self, acc: AccountDocument) -> None:
         self.store[acc.account_id] = acc
+
+    def list_all_accounts(self, include_retired: bool = False) -> list[AccountDocument]:
+        accs = list(self.store.values())
+        return accs if include_retired else [a for a in accs if not a.retired]
 
 
 class _FakeSecretsRepo:
@@ -73,7 +79,9 @@ def _fake_oauth_status(account_id: str):
 
 
 def test_provisioning_happy_path_e2e(monkeypatch):
-    acct_id = "e2e_acct"
+    # The persona approve keys the account by the spec HANDLE, so the rest of the flow
+    # (start/status/result) operates on that id.
+    acct_id = SPEC["handle"]
 
     # ── real Fernet key so encrypt-on-write / decrypt-on-read genuinely round-trips ──
     monkeypatch.setattr(
@@ -97,6 +105,8 @@ def test_provisioning_happy_path_e2e(monkeypatch):
 
     # persona externals: deterministic images + Claude not used on approve.
     monkeypatch.setattr(persona_routes, "generate_persona_images", lambda a, h: ("a1", "h1"))
+    # pipeline seeding hits its own repo (RavenDB) — stub it; covered by its own unit test.
+    monkeypatch.setattr(persona_routes, "seed_active_pipelines", lambda *a, **k: ["standard"])
 
     # apply_account_create writes a minimal real account into the shared fake repo,
     # mirroring the production create path enough for the approve step + later /edit.

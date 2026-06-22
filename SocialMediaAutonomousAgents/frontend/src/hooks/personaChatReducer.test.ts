@@ -10,6 +10,7 @@ const spec: PersonaSpec = {
   bio: 'Sees all.',
   category: 'mystic',
   niches: ['tarot', 'astrology'],
+  pipelines: ['lean', 'rapid_fire'],
   personality: 'cryptic',
   posting_prompt: 'speak in riddles',
   avatar_prompt: 'glowing eyes',

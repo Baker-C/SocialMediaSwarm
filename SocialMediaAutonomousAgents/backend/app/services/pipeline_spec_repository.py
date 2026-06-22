@@ -80,6 +80,56 @@ class PipelineSpecRepository:
             doc_id, spec.model_dump(exclude_none=True), collection=PIPELINE_SPEC_COLLECTION
         )
 
+    def save_active_template(self, spec: PipelineSpecDocument, kind: str = "post") -> None:
+        """Persist one ACTIVE posting template under a template-namespaced doc id, so an
+        account can hold SEVERAL active specs at once (the runner's load_all_active selects
+        by the `status` field, not the doc id). Distinct from save(), which owns the single
+        champion/challenger doc per account."""
+        spec = bump_pipeline_version_if_needed(spec, previous_hash=spec.version_hash)
+        tid = (spec.template_id or "tpl").strip() or "tpl"
+        prefix = "pipelinespecs" if kind == "post" else f"pipelinespecs-{kind}"
+        doc_id = f"{prefix}/{spec.account_id}-active-{tid}"
+        self.client.put_document(
+            doc_id, spec.model_dump(exclude_none=True), collection=PIPELINE_SPEC_COLLECTION
+        )
+
+
+def seed_active_pipelines(
+    account_id: str,
+    template_ids: list[str],
+    repo: PipelineSpecRepository | None = None,
+) -> list[str]:
+    """Persist 1-3 chosen posting templates as ACTIVE specs the runner rotates between.
+
+    Unknown / structurally-invalid template ids are dropped; the list is de-duplicated and
+    clamped to 3. Falls back to ["standard"] so a new account always has at least one
+    runnable pipeline. Returns the template ids actually saved.
+    """
+    from app.pipeline.runbooks.templates import TEMPLATE_MAP, VALID_POSTING_TEMPLATE_IDS
+    from app.pipeline.spec.catalog import get_tool_catalog
+    from app.pipeline.spec.validator import validate_spec
+
+    repo = repo or PipelineSpecRepository()
+
+    wanted: list[str] = []
+    for tid in template_ids or []:
+        if tid in VALID_POSTING_TEMPLATE_IDS and tid not in wanted:
+            wanted.append(tid)
+    wanted = wanted[:3] or ["standard"]
+
+    catalog = get_tool_catalog()
+    saved: list[str] = []
+    for tid in wanted:
+        spec = TEMPLATE_MAP[tid](account_id)
+        if validate_spec(spec, catalog).ok:
+            repo.save_active_template(spec)
+            saved.append(tid)
+
+    if not saved:  # backstop — "standard" is the canonical known-good baseline
+        repo.save_active_template(TEMPLATE_MAP["standard"](account_id))
+        saved.append("standard")
+    return saved
+
 
 def promote_challenger(
     account_id: str, repo: PipelineSpecRepository | None = None, kind: str = "post"

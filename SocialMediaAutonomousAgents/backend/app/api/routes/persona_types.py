@@ -38,6 +38,8 @@ class PersonaSpec(BaseModel):
     personality: str = ""       # -> AccountSoul.personality
     posting_prompt: str = ""    # -> AccountSoul.posting_prompt
     niches: list[str] = Field(default_factory=list)  # short topic strings -> AccountSoul.niches
+    # 1-3 posting-pipeline template ids the account rotates between (-> active PipelineSpecs).
+    pipelines: list[str] = Field(default_factory=list)
     avatar_prompt: str = ""     # -> fal image gen (04)
     header_prompt: str = ""     # -> fal image gen (04)
 
@@ -56,6 +58,9 @@ class PersonaChatRequest(BaseModel):
     proposal: "PersonaSpec | None" = None
     # When True, this turn does NOT re-draft; it generates images + writes the account.
     approve: bool = False
+    # Operator-chosen phone slot (account_id of an un-souled, phone-bearing account) to take
+    # over on approve. Empty -> the lowest-id eligible slot is used (GET /persona/slots lists them).
+    slot_account_id: str | None = Field(default=None, max_length=500)
 
 
 class PersonaDraft(BaseModel):

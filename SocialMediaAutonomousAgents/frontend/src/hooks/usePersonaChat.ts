@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { streamPersonaChat, regenerateImages } from '../api/endpoints/personaChat';
+import { streamPersonaChat, regenerateImages, fetchPersonaSlots } from '../api/endpoints/personaChat';
 import type {
   PersonaChatMessage,
+  PersonaSlot,
   PersonaSpec,
   PersonaStreamEvent,
 } from '../types/domain/persona';
@@ -21,6 +22,9 @@ type UsePersonaChatResult = {
   imagesGenerating: { avatar: boolean; header: boolean };
   written: string | null;
   validationErrors: string[] | null;
+  slots: PersonaSlot[];
+  slotAccountId: string;
+  setSlotAccountId: (id: string) => void;
   send: (text: string) => Promise<void>;
   approve: () => Promise<void>;
   editSpec: (patch: Partial<PersonaSpec>) => void;
@@ -44,10 +48,13 @@ export function usePersonaChat({
   });
   const [written, setWritten] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[] | null>(null);
+  const [slots, setSlots] = useState<PersonaSlot[]>([]);
+  const [slotAccountId, setSlotAccountId] = useState<string>('');
 
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef(messages);
   const proposalRef = useRef(proposal);
+  const slotAccountIdRef = useRef(slotAccountId);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -56,6 +63,20 @@ export function usePersonaChat({
   useEffect(() => {
     proposalRef.current = proposal;
   }, [proposal]);
+
+  useEffect(() => {
+    slotAccountIdRef.current = slotAccountId;
+  }, [slotAccountId]);
+
+  // Load the fillable phone slots once; default the selection to the first one.
+  useEffect(() => {
+    fetchPersonaSlots()
+      .then((r) => {
+        setSlots(r.slots);
+        setSlotAccountId((prev) => prev || r.slots[0]?.account_id || '');
+      })
+      .catch(() => setSlots([]));
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -87,6 +108,7 @@ export function usePersonaChat({
             messages: newMessages,
             proposal: proposalRef.current,
             approve,
+            slot_account_id: slotAccountIdRef.current || null,
           },
           (event: PersonaStreamEvent) => {
             switch (event.type) {
@@ -192,6 +214,9 @@ export function usePersonaChat({
     imagesGenerating,
     written,
     validationErrors,
+    slots,
+    slotAccountId,
+    setSlotAccountId,
     send,
     approve,
     editSpec,

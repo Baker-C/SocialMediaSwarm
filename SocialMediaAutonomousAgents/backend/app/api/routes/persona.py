@@ -39,6 +39,7 @@ from app.api.routes.persona_types import (
 )
 from app.infrastructure.claude_client import ClaudeClient
 from app.models.niche import Niche
+from app.pipeline.runbooks.templates import get_offerable_template_descriptions
 from app.services.account_create_service import (
     AccountAlreadyExistsError,
     AccountCreateBody,
@@ -52,6 +53,7 @@ from app.services.persona_image_service import (
     generate_persona_image,
     generate_persona_images,
 )
+from app.services.pipeline_spec_repository import seed_active_pipelines
 
 logger = logging.getLogger(__name__)
 
@@ -65,17 +67,30 @@ secrets = AccountSecretsService()
 
 _REPHRASE = "Tell me more about the account — niche, audience, voice, name."
 
-SYSTEM_PROMPT = """You design X (Twitter) account personas. Converse with the operator to nail
-down niches.
-, audience, voice, name and bio. Ask the operator about options and questions until you 
-and the operator are on the same page. Also discuss the account's VISUAL identity — what the
-profile picture (avatar) and banner (header) should look like — and capture that discussion in
-avatar_prompt / header_prompt. When you have enough, return JSON:
-{"reply": "<message>", "spec": {"handle","display_name","bio","category","personality",
-"posting_prompt","niches","avatar_prompt","header_prompt"} | null}. When you are only chatting or
-clarifying, set spec to null. Keep handle <=15 chars, alphanumeric/underscore (no '@').
-niches is an array of short topic strings the account will ride (e.g. ["Trump news", "political scandals"]).
-avatar_prompt/header_prompt are vivid image-gen prompts (square avatar, wide banner)."""
+# Catalog of posting pipelines the LLM may choose 1-3 from (validate-clean subset).
+_PIPELINE_CATALOG = "\n".join(
+    f"  - {t['template_id']}: {t['description']}" for t in get_offerable_template_descriptions()
+)
+_PIPELINE_IDS = ", ".join(t["template_id"] for t in get_offerable_template_descriptions())
+
+SYSTEM_PROMPT = (
+    "You design X (Twitter) account personas. Converse with the operator to nail down the "
+    "niche, audience, voice, name and bio. Ask questions until you and the operator are on the "
+    "same page. Also discuss the account's VISUAL identity — what the profile picture (avatar) "
+    "and banner (header) should look like — and capture that in avatar_prompt / header_prompt.\n\n"
+    "Every account runs 1-3 POSTING PIPELINES and rotates between them so it can post in "
+    "different ways. Pick the 1-3 that best fit the persona from this catalog:\n"
+    + _PIPELINE_CATALOG
+    + "\n\nWhen you have enough, return JSON:\n"
+    '{"reply": "<message>", "spec": {"handle","display_name","bio","category","personality",'
+    '"posting_prompt","niches","pipelines","avatar_prompt","header_prompt"} | null}. '
+    "When you are only chatting or clarifying, set spec to null. Keep handle <=15 chars, "
+    "alphanumeric/underscore (no '@').\n"
+    'category is the account\'s kind in a few words (e.g. "Global News Commentary") — always set it.\n'
+    'niches is a NON-EMPTY array of short topic strings the account rides (e.g. ["Trump news", "political scandals"]).\n'
+    "pipelines is an array of 1-3 ids chosen from: " + _PIPELINE_IDS + ".\n"
+    "avatar_prompt/header_prompt are vivid image-gen prompts (square avatar, wide banner)."
+)
 
 
 def _render_messages(history: list[PersonaChatMessage], proposal: PersonaSpec | None) -> str:
@@ -110,10 +125,27 @@ def _run_turn(req: PersonaChatRequest, emit: Callable[[dict], None]) -> None:
         emit(emit_persona_preview(draft.spec))
 
 
+def _account_has_phone(account_id: str) -> bool:
+    """True when the account already holds a disposable phone number. Checks the
+    ENCRYPTED secrets doc directly (no decryption / no ENCRYPTION_KEY needed)."""
+    doc = secrets.repo.load(account_id)
+    return bool(doc and (doc.disposable_phone_enc or "").strip())
+
+
+def _eligible_slots() -> list[AccountDocument]:
+    """Active, un-retired, soul-less accounts that already hold a phone number — the
+    slots a new persona can take over. Sorted by account_id (stable, lowest first)."""
+    return [
+        a for a in sorted(repo.list_all_accounts(include_retired=True), key=lambda a: a.account_id)
+        if not a.retired and not a.provisioning.persona_assigned and _account_has_phone(a.account_id)
+    ]
+
+
 def _do_approve(req: PersonaChatRequest, emit: Callable[[dict], None]) -> None:
-    """Assign the persona to an open active slot (renamed to its handle), carrying the
-    slot's number + password. No open slot -> park it as a retired account. No X
-    registration here — signup happens separately in the desktop app."""
+    """Assign the persona to a chosen open phone slot (renamed to its handle), carrying the
+    slot's number + password. The operator picks the slot (req.slot_account_id); empty ->
+    lowest-id eligible. No eligible slot -> park it as a retired account. No X registration
+    here — signup happens separately in the desktop app."""
     spec = req.proposal
     if spec is None:
         emit(emit_validation_errors(["No persona to approve — propose one first."]))
@@ -122,28 +154,45 @@ def _do_approve(req: PersonaChatRequest, emit: Callable[[dict], None]) -> None:
     if not handle:
         emit(emit_validation_errors(["Persona needs a handle."]))
         return
+
+    # Seed niche + category from the persona — never silently create a blank-souled
+    # account (an empty category otherwise falls back to the handle; niches to []).
+    category = (spec.category or "").strip()
+    niches = [n.strip() for n in (spec.niches or []) if n and n.strip()]
+    if not category:
+        emit(emit_validation_errors(["Persona needs a category."]))
+        return
+    if not niches:
+        emit(emit_validation_errors(["Persona needs at least one niche."]))
+        return
+
     if repo.load(handle) is not None:
         emit(emit_validation_errors([f"An account '{handle}' already exists."]))
         return
+
+    # Pick the phone slot to take over: operator-chosen if given, else the lowest-id
+    # eligible. Validated here (before image gen) so a bad pick fails fast.
+    slots = _eligible_slots()
+    chosen_id = (req.slot_account_id or "").strip()
+    if chosen_id:
+        slot = next((a for a in slots if a.account_id == chosen_id), None)
+        if slot is None:
+            emit(emit_validation_errors(
+                [f"'{chosen_id}' is not an available phone slot (must be un-souled, active, with a phone)."]))
+            return
+    else:
+        slot = slots[0] if slots else None
 
     emit(emit_images_generating())
     avatar_id, header_id = generate_persona_images(spec.avatar_prompt, spec.header_prompt)
     emit(emit_images_ready(avatar_id, header_id))
 
-    # First open slot: active, not retired, no persona yet (lowest account_id).
-    slot = next(
-        (a for a in sorted(repo.list_all_accounts(include_retired=True), key=lambda a: a.account_id)
-         if not a.retired and not a.provisioning.persona_assigned),
-        None,
-    )
-
     apply_account_create(AccountCreateBody(
-        account_id=handle, category=spec.category, twitter_handle=handle,
+        account_id=handle, category=category, twitter_handle=handle,
         personality=spec.personality, posting_prompt=spec.posting_prompt,
     ))
     acc = repo.load(handle)
-    if spec.niches:
-        acc.soul.niches = [Niche(niche=n.strip()) for n in spec.niches if n and n.strip()]
+    acc.soul.niches = [Niche(niche=n) for n in niches]
     acc.provisioning.display_name = spec.display_name
     acc.provisioning.bio = spec.bio
     acc.provisioning.images.avatar_asset_id = avatar_id
@@ -152,6 +201,9 @@ def _do_approve(req: PersonaChatRequest, emit: Callable[[dict], None]) -> None:
     acc.provisioning.persona_assigned = True
     acc.retired = slot is None  # no open slot -> park as retired
     repo.save(acc)
+
+    # Seed 1-3 active posting pipelines the runner rotates between (LLM-chosen, validated).
+    seed_active_pipelines(handle, spec.pipelines)
 
     if slot is not None:
         sec = secrets.get(slot.account_id)
@@ -252,3 +304,19 @@ def regenerate_images(body: RegenImagesBody) -> dict:
     if body.header_prompt:
         result["header_asset_id"] = generate_persona_image("header", body.header_prompt)
     return result
+
+
+@router.get("/persona/slots")
+def list_persona_slots() -> dict:
+    """Un-souled, active, phone-bearing accounts a new persona can be attached to.
+    The operator picks one in the Initialize-account flow; phone is masked to last 4."""
+    slots: list[dict] = []
+    for a in _eligible_slots():
+        sec = secrets.get(a.account_id)
+        phone = (sec.disposable_phone if sec else None) or ""
+        slots.append({
+            "account_id": a.account_id,
+            "twitter_handle": a.twitter_handle or "",
+            "phone_last4": phone[-4:] if phone else "",
+        })
+    return {"slots": slots}

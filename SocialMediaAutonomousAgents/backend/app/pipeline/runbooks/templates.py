@@ -466,3 +466,9 @@ TEMPLATE_MAP: dict[str, Callable[[str], PipelineSpecDocument]] = {
 VALID_POSTING_TEMPLATE_IDS: frozenset[str] = frozenset(
     {"standard", "lean", "external_focus", "own_voice", "research_heavy", "rapid_fire", "safe_mode"}
 )
+
+
+def get_offerable_template_descriptions() -> list[TemplateDescription]:
+    """Descriptions for the posting templates safe to offer (gated by
+    VALID_POSTING_TEMPLATE_IDS) — used by the persona designer's pipeline menu."""
+    return [t for t in _TEMPLATES if t["template_id"] in VALID_POSTING_TEMPLATE_IDS]

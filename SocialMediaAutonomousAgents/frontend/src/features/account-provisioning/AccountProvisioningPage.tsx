@@ -154,6 +154,7 @@ function ChatStage({
               <SpecRow label="Bio" value={proposal.bio} />
               <SpecRow label="Category" value={proposal.category} />
               <SpecRow label="Niches" value={proposal.niches.join(', ')} />
+              <SpecRow label="Pipelines" value={(proposal.pipelines ?? []).join(', ')} />
               <SpecRow label="Personality" value={proposal.personality} />
               <Button className="mt-3 w-full" onClick={onProceed}>
                 Review &amp; edit
@@ -196,6 +197,9 @@ function ReviewStage({
     error,
     validationErrors,
     written,
+    slots,
+    slotAccountId,
+    setSlotAccountId,
     editSpec,
     approve,
     regenerate,
@@ -302,6 +306,30 @@ function ReviewStage({
               onChange={(e) => onAccountIdChange(e.target.value)}
             />
           </div>
+          <div>
+            <label className="block text-xs tracking-wider text-neutral-400 mb-1" htmlFor="review-slot">
+              PHONE ACCOUNT TO TAKE OVER
+            </label>
+            {slots.length === 0 ? (
+              <p className="text-sm text-neutral-400">
+                No un-souled phone accounts available — this persona will be parked as retired.
+              </p>
+            ) : (
+              <select
+                id="review-slot"
+                value={slotAccountId}
+                onChange={(e) => setSlotAccountId(e.target.value)}
+                className="w-full rounded-md border border-neutral-700 bg-transparent px-3 py-2 text-sm"
+              >
+                {slots.map((s) => (
+                  <option key={s.account_id} value={s.account_id}>
+                    {s.account_id}
+                    {s.phone_last4 ? ` — •••${s.phone_last4}` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
           <LabeledInput label="Handle" value={proposal.handle} onChange={field('handle')} />
           <LabeledInput
             label="Display name"
@@ -316,6 +344,18 @@ function ReviewStage({
             onChange={(e) =>
               editSpec({
                 niches: e.target.value
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              })
+            }
+          />
+          <LabeledInput
+            label="Pipelines (comma-separated)"
+            value={(proposal.pipelines ?? []).join(', ')}
+            onChange={(e) =>
+              editSpec({
+                pipelines: e.target.value
                   .split(',')
                   .map((s) => s.trim())
                   .filter(Boolean),

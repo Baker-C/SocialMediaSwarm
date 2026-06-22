@@ -8,6 +8,7 @@ export interface PersonaSpec {
   bio: string;
   category: string;
   niches: string[];
+  pipelines: string[]; // 1-3 posting-pipeline template ids the account rotates between
   personality: string;
   posting_prompt: string;
   avatar_prompt: string;
@@ -24,6 +25,14 @@ export type PersonaChatRequest = {
   messages: PersonaChatMessage[];
   proposal?: PersonaSpec | null; // prior proposal echoed back (stateless server)
   approve?: boolean; // true => generate images + write the account
+  slot_account_id?: string | null; // operator-chosen phone slot to take over on approve
+};
+
+// An un-souled, active, phone-bearing account a new persona can be attached to.
+export type PersonaSlot = {
+  account_id: string;
+  twitter_handle: string;
+  phone_last4: string;
 };
 
 // plan 03 §2 — the chat / approve stream.

@@ -1,6 +1,6 @@
 import { apiFetch, apiPrefix, parseHttpError, apiBaseUrl } from '../client';
 import { authHeaders } from '../auth';
-import type { PersonaChatRequest, PersonaStreamEvent } from '../../types/domain/persona';
+import type { PersonaChatRequest, PersonaSlot, PersonaStreamEvent } from '../../types/domain/persona';
 
 function parseSse(line: string): PersonaStreamEvent | null {
   const payload = line.startsWith('data: ') ? line.slice(6) : line;
@@ -63,6 +63,11 @@ export async function regenerateImages(body: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+// Un-souled, active, phone-bearing accounts a new persona can take over (operator picks one).
+export async function fetchPersonaSlots(): Promise<{ slots: PersonaSlot[] }> {
+  return apiFetch('/persona/slots');
 }
 
 // Media bytes route for <img src> (plan 04 §3: GET /api/media/{asset_id}).
