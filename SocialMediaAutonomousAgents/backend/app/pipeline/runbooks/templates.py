@@ -182,6 +182,13 @@ def build_external_focus_spec(account_id: str) -> PipelineSpecDocument:
             config={"max_results_per_query": 50},
             purpose="Fetch reference tweets from X search",
         ),
+        StepSpec(
+            id="collect_external_references",
+            tool_id="_internal.collect_external",
+            reads=["search_references"],
+            writes=["timeline_references"],
+            purpose="Build the external reference pool from search results",
+        ),
         CompositeSpec(
             kind="chain",
             id="analyze_external_references",
@@ -253,7 +260,7 @@ def build_reply_mode_spec(account_id: str) -> PipelineSpecDocument:
             purpose="Load X profile",
         ),
         StepSpec(
-            id="mentions_fetch",
+            id="fetch_mentions",
             tool_id="data.mentions_fetch",
             reads=["account_bundle"],
             writes=["mentions"],
@@ -303,6 +310,13 @@ def build_research_heavy_spec(account_id: str) -> PipelineSpecDocument:
             writes=["search_references"],
             config={"max_results_per_query": 100},
             purpose="Fetch reference tweets — larger pool for research",
+        ),
+        StepSpec(
+            id="collect_external_references",
+            tool_id="_internal.collect_external",
+            reads=["search_references"],
+            writes=["timeline_references"],
+            purpose="Build the external reference pool from search results",
         ),
         StepSpec(
             id="fetch_own_post_history",
@@ -445,3 +459,10 @@ TEMPLATE_MAP: dict[str, Callable[[str], PipelineSpecDocument]] = {
     "rapid_fire": build_rapid_fire_spec,
     "safe_mode": build_safe_mode_spec,
 }
+
+# Templates valid as live POSTING pipelines (kind="post"). reply_mode is excluded:
+# it is a kind="reply" spec family (terminal reply_result / verdict reply_verdict) and
+# must not be seeded or offered as a posting pipeline.
+VALID_POSTING_TEMPLATE_IDS: frozenset[str] = frozenset(
+    {"standard", "lean", "external_focus", "own_voice", "research_heavy", "rapid_fire", "safe_mode"}
+)

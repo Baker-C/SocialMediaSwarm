@@ -164,10 +164,15 @@ Any new spec you draft MUST conform to this vocabulary (same step ids, reads/wri
     # ── Pipeline template block + conversation awareness (create mode only) ──
     pipeline_block = ""
     if mode == "create":
-        from app.pipeline.runbooks.templates import get_all_template_descriptions
+        from app.pipeline.runbooks.templates import (
+            VALID_POSTING_TEMPLATE_IDS,
+            get_all_template_descriptions,
+        )
         template_list = get_all_template_descriptions()
         pipeline_block = "\n\nAVAILABLE PIPELINE TEMPLATES (use these when creating accounts):\n"
         for t in template_list:
+            if t["template_id"] not in VALID_POSTING_TEMPLATE_IDS:
+                continue  # reply_mode is a kind="reply" spec, not a posting pipeline
             pipeline_block += f"- {t['template_id']}: {t['description']}\n"
         pipeline_block += "\nAfter understanding the account purpose and niche, suggest 1-3 pipeline templates. Include a weight for each that sums to 1.0. Default to equal weights. Return your suggestions in pipeline_selections within soul_edit."
 
@@ -379,14 +384,13 @@ def _do_approve(req: BuilderChatRequest, emit: Callable[[dict], None]) -> None:
 
     # ── Save pipeline template specs if pipeline_selections were proposed (create mode) ──
     if req.mode == "create" and soul_edit is not None and soul_edit.pipeline_selections:
-        from app.pipeline.runbooks.templates import get_all_template_descriptions
+        from app.pipeline.runbooks.templates import VALID_POSTING_TEMPLATE_IDS
         from app.models.pipeline_spec import default_pipeline_spec
-        valid_template_ids = {t["template_id"] for t in get_all_template_descriptions()}
         spec_repo = PipelineSpecRepository()
         for selection in soul_edit.pipeline_selections:
             template_id = selection.get("template_id")
             weight = float(selection.get("weight", 1.0))
-            if template_id not in valid_template_ids:
+            if template_id not in VALID_POSTING_TEMPLATE_IDS:
                 continue
             template_spec = default_pipeline_spec(req.account_id)
             template_spec.template_id = template_id
