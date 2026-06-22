@@ -100,6 +100,15 @@ def run(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
             regeneration_round=reg_round,
             safety_reject_reason=candidate_reject if reg_round > 0 else None,
         )
+        if body is None:
+            # Compose could not produce a reply (LLM unavailable or generation failed) —
+            # skip cleanly rather than replying with fabricated content.
+            ctx.set_artifact(
+                ArtifactKey.REPLY_VERDICT,
+                {"decision": "skip", "reason": "compose_failed",
+                 "in_reply_to_tweet_id": target_tweet_id},
+            )
+            return StepResult(ok=True, skipped=True, skip_reason="compose_failed")
         approved, reject = guardian.evaluate(body, niche=account.category)
         if approved:
             selected_body, selected_round = body, reg_round
