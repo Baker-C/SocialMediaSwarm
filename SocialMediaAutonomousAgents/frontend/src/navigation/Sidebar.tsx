@@ -26,7 +26,65 @@ export function Sidebar({ accounts, collapsed, onToggle }: SidebarProps) {
   const params = useParams();
   const activeAccountId = params.accountId;
   const accountItems = buildAccountNavItems(accounts);
-  const activeCount = accounts.filter((a) => a.status === 'active').length;
+  const activeItems = accountItems.filter((i) => !i.retired);
+  const retiredItems = accountItems.filter((i) => i.retired);
+  const activeCount = accounts.filter((a) => a.status === 'active' && a.retired !== true).length;
+
+  const renderAccountItem = (item: (typeof accountItems)[number]) => {
+    const accountActive = isAccountRouteActive(location.pathname, item.accountId);
+    return (
+      <div key={item.accountId}>
+        <NavLink
+          to={`/accounts/${item.accountId}`}
+          aria-current={activeAccountId === item.accountId ? 'page' : undefined}
+          className={`w-full flex items-center gap-3 p-3 rounded transition-colors no-underline ${
+            accountActive
+              ? 'bg-orange-500 text-white'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+          }`}
+        >
+          <Users className="w-5 h-5 flex-shrink-0" />
+          {!collapsed && (
+            <span className="min-w-0">
+              <span className="block text-sm font-medium tracking-wider uppercase truncate">
+                {item.label}
+              </span>
+              {item.subtitle ? (
+                <span
+                  className={`block text-xs truncate ${
+                    accountActive ? 'text-orange-100' : 'text-neutral-600'
+                  }`}
+                >
+                  {item.subtitle}
+                </span>
+              ) : null}
+            </span>
+          )}
+        </NavLink>
+
+        {accountActive && !collapsed ? (
+          <div className="mt-1 mb-2 ml-4 border-l border-neutral-700 space-y-0.5">
+            {ACCOUNT_SUB_NAV.map((sub) => (
+              <NavLink
+                key={sub.segment || 'hq'}
+                to={accountSubNavPath(item.accountId, sub.segment)}
+                end={sub.end}
+                className={({ isActive }) =>
+                  `block py-1.5 pl-4 pr-2 text-xs tracking-wider uppercase no-underline transition-colors border-l-2 -ml-px ${
+                    isActive
+                      ? 'border-orange-500 text-orange-500'
+                      : 'border-transparent text-neutral-500 hover:text-white'
+                  }`
+                }
+              >
+                {sub.label}
+              </NavLink>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
     <aside
@@ -93,61 +151,16 @@ export function Sidebar({ accounts, collapsed, onToggle }: SidebarProps) {
             </NavLink>
           ))}
 
-          {accountItems.map((item) => {
-            const accountActive = isAccountRouteActive(location.pathname, item.accountId);
-            return (
-              <div key={item.accountId}>
-                <NavLink
-                  to={`/accounts/${item.accountId}`}
-                  aria-current={activeAccountId === item.accountId ? 'page' : undefined}
-                  className={`w-full flex items-center gap-3 p-3 rounded transition-colors no-underline ${
-                    accountActive
-                      ? 'bg-orange-500 text-white'
-                      : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
-                  }`}
-                >
-                  <Users className="w-5 h-5 flex-shrink-0" />
-                  {!collapsed && (
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium tracking-wider uppercase truncate">
-                        {item.label}
-                      </span>
-                      {item.subtitle ? (
-                        <span
-                          className={`block text-xs truncate ${
-                            accountActive ? 'text-orange-100' : 'text-neutral-600'
-                          }`}
-                        >
-                          {item.subtitle}
-                        </span>
-                      ) : null}
-                    </span>
-                  )}
-                </NavLink>
+          {activeItems.map(renderAccountItem)}
 
-                {accountActive && !collapsed ? (
-                  <div className="mt-1 mb-2 ml-4 border-l border-neutral-700 space-y-0.5">
-                    {ACCOUNT_SUB_NAV.map((sub) => (
-                      <NavLink
-                        key={sub.segment || 'hq'}
-                        to={accountSubNavPath(item.accountId, sub.segment)}
-                        end={sub.end}
-                        className={({ isActive }) =>
-                          `block py-1.5 pl-4 pr-2 text-xs tracking-wider uppercase no-underline transition-colors border-l-2 -ml-px ${
-                            isActive
-                              ? 'border-orange-500 text-orange-500'
-                              : 'border-transparent text-neutral-500 hover:text-white'
-                          }`
-                        }
-                      >
-                        {sub.label}
-                      </NavLink>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
+          {retiredItems.length > 0 && !collapsed ? (
+            <div className="pt-3 mt-2 border-t border-neutral-800">
+              <span className="block px-3 pb-1 text-[10px] tracking-[0.18em] text-neutral-600">
+                RETIRED
+              </span>
+            </div>
+          ) : null}
+          {retiredItems.map(renderAccountItem)}
         </nav>
 
         {!collapsed && (

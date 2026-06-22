@@ -94,6 +94,30 @@ export function formatCompactNumber(value: number | null | undefined): string {
   return String(value);
 }
 
+/**
+ * Build a safe link to the connected X profile.
+ * Prefers the stable numeric id (immune to username changes); falls back to a
+ * validated username. Never builds from the editable `twitter_handle`, and never
+ * interpolates a null/undefined value into the URL.
+ */
+export function buildXProfileUrl({
+  xUsername,
+  xUserId,
+}: {
+  xUsername?: string | null;
+  xUserId?: string | null;
+}): string | null {
+  const id = xUserId?.trim();
+  if (id) {
+    return `https://x.com/i/user/${encodeURIComponent(id)}`;
+  }
+  const normalized = xUsername?.trim().replace(/^@/, '');
+  if (normalized && /^[A-Za-z0-9_]{1,15}$/.test(normalized)) {
+    return `https://x.com/${normalized}`;
+  }
+  return null;
+}
+
 export function isStaleFetch(iso: string | null | undefined, maxHours = 2): boolean {
   if (!iso) {
     return true;

@@ -19,6 +19,7 @@ export type LeaderboardRow = {
   lastPostAge: string | null;
   trackedPosts: number | null;
   hasOAuth: boolean;
+  retired: boolean;
 };
 
 export type OpsAlert = {
@@ -60,6 +61,7 @@ export function buildLeaderboard(
       lastPostAge: a.recent_post?.posted_at ?? null,
       trackedPosts: metricsByAccount[a.account_id]?.post_count ?? a.posts_total ?? null,
       hasOAuth: a.has_credentials !== false,
+      retired: a.retired === true,
     }))
     .sort((x, y) => (y.avgEr ?? -1) - (x.avgEr ?? -1));
 }

@@ -31,6 +31,7 @@ export function buildAccountNavItems(accounts: AccountSummary[]) {
       accountId: account.account_id,
       label: account.account_id,
       subtitle: account.category?.trim() || undefined,
+      retired: account.retired === true,
     }));
 }
 

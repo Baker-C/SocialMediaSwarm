@@ -4,7 +4,7 @@ import {
   fetchOAuthAuthorizeUrl,
 } from '../../api/endpoints/oauth';
 import type { OAuthStatus } from '../../types';
-import { formatShortDate } from '../../lib/format';
+import { buildXProfileUrl, formatShortDate } from '../../lib/format';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAppContext } from '../../app/AppContext';
 
@@ -40,6 +40,10 @@ export function OAuthStatusCard({
   };
 
   const connected = status?.connected ?? hasCredentials;
+  const profileUrl = buildXProfileUrl({
+    xUsername: status?.x_username,
+    xUserId: status?.x_user_id,
+  });
 
   return (
     <div className="oauth-card">
@@ -49,6 +53,13 @@ export function OAuthStatusCard({
       ) : connected ? (
         <>
           <p className="oauth-card__status oauth-card__status--ok">Connected</p>
+          {profileUrl ? (
+            <p className="oauth-card__meta">
+              <a href={profileUrl} target="_blank" rel="noopener noreferrer">
+                {status?.x_username ? `@${status.x_username.replace(/^@/, '')}` : 'View X profile'}
+              </a>
+            </p>
+          ) : null}
           {status?.expires_at ? (
             <p className="oauth-card__meta">Expires {formatShortDate(status.expires_at)}</p>
           ) : null}

@@ -1,5 +1,5 @@
 import type { AccountSummary } from '../types';
-import { formatAge, formatGrowth, formatShortDate } from '../lib/format';
+import { buildXProfileUrl, formatAge, formatGrowth, formatShortDate } from '../lib/format';
 
 type AccountCardProps = {
   account: AccountSummary;
@@ -8,8 +8,39 @@ type AccountCardProps = {
   variant?: 'card' | 'detail';
 };
 
+type XConnectionState =
+  | 'notProvisioned'
+  | 'notConnected'
+  | 'connectedNoIdentity'
+  | 'connectedVerified';
+
+function resolveXConnectionState(account: AccountSummary): XConnectionState {
+  const verifiedUrl = buildXProfileUrl({
+    xUsername: account.x_username,
+    xUserId: account.x_user_id,
+  });
+  if (verifiedUrl) {
+    return 'connectedVerified';
+  }
+  if (account.has_credentials === false) {
+    return 'notConnected';
+  }
+  if (account.has_credentials) {
+    return 'connectedNoIdentity';
+  }
+  return 'notProvisioned';
+}
+
 export function AccountCard({ account, onUpdateClick, variant = 'card' }: AccountCardProps) {
   const handle = account.twitter_handle?.trim();
+  const verifiedUsername = account.x_username?.trim().replace(/^@/, '');
+  const profileUrl = buildXProfileUrl({
+    xUsername: account.x_username,
+    xUserId: account.x_user_id,
+  });
+  const xState = resolveXConnectionState(account);
+  const handleDiffersFromVerified =
+    !!verifiedUsername && !!handle && handle.replace(/^@/, '') !== verifiedUsername;
   const growth = formatGrowth(account.follower_growth_vs_registered);
   const recent = account.recent_post;
   const viewsLabel =
@@ -81,16 +112,54 @@ export function AccountCard({ account, onUpdateClick, variant = 'card' }: Accoun
           <dt>Last interval slot</dt>
           <dd>{account.last_interval_slot ?? '—'}</dd>
         </div>
-        {handle ? (
+        {xState === 'connectedVerified' && profileUrl ? (
+          <div className="account-card__stat account-card__stat--wide">
+            <dt>X profile</dt>
+            <dd>
+              <a href={profileUrl} target="_blank" rel="noopener noreferrer">
+                @{verifiedUsername}
+              </a>
+              {handleDiffersFromVerified ? (
+                <span className="account-card__warn">
+                  {' '}
+                  · handle {handle} (unverified)
+                </span>
+              ) : null}
+            </dd>
+          </div>
+        ) : null}
+        {xState === 'connectedNoIdentity' ? (
+          <>
+            {handle ? (
+              <div className="account-card__stat account-card__stat--wide">
+                <dt>Handle</dt>
+                <dd>{handle}</dd>
+              </div>
+            ) : null}
+            <div className="account-card__stat account-card__stat--wide">
+              <dt>X profile</dt>
+              <dd className="account-card__warn">Connected — profile link unavailable</dd>
+            </div>
+          </>
+        ) : null}
+        {xState === 'notConnected' ? (
+          <>
+            {handle ? (
+              <div className="account-card__stat account-card__stat--wide">
+                <dt>Handle</dt>
+                <dd>{handle}</dd>
+              </div>
+            ) : null}
+            <div className="account-card__stat account-card__stat--wide">
+              <dt>X connection</dt>
+              <dd className="account-card__warn">Not connected — use Update account → Connect with X</dd>
+            </div>
+          </>
+        ) : null}
+        {xState === 'notProvisioned' && handle ? (
           <div className="account-card__stat account-card__stat--wide">
             <dt>Handle</dt>
             <dd>{handle}</dd>
-          </div>
-        ) : null}
-        {account.has_credentials === false ? (
-          <div className="account-card__stat account-card__stat--wide">
-            <dt>X connection</dt>
-            <dd className="account-card__warn">Not connected — use Update account → Connect with X</dd>
           </div>
         ) : null}
       </dl>

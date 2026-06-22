@@ -49,6 +49,8 @@ type AccountLeaderboardProps = {
 };
 
 export function AccountLeaderboard({ rows }: AccountLeaderboardProps) {
+  const active = rows.filter((r) => !r.retired);
+  const retired = rows.filter((r) => r.retired);
   return (
     <section className="fleet-section" aria-label="Account leaderboard">
       <TablePanelHeader
@@ -58,11 +60,25 @@ export function AccountLeaderboard({ rows }: AccountLeaderboardProps) {
       />
       <DataTable
         columns={leaderboardColumns}
-        rows={rows}
+        rows={active}
         rowKey={(r) => r.accountId}
         emptyMessage="No accounts to rank."
         ariaLabel="Account leaderboard by engagement"
       />
+      {retired.length > 0 ? (
+        <div style={{ marginTop: '1.5rem', opacity: 0.65 }}>
+          <h4 className="fleet-section__title" style={{ marginBottom: '0.5rem' }}>
+            Retired
+          </h4>
+          <DataTable
+            columns={leaderboardColumns}
+            rows={retired}
+            rowKey={(r) => r.accountId}
+            emptyMessage=""
+            ariaLabel="Retired accounts"
+          />
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -28,7 +28,15 @@ export function OAuthRedirectHandler() {
     }
     const accountId = params.get('account_id')?.trim();
     if (accountId) {
-      setToast(`Connected X for ${accountId}`);
+      const xUsername = params.get('x_username')?.trim().replace(/^@/, '');
+      const unverified = params.get('unverified') === '1';
+      if (unverified) {
+        setToast(`Connected X for ${accountId} (identity unverified)`);
+      } else if (xUsername) {
+        setToast(`Connected as @${xUsername} for ${accountId}`);
+      } else {
+        setToast(`Connected X for ${accountId}`);
+      }
       navigate(`/accounts/${accountId}/settings`, { replace: true });
       void queryClient.invalidateQueries({ queryKey: ['accounts'] });
       void queryClient.invalidateQueries({ queryKey: ['oauthStatus', accountId] });

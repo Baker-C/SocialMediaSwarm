@@ -14,6 +14,7 @@ import {
   AccountTrendChart,
   CadenceGauge,
 } from './AccountHqComponents';
+import { AccountWebview } from './AccountWebview';
 
 export function AccountHqPage() {
   const { accountId } = useParams();
@@ -68,6 +69,8 @@ export function AccountHqPage() {
           />
         </section>
       </div>
+
+      <AccountWebview accountId={account.account_id} />
 
     </div>
   );
