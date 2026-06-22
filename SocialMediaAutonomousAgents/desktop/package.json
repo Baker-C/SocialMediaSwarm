@@ -1,0 +1,13 @@
+{
+  "name": "x-provisioning-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron shell that embeds the X-signup webview with per-account session partitions and backend autofill.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^31.0.0"
+  }
+}
