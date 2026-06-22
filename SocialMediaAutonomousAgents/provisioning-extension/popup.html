@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font: 13px system-ui, sans-serif; width: 280px; padding: 12px; background:#0b0b0c; color:#eee; }
+    label { display:block; margin: 8px 0 2px; color:#aaa; font-size:11px; letter-spacing:.05em; }
+    input { width:100%; box-sizing:border-box; padding:6px; background:#161618; border:1px solid #333; color:#eee; border-radius:4px; }
+    button { margin-top:12px; width:100%; padding:8px; background:#f60; border:none; color:#111; font-weight:600; border-radius:4px; cursor:pointer; }
+    .status { margin-top:8px; font-size:11px; color:#7c7; min-height:14px; }
+  </style>
+</head>
+<body>
+  <strong>X Provisioning Autofill</strong>
+  <label>Backend URL</label>
+  <input id="backendUrl" placeholder="http://localhost:8000/api" />
+  <label>Agent token</label>
+  <input id="agentToken" type="password" placeholder="PROVISIONING_AGENT_TOKEN" />
+  <label>Account ID</label>
+  <input id="accountId" placeholder="spike_test_1" />
+  <button id="save">Save</button>
+  <div class="status" id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
