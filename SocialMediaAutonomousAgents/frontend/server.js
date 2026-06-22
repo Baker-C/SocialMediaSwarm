@@ -6,7 +6,9 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const { SocksProxyAgent } = require('socks-proxy-agent');
 
 const PORT = process.env.PORT || 3000;
-const target = process.env.REACT_APP_PROXY_TARGET || 'http://127.0.0.1:8000';
+// ponytail: default is the backend's current tailnet IP; override via REACT_APP_PROXY_TARGET
+// in Render if the backend node's 100.x address ever changes.
+const target = process.env.REACT_APP_PROXY_TARGET || 'http://100.122.18.35:8000';
 // ponytail: userspace-mode tailscale installs no kernel routes, so reach the
 // tailnet backend through tailscaled's SOCKS5 proxy (socks5h = remote DNS, so
 // MagicDNS names resolve). Unset TS_SOCKS5_PROXY to dial the target directly.
