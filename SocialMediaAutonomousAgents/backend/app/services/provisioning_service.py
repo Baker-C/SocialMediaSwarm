@@ -83,6 +83,10 @@ class ProvisioningService:
             email = DisposableEmailClient().create_inbox(account_id)
             self.secrets.upsert(account_id, disposable_email=email)
         card = settings.provisioning_card
+        password = (sec.password if sec and sec.password else None) or settings.provisioning_password
+        if not (sec and sec.password):
+            # Persist the fixed password so re-login works later.
+            self.secrets.upsert(account_id, password=password)
         return ProvisioningJob(
             account_id=account_id,
             handle=acc.profile.twitter_handle,
@@ -91,6 +95,7 @@ class ProvisioningService:
             avatar_asset_id=acc.provisioning.images.avatar_asset_id,
             header_asset_id=acc.provisioning.images.header_asset_id,
             email=email,
+            password=password,
             card=card,
         )
 

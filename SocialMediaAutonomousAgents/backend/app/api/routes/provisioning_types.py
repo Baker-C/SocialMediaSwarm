@@ -22,6 +22,7 @@ class ProvisioningJob(BaseModel):
     avatar_asset_id: str | None
     header_asset_id: str | None
     email: str
+    password: str | None = None  # the account's fixed/shared password (modal fills this)
     card: dict | None = None  # {number, exp, cvv, name} from .env, only if configured
 
 

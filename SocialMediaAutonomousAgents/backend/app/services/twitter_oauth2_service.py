@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 
 AUTHORIZE_URL = "https://x.com/i/oauth2/authorize"
 TOKEN_ENDPOINT = "https://api.x.com/2/oauth2/token"
+USERS_ME_ENDPOINT = "https://api.x.com/2/users/me"
 REFRESH_BUFFER_SECONDS = 300
+IDENTITY_MAX_ATTEMPTS = 3
 
 
 @dataclass
@@ -38,7 +40,11 @@ class OAuthConnectionStatus:
     expires_at: str | None = None
     scopes: str | None = None
     x_user_id: str | None = None
+    x_username: str | None = None
     updated_at: str | None = None
+    # True when connected but the X identity (x_user_id) could not be resolved,
+    # so the binding cannot be proven unique.
+    unverified: bool = False
 
 
 class TwitterOAuth2Service:
@@ -99,18 +105,31 @@ class TwitterOAuth2Service:
         token = self._tokens.load_token(account_id)
         if token is None:
             return OAuthConnectionStatus(connected=False)
-        connected = self.is_connected(account_id)
+        connected = self._token_is_connected(token)
         return OAuthConnectionStatus(
             connected=connected,
             expires_at=token.expires_at,
             scopes=token.scopes or None,
             x_user_id=token.x_user_id,
+            x_username=token.x_username,
             updated_at=token.updated_at,
+            unverified=connected and not (token.x_user_id or "").strip(),
         )
 
     def is_connected(self, account_id: str) -> bool:
         token = self._tokens.load_token(account_id)
-        if token is None or not (token.access_token_enc or "").strip():
+        if token is None:
+            return False
+        return self._token_is_connected(token)
+
+    def _token_is_connected(self, token: OAuthTokenDocument) -> bool:
+        """Connected implies a decryptable, non-empty access token (not merely a record)."""
+        if not (token.access_token_enc or "").strip():
+            return False
+        try:
+            if not self._decrypt(token.access_token_enc):
+                return False
+        except ValueError:
             return False
         if (token.refresh_token_enc or "").strip():
             return True
@@ -196,9 +215,9 @@ class TwitterOAuth2Service:
             raise ValueError("oauth2 token response was not a JSON object")
         return payload
 
-    def _handle_exchange_oauth_error(self, exc: XOAuthError, *, state: str) -> None:
+    def _handle_exchange_oauth_error(self, exc: XOAuthError) -> None:
+        # Session cleanup is owned by the caller's try/finally; do not delete here.
         if exc.error == "invalid_grant":
-            self._tokens.delete_session(state)
             raise ValueError(
                 "Authorization code expired or already used. "
                 "Please restart X connection from GET /api/oauth/x/authorize."
@@ -213,12 +232,10 @@ class TwitterOAuth2Service:
                 "Verify TWITTER_OAUTH2_CLIENT_ID and TWITTER_OAUTH2_CLIENT_SECRET."
             ) from exc
         if exc.error == "access_denied":
-            self._tokens.delete_session(state)
             raise ValueError(
                 "X authorization was denied. Please try connecting again."
             ) from exc
         if exc.error == "invalid_request":
-            self._tokens.delete_session(state)
             detail = exc.error_description or "Invalid OAuth request."
             raise ValueError(f"OAuth request failed: {detail}") from exc
         detail = exc.error_description or str(exc)
@@ -249,7 +266,48 @@ class TwitterOAuth2Service:
             ) from exc
         raise exc
 
-    def _store_token_response(self, account_id: str, payload: dict, *, x_user_id: str | None = None) -> OAuthTokenDocument:
+    def _resolve_identity(self, access_token: str) -> tuple[str | None, str | None]:
+        """Resolve (x_user_id, x_username) via GET /2/users/me?user.fields=username.
+
+        Bounded retry on 429/5xx/network so a transient flake does not silently null out
+        the identity (which would defeat the duplicate-binding guard). Returns (None, None)
+        if identity cannot be resolved after all attempts.
+        """
+        token = (access_token or "").strip()
+        if not token:
+            return None, None
+        headers = {"Authorization": f"Bearer {token}"}
+        params = {"user.fields": "username"}
+        for attempt in range(1, IDENTITY_MAX_ATTEMPTS + 1):
+            try:
+                with httpx.Client(timeout=20) as client:
+                    resp = client.get(USERS_ME_ENDPOINT, params=params, headers=headers)
+            except httpx.HTTPError as exc:
+                logger.warning("oauth2: users/me network error attempt=%s: %s", attempt, exc)
+                continue
+            if resp.status_code == 429 or resp.status_code >= 500:
+                logger.warning("oauth2: users/me transient http=%s attempt=%s", resp.status_code, attempt)
+                continue
+            if resp.status_code >= 400:
+                logger.warning("oauth2: users/me failed http=%s: %s", resp.status_code, (resp.text or "")[:300])
+                return None, None
+            try:
+                data = resp.json().get("data") or {}
+            except Exception:
+                return None, None
+            uid = str(data.get("id") or "").strip() or None
+            username = str(data.get("username") or "").strip() or None
+            return uid, username
+        return None, None
+
+    def _store_token_response(
+        self,
+        account_id: str,
+        payload: dict,
+        *,
+        x_user_id: str | None = None,
+        x_username: str | None = None,
+    ) -> OAuthTokenDocument:
         access = str(payload.get("access_token") or "").strip()
         if not access:
             raise ValueError("oauth2 token response missing access_token")
@@ -259,6 +317,7 @@ class TwitterOAuth2Service:
         token = OAuthTokenDocument(
             account_id=account_id,
             x_user_id=x_user_id,
+            x_username=x_username,
             access_token_enc=self._encrypt(access),
             refresh_token_enc=self._encrypt(refresh) if refresh else None,
             expires_at=self._expires_at(expires_in),
@@ -295,13 +354,43 @@ class TwitterOAuth2Service:
             "redirect_uri": self._redirect_uri(),
             "code_verifier": session.code_verifier,
         }
+        account_id = session.account_id
         try:
-            payload = self._post_token(body)
-        except XOAuthError as exc:
-            self._handle_exchange_oauth_error(exc, state=state)
-        token = self._store_token_response(session.account_id, payload)
-        self._tokens.delete_session(state)
-        return token
+            try:
+                payload = self._post_token(body)
+            except XOAuthError as exc:
+                self._handle_exchange_oauth_error(exc)
+
+            access = str(payload.get("access_token") or "").strip()
+            x_uid, x_username = self._resolve_identity(access)
+
+            if x_uid:
+                # Duplicate-binding guard (the single chokepoint for manual + agent flows):
+                # reject if this X user is already bound to a DIFFERENT account.
+                owner = self._tokens.find_account_by_x_user_id(x_uid)
+                if owner and owner != account_id:
+                    handle = f"@{x_username}" if x_username else f"x_user_id {x_uid}"
+                    raise ValueError(
+                        f"This X account ({handle}) is already connected to account "
+                        f"'{owner}'. Each dashboard account must use a distinct X account. "
+                        f"Disconnect '{owner}' or sign in to X as the correct user, then retry."
+                    )
+                # Atomically claim the binding to close the TOCTOU race (allows same-account reconnect).
+                if not self._tokens.claim_binding(x_uid, account_id):
+                    owner = self._tokens.find_account_by_x_user_id(x_uid) or "another account"
+                    handle = f"@{x_username}" if x_username else f"x_user_id {x_uid}"
+                    raise ValueError(
+                        f"This X account ({handle}) is already connected to account "
+                        f"'{owner}'. Each dashboard account must use a distinct X account."
+                    )
+
+            # If x_uid is null, store but do not treat as unique (unverified).
+            token = self._store_token_response(
+                account_id, payload, x_user_id=x_uid, x_username=x_username
+            )
+            return token
+        finally:
+            self._tokens.delete_session(state)
 
     def refresh_account_tokens(self, account_id: str) -> bool:
         token = self._tokens.load_token(account_id)
@@ -325,7 +414,22 @@ class TwitterOAuth2Service:
             payload = self._post_token(body)
         except XOAuthError as exc:
             self._handle_refresh_oauth_error(exc, account_id=account_id)
-        self._store_token_response(account_id, payload, x_user_id=token.x_user_id)
+
+        x_user_id = token.x_user_id
+        x_username = token.x_username
+        # Self-heal: if identity was never captured (or partially), resolve it now so the
+        # binding guard has something to enforce. Never overwrite a known value with null.
+        if not (x_user_id or "").strip() or not (x_username or "").strip():
+            access = str(payload.get("access_token") or "").strip()
+            resolved_uid, resolved_username = self._resolve_identity(access)
+            x_user_id = (x_user_id or "").strip() or resolved_uid
+            x_username = (x_username or "").strip() or resolved_username
+            if resolved_uid:
+                self._tokens.claim_binding(resolved_uid, account_id)
+
+        self._store_token_response(
+            account_id, payload, x_user_id=x_user_id, x_username=x_username
+        )
         return True
 
     def _needs_refresh(self, token: OAuthTokenDocument) -> bool:

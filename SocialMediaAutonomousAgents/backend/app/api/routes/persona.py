@@ -44,7 +44,10 @@ from app.services.account_create_service import (
     AccountCreateBody,
     apply_account_create,
 )
+from app.models.account import AccountDocument
+from app.models.account_secrets import AccountSecretsDocument
 from app.services.account_repository import AccountRepository
+from app.services.account_secrets_service import AccountSecretsService
 from app.services.persona_image_service import (
     generate_persona_image,
     generate_persona_images,
@@ -58,6 +61,7 @@ router = APIRouter()
 claude = ClaudeClient(model="claude-opus-4-8")
 
 repo = AccountRepository()
+secrets = AccountSecretsService()
 
 _REPHRASE = "Tell me more about the account — niche, audience, voice, name."
 
@@ -107,33 +111,37 @@ def _run_turn(req: PersonaChatRequest, emit: Callable[[dict], None]) -> None:
 
 
 def _do_approve(req: PersonaChatRequest, emit: Callable[[dict], None]) -> None:
-    """The approve path: generate images, write the account, stamp the provisioning sub-doc."""
+    """Assign the persona to an open active slot (renamed to its handle), carrying the
+    slot's number + password. No open slot -> park it as a retired account. No X
+    registration here — signup happens separately in the desktop app."""
     spec = req.proposal
     if spec is None:
         emit(emit_validation_errors(["No persona to approve — propose one first."]))
         return
-    if not (req.account_id or "").strip():
-        emit(emit_validation_errors(["Account ID is required to provision — set it before approving."]))
+    handle = (spec.handle or "").strip()
+    if not handle:
+        emit(emit_validation_errors(["Persona needs a handle."]))
+        return
+    if repo.load(handle) is not None:
+        emit(emit_validation_errors([f"An account '{handle}' already exists."]))
         return
 
-    # 1) Images (04). generate_persona_images may raise; surfaced as an error event.
     emit(emit_images_generating())
     avatar_id, header_id = generate_persona_images(spec.avatar_prompt, spec.header_prompt)
     emit(emit_images_ready(avatar_id, header_id))
 
-    # 2) Write the account via the existing create path. display_name/bio are NOT
-    #    create-body fields — they go on the provisioning sub-doc below (step 3).
-    body = AccountCreateBody(
-        account_id=req.account_id,
-        category=spec.category,
-        twitter_handle=spec.handle,
-        personality=spec.personality,
-        posting_prompt=spec.posting_prompt,
+    # First open slot: active, not retired, no persona yet (lowest account_id).
+    slot = next(
+        (a for a in sorted(repo.list_all_accounts(include_retired=True), key=lambda a: a.account_id)
+         if not a.retired and not a.provisioning.persona_assigned),
+        None,
     )
-    apply_account_create(body)
 
-    # 3) Provisioning sub-doc: identity + image refs + status="draft".
-    acc = repo.load(req.account_id)
+    apply_account_create(AccountCreateBody(
+        account_id=handle, category=spec.category, twitter_handle=handle,
+        personality=spec.personality, posting_prompt=spec.posting_prompt,
+    ))
+    acc = repo.load(handle)
     if spec.niches:
         acc.soul.niches = [Niche(niche=n.strip()) for n in spec.niches if n and n.strip()]
     acc.provisioning.display_name = spec.display_name
@@ -141,9 +149,23 @@ def _do_approve(req: PersonaChatRequest, emit: Callable[[dict], None]) -> None:
     acc.provisioning.images.avatar_asset_id = avatar_id
     acc.provisioning.images.header_asset_id = header_id
     acc.provisioning.status = "draft"
+    acc.provisioning.persona_assigned = True
+    acc.retired = slot is None  # no open slot -> park as retired
     repo.save(acc)
 
-    emit(emit_account_written(req.account_id))
+    if slot is not None:
+        sec = secrets.get(slot.account_id)
+        if sec:
+            secrets.upsert(
+                handle,
+                disposable_phone=sec.disposable_phone,
+                disposable_phone_lease=sec.disposable_phone_lease,
+                password=sec.password,
+            )
+        secrets.repo.client.delete_document(AccountSecretsDocument.document_id(slot.account_id))
+        repo.client.delete_document(AccountDocument.document_id(slot.account_id))
+
+    emit(emit_account_written(handle))
 
 
 def _run_persona_turn(req: PersonaChatRequest, emit: Callable[[dict], None]) -> None:

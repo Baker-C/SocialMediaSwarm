@@ -8,6 +8,7 @@ class OAuthTokenDocument(BaseModel):
 
     account_id: str
     x_user_id: str | None = None
+    x_username: str | None = None
     access_token_enc: str
     refresh_token_enc: str | None = None
     expires_at: str
