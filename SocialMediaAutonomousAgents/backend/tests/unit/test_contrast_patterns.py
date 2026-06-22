@@ -46,9 +46,7 @@ def test_compose_user_prompt_includes_contrast_guidance() -> None:
     with patch("app.interval.compose_timeline_post.get_claude_client") as mock_claude:
         mock_claude.return_value.enabled = True
         mock_claude.return_value.messages_json_dict.return_value = {
-            "headline": "Head",
-            "opinion": "Sharp take on the story.",
-            "quip": "Follow for updates",
+            "post": "Sharp take on the story.",
         }
         compose_formatted_post(
             winner,

@@ -131,6 +131,19 @@ def run(ctx: TickRunContext, deps: PostRunDeps) -> StepResult:
                 regeneration_round=reg_round,
                 safety_reject_reason=candidate_reject if reg_round > 0 else None,
             )
+            if body is None:
+                # Compose could not produce a post (LLM unavailable or generation failed).
+                # Retrying or trying other references won't help — skip this tick cleanly.
+                logger.warning(
+                    "compose_until_safe: compose returned None tweet_id=%s — skipping post",
+                    winner.tweet_id,
+                )
+                ctx.set_artifact(
+                    ArtifactKey.SAFETY_VERDICT,
+                    {"approved": False, "last_reject": "compose_failed",
+                     "references_tried": references_tried, "regeneration_round": 0},
+                )
+                return StepResult(ok=True, skipped=True, skip_reason="compose_failed")
             if own_posts_raw:
                 similar_post = _similar_recent_post(body, own_posts_raw)
                 if similar_post is not None:

@@ -197,15 +197,19 @@ def run(ctx: TickRunContext, deps: Any) -> StepResult:
         )
 
         if draft is None:
-            # LLM disabled — write a deterministic stub and treat it as approved
-            stub = f"Check out this {situation.replace('_', ' ')}!"
-            ctx.data["composed_post_with_media"] = {"text": stub, "media_keys": media_keys}
+            # Compose could not produce a caption (LLM unavailable or generation failed).
+            # Skip cleanly rather than posting a fabricated stub.
+            logger.warning(
+                "compose_with_media: caption compose returned None situation=%s — skipping post",
+                situation,
+            )
+            ctx.data["composed_post_with_media"] = {"text": None, "media_keys": media_keys}
             ctx.set_artifact(
                 ArtifactKey.SAFETY_VERDICT,
-                {"approved": True, "last_reject": None, "references_tried": 0,
+                {"approved": False, "last_reject": "compose_failed", "references_tried": 0,
                  "regeneration_round": 0},
             )
-            return StepResult(ok=True, payload={"text": stub, "media_keys": media_keys})
+            return StepResult(ok=True, skipped=True, skip_reason="compose_failed")
 
         approved, reject = guardian.evaluate(draft, niche=niche)
         if approved:

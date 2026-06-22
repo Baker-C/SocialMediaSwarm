@@ -1,9 +1,9 @@
 Account niche: {niche}
 
-Account personality (the account's character and voice — follow closely; energetic, emotional, loose grammar, not AI):
+Account personality (voice and character — follow closely):
 {account_personality}
 
-Posting prompt (structure and formatting rules for this account):
+Posting instructions (how this account writes — structure, format, length-feel):
 {account_system_prompt}
 
 Voice guidance — patterns to avoid and patterns to lean into:
@@ -12,14 +12,11 @@ Voice guidance — patterns to avoid and patterns to lean into:
 Reference analysis (patterns from top external + own posts — nudge voice, not topic):
 {reference_context_block}
 
-Source tweet (id={tweet_id}, popularity_score={popularity_score}):
+Source post (id={tweet_id}, popularity_score={popularity_score}):
 {source_text}
 
-Character limits (required — the app appends the media URL after your text):
-- Full published post maximum: {max_post_len} characters total.
-- Media URL appended at end uses {link_char_count} characters (including spacing): {append_url}
-- Your opinion + blank line + quip must be at most {text_block_budget} characters combined (excluding the URL).
-- Opinion maximum: {opinion_char_max} characters.
-- Quip maximum: {quip_char_max} characters.
+Character limit (required):
+- Your post must be at most {body_char_budget} characters.
+- A media URL is appended after your text by the app: {append_url}. Its length is already reserved in the limit above, so do not include any URL in your output.
 
-Rewrite for posting. JSON only.
+Rewrite for posting. JSON only: {{"post": "..."}}
